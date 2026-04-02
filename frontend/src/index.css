@@ -495,3 +495,24 @@ pre {
 
 .tab:hover { color: var(--text-primary); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Light theme ── */
+[data-theme="light"] {
+  --bg-primary: #f5f6fa;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #ebedf2;
+  --bg-hover: #e4e6ed;
+  --text-primary: #1a1d27;
+  --text-secondary: #4b5060;
+  --text-muted: #8b90a0;
+  --border: #d4d7e0;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+[data-theme="light"] .tip-content,
+[data-theme="light"] .tip-arrow { /* tooltip stays dark */ }
+
+/* ── Log line coloring ── */
+.log-line-error { color: var(--error); }
+.log-line-warn { color: var(--warning); }
+.log-line-muted { color: var(--text-muted); }
+.log-line-ok { color: var(--success); }

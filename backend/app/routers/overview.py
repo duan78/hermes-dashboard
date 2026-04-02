@@ -52,11 +52,19 @@ async def get_overview():
             "provider": model_cfg.get("provider", "unknown"),
         }
 
-    # Sessions count
+    # Sessions count + total messages
     sessions_dir = hermes_path("sessions")
     if sessions_dir.exists():
         session_files = list(sessions_dir.glob("session_*.json"))
         result["sessions"]["total"] = len(session_files)
+        total_messages = 0
+        for f in session_files:
+            try:
+                sd = json.loads(f.read_text())
+                total_messages += sd.get("message_count", 0)
+            except (json.JSONDecodeError, Exception):
+                continue
+        result["sessions"]["messages"] = total_messages
 
     # Skills count
     skills_dir = hermes_path("skills")

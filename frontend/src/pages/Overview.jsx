@@ -87,7 +87,10 @@ export default function Overview() {
             <Tooltip text="Total number of conversation sessions. Each session represents a separate conversation thread across all platforms (CLI, Telegram, Discord, etc.)." />
           </div>
           <div className="stat-value">{data.sessions?.total || 0}</div>
-          <div className="stat-detail">Total</div>
+          <div className="stat-detail">
+            <MessageSquare size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+            {data.sessions?.messages || 0} messages
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">
