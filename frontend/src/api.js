@@ -53,8 +53,10 @@ export const api = {
 
   // Skills
   listSkills: () => request('/skills'),
+  listSkillsDetailed: () => request('/skills/list'),
   browseSkills: (query = '') => request(`/skills/browse${query ? `?query=${encodeURIComponent(query)}` : ''}`),
   inspectSkill: (name) => request(`/skills/${name}`),
+  skillDetail: (name) => request(`/skills/detail/${encodeURIComponent(name)}`),
   installSkill: (name) => request('/skills/install', { method: 'POST', body: JSON.stringify({ name }) }),
   uninstallSkill: (name) => request('/skills/uninstall', { method: 'POST', body: JSON.stringify({ name }) }),
 

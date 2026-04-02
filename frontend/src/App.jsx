@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Wrench, BookOpen,
+  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X
 } from 'lucide-react'
 import Overview from './pages/Overview'
@@ -17,6 +17,7 @@ import Insights from './pages/Insights'
 import Chat from './pages/Chat'
 import Files from './pages/Files'
 import TerminalPage from './pages/TerminalPage'
+import SkillsHub from './pages/SkillsHub'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { to: '/terminal', icon: Terminal, label: 'Terminal' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/skills', icon: BookOpen, label: 'Skills' },
+  { to: '/skills-hub', icon: Puzzle, label: 'Skills Hub' },
   { to: '/cron', icon: Clock, label: 'Cron Jobs' },
   { to: '/memory', icon: Brain, label: 'Memory & SOUL' },
   { to: '/models', icon: Cpu, label: 'Models' },
@@ -80,6 +82,7 @@ function App() {
           <Route path="/terminal" element={<TerminalPage />} />
           <Route path="/tools" element={<Tools />} />
           <Route path="/skills" element={<Skills />} />
+          <Route path="/skills-hub" element={<SkillsHub />} />
           <Route path="/cron" element={<CronJobs />} />
           <Route path="/memory" element={<MemorySoul />} />
           <Route path="/models" element={<Models />} />

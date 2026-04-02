@@ -1,0 +1,457 @@
+/* ── Skills Hub Page ── */
+
+/* Stats bar */
+.sh-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.sh-stat {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+
+.sh-stat.clickable {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sh-stat.clickable:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.sh-stat.clickable.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.sh-stat-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sh-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+}
+
+/* Search toolbar */
+.sh-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.sh-search {
+  flex: 1;
+  max-width: 500px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sh-search > svg {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.sh-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.sh-search-input:focus {
+  border-color: var(--accent);
+}
+
+.sh-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.sh-search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+}
+
+.sh-search-clear:hover {
+  color: var(--text-primary);
+}
+
+/* Skills grid */
+.sh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 640px) {
+  .sh-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Skill card */
+.sh-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sh-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 16px rgba(139, 92, 246, 0.1);
+  transform: translateY(-1px);
+}
+
+.sh-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sh-card-icon {
+  color: var(--accent);
+  display: flex;
+}
+
+.sh-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sh-card-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  flex: 1;
+}
+
+.sh-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sh-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.sh-badge.muted {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.sh-card-files {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Detail Drawer ── */
+
+.sh-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 500;
+  display: flex;
+  justify-content: flex-end;
+  animation: fade-in 0.15s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sh-drawer {
+  width: 600px;
+  max-width: 90vw;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: slide-in 0.2s ease;
+}
+
+@keyframes slide-in {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.sh-drawer-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+  z-index: 10;
+}
+
+.sh-drawer-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.sh-drawer-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sh-drawer-filecount {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sh-drawer-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sh-drawer-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.sh-drawer-desc {
+  padding: 16px 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  border-bottom: 1px solid var(--border);
+}
+
+.sh-drawer-tags {
+  padding: 12px 20px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.sh-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.sh-drawer-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sh-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sh-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Markdown in drawer */
+.sh-markdown {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+
+.sh-markdown h1, .sh-markdown h2, .sh-markdown h3 {
+  color: var(--text-primary);
+  margin: 16px 0 8px;
+  font-weight: 600;
+}
+
+.sh-markdown h1 { font-size: 20px; }
+.sh-markdown h2 { font-size: 17px; }
+.sh-markdown h3 { font-size: 15px; }
+
+.sh-markdown p { margin: 6px 0; }
+
+.sh-markdown code {
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.sh-markdown pre {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.sh-markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+.sh-markdown ul, .sh-markdown ol {
+  margin: 6px 0;
+  padding-left: 24px;
+}
+
+.sh-markdown li { margin: 2px 0; }
+
+.sh-markdown blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-secondary);
+}
+
+.sh-markdown a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sh-markdown a:hover { text-decoration: underline; }
+
+.sh-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.sh-markdown th, .sh-markdown td {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.sh-markdown th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+
+/* File tree in drawer */
+.sh-file-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sh-file-group-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.sh-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 24px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-radius: 4px;
+}
+
+.sh-file-item:hover {
+  background: var(--bg-hover);
+}
+
+.sh-file-name {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.sh-file-size {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
