@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Settings, MessageSquare, Wrench, BookOpen,
+  LayoutDashboard, Settings, MessageSquare, MessageCircle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X
 } from 'lucide-react'
 import Overview from './pages/Overview'
@@ -14,9 +14,11 @@ import MemorySoul from './pages/MemorySoul'
 import Models from './pages/Models'
 import Platforms from './pages/Platforms'
 import Insights from './pages/Insights'
+import Chat from './pages/Chat'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
+  { to: '/chat', icon: MessageCircle, label: 'Chat' },
   { to: '/config', icon: Settings, label: 'Configuration' },
   { to: '/sessions', icon: MessageSquare, label: 'Sessions' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
@@ -65,6 +67,8 @@ function App() {
       <main className="main-content">
         <Routes>
           <Route path="/" element={<Overview />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat/:id" element={<Chat />} />
           <Route path="/config" element={<Config />} />
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/sessions/:id" element={<Sessions />} />
