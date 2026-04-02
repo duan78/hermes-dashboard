@@ -1,20 +1,7 @@
 import { useState, useEffect } from 'react'
-import { BarChart3, RefreshCw, Cpu, Users, Activity, Trophy, Zap, Clock } from 'lucide-react'
+import { BarChart3, RefreshCw } from 'lucide-react'
 import { api } from '../api'
 import './insights.css'
-
-const BAR_COLORS = {
-  --accent: #8b5cf6;
-  --accent-rgb: #10, 185, 129, 0.424* 40%);
-
-  --bar-color:rgb: #51, 187, 255, 0.4% 40%;
-
-  --insights-bar: linear-gradient(to right, from var(--percent);
-  width: 100%;
-  height: 6px;
-}
-
-`;
 
 export default function Insights() {
   const [data, setData] = useState(null)
@@ -24,22 +11,22 @@ export default function Insights() {
 
   const load = async () => {
     try {
-      setLoading(true);
-      const d = await api.getInsights(days);
-      setData(d);
-      setError(null);
+      setLoading(true)
+      const d = await api.getInsights(days)
+      setData(d)
+      setError(null)
     } catch (e) {
-      setError(e.message);
+      setError(e.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  useEffect(() => { load() }, [days]);
+  useEffect(() => { load() }, [days])
 
-  if (loading) return <div className="spinner" />;
+  if (loading) return <div className="spinner" />
   if (error) return <div className="error-box">{error}</div>
-  if (!data) return null;
+  if (!data) return null
 
   return (
     <div>
@@ -59,22 +46,12 @@ export default function Insights() {
         </div>
       </div>
 
-      {error && <div className="error-box">{error}</div>
-
-      {loading ? <div className="spinner" /> : (
-      {!data ? (
-        <>
-
-        {/* Period info */}
-        {data.period && (
-          <div className="stat-card" style={{ marginBottom: 12 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{data.period}</span>
-          </div>
-        )}
-
+      {/* Period info */}
+      {data.period && (
+        <div className="insights-period">{data.period}</div>
       )}
 
-        {/* Overview stat cards */}
+      {/* Overview stat cards */}
       {Object.keys(data.overview).length > 0 && (
         <div className="grid grid-4" style={{ marginBottom: 20 }}>
           {Object.entries(data.overview).map(([key, value]) => (
@@ -86,7 +63,7 @@ export default function Insights() {
         </div>
       )}
 
-      {/* Models table */}
+      {/* Models Used */}
       {data.models.length > 0 && (
         <div className="card">
           <div className="card-header">
@@ -100,7 +77,7 @@ export default function Insights() {
               <tbody>
                 {data.models.map((m, i) => (
                   <tr key={i}>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{m.model}</td>
+                    <td className="mono-sm">{m.model}</td>
                     <td>{m.sessions}</td>
                     <td>{m.tokens}</td>
                     <td>{m.cost}</td>
@@ -112,7 +89,7 @@ export default function Insights() {
         </div>
       )}
 
-      {/* Platforms table */}
+      {/* Platforms */}
       {data.platforms.length > 0 && (
         <div className="card">
           <div className="card-header">
@@ -147,27 +124,26 @@ export default function Insights() {
           <div className="table-container">
             <table>
               <thead>
-                <tr><th>Tool</th><th>Calls</th><th>%</th></tr>
+                <tr><th>Tool</th><th>Calls</th><th>Usage</th></tr>
               </thead>
               <tbody>
                 {data.tools.map((t, i) => {
-                  const pct = parseFloat(t.percent) || 0;
+                  const pct = parseFloat(t.percent) || 0
                   return (
-                  <tr key={i}>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{t.tool}</td>
-                    <td>{t.calls}</td>
-                    <td>
-                      <div style={{ width: 100, background: 'var(--bg-tertiary)', height: 6 }}>
-                        <div style={{
-                          width: `${pct}%`,
-                          height: 6,
-                          background: 'var(--accent)',
-                          borderRadius: 1,
-                        }} />
-                      <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 12 }}>{t.percent}</span>
-                    </td>
-                  </tr>
-                ))}
+                    <tr key={i}>
+                      <td className="mono-sm">{t.tool}</td>
+                      <td>{t.calls}</td>
+                      <td>
+                        <div className="progress-row">
+                          <div className="progress-bar-bg">
+                            <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="progress-label">{t.percent}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -180,25 +156,30 @@ export default function Insights() {
           <div className="card-header">
             <span className="card-title">Activity</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="activity-chart">
             {Object.entries(data.activity.days).map(([day, count]) => {
-              <div key={day} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{day}</span>
-                <div
-                  style={{
-                    width: `${count / max * 100}%`,
-                    height: 6,
-                    background: 'var(--accent-bg)',
-                    borderRadius: 1,
-                  }}
+              const max = Math.max(...Object.values(data.activity.days))
+              return (
+                <div key={day} className="activity-bar-col">
+                  <div className="activity-bar-count">{count}</div>
+                  <div className="activity-bar-track">
+                    <div
+                      className="activity-bar-fill"
+                      style={{ height: max > 0 ? `${(count / max) * 100}%` : '0%' }}
+                    />
+                  </div>
+                  <div className="activity-bar-label">{day}</div>
                 </div>
-              ))}
-            </div>
+              )
+            })}
           </div>
-          {data.activity.peak_hours && (
-            <div className="stat-card" style={{ marginTop: 12 }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Peak hours: {data.activity.peak_hours}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{data.activity.active_days} sessions</span>
+          <div className="activity-meta">
+            {data.activity.peak_hours && (
+              <span>Peak hours: {data.activity.peak_hours}</span>
+            )}
+            {data.activity.active_days > 0 && (
+              <span>Active days: {data.activity.active_days}</span>
+            )}
           </div>
         </div>
       )}
@@ -209,23 +190,32 @@ export default function Insights() {
           <div className="card-header">
             <span className="card-title">Notable Sessions</span>
           </div>
-          {data.notable.map((s, i) => (
-            <div key={i} className="notable-item" style={{ display: 'flex', gap: 12 }}>
-              <span className="notable-label" style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{s.label}</span>
-              <div className="stat-value" style={{ fontSize: 18 }}>{s.value}</div>
-              <div className="stat-detail" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.detail}</div>
-            </div>
-          ))}
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr><th>Metric</th><th>Value</th><th>Detail</th></tr>
+              </thead>
+              <tbody>
+                {data.notable.map((s, i) => (
+                  <tr key={i}>
+                    <td className="fw-600">{s.label}</td>
+                    <td className="mono-sm">{s.value}</td>
+                    <td className="mono-xs text-muted">{s.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Fallback raw text */}
+      {/* Raw Output fallback */}
       {data.raw && (
         <div className="card">
           <div className="card-header">
             <span className="card-title">Raw Output</span>
           </div>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, maxHeight: 400 }}>{data.raw}</pre>
+          <pre className="raw-output">{data.raw}</pre>
         </div>
       )}
     </div>
