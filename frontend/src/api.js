@@ -79,4 +79,11 @@ export const api = {
 
   // Insights
   getInsights: (days = 7) => request(`/insights?days=${days}`),
+
+  // Files
+  listFiles: (path = '') => request(`/files?path=${encodeURIComponent(path)}`),
+  getFileTree: () => request('/files/tree'),
+  readFile: (path) => request(`/files/read?path=${encodeURIComponent(path)}`),
+  writeFile: (path, content) => request('/files/write', { method: 'PUT', body: JSON.stringify({ path, content }) }),
+  deleteFile: (path) => request(`/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' }),
 };

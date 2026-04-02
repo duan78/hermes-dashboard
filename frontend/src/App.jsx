@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Settings, MessageSquare, MessageCircle, Wrench, BookOpen,
+  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X
 } from 'lucide-react'
 import Overview from './pages/Overview'
@@ -15,12 +15,14 @@ import Models from './pages/Models'
 import Platforms from './pages/Platforms'
 import Insights from './pages/Insights'
 import Chat from './pages/Chat'
+import Files from './pages/Files'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
   { to: '/chat', icon: MessageCircle, label: 'Chat' },
   { to: '/config', icon: Settings, label: 'Configuration' },
   { to: '/sessions', icon: MessageSquare, label: 'Sessions' },
+  { to: '/files', icon: FolderOpen, label: 'Files' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/skills', icon: BookOpen, label: 'Skills' },
   { to: '/cron', icon: Clock, label: 'Cron Jobs' },
@@ -72,6 +74,7 @@ function App() {
           <Route path="/config" element={<Config />} />
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/sessions/:id" element={<Sessions />} />
+          <Route path="/files" element={<Files />} />
           <Route path="/tools" element={<Tools />} />
           <Route path="/skills" element={<Skills />} />
           <Route path="/cron" element={<CronJobs />} />

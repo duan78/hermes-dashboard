@@ -1,0 +1,388 @@
+/* ── Files Page Layout ── */
+
+.files-layout {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  min-height: 500px;
+  background: var(--bg-secondary);
+}
+
+/* ── Sidebar Tree ── */
+
+.files-sidebar {
+  width: 240px;
+  min-width: 240px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+}
+
+.files-sidebar-title {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+}
+
+.files-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.tree-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+  transition: background 0.1s, color 0.1s;
+}
+
+.tree-item-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.tree-item-btn.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.tree-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-icon-folder {
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.tree-icon-file {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tree-children {
+  /* nested items */
+}
+
+.tree-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  font-style: italic;
+}
+
+.tree-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 12px;
+}
+
+/* ── Main Panel ── */
+
+.files-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Breadcrumb ── */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  flex-wrap: wrap;
+  min-height: 40px;
+}
+
+.breadcrumb-item {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-sans);
+  transition: color 0.1s, background 0.1s;
+}
+
+.breadcrumb-item:hover {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.breadcrumb-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--text-muted);
+}
+
+/* ── File List (Directory View) ── */
+
+.files-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.files-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  transition: background 0.1s, color 0.1s;
+}
+
+.files-list-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.files-list-item.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.files-list-item.back {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.files-list-item.back:hover {
+  color: var(--text-primary);
+}
+
+.files-list-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.files-list-icon.dir {
+  color: var(--warning);
+}
+
+.files-list-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-list-size {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  min-width: 60px;
+  text-align: right;
+}
+
+.files-list-date {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 130px;
+  text-align: right;
+}
+
+/* ── File Viewer / Editor ── */
+
+.file-viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.file-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.file-info {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.file-ext-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-save-msg {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.file-save-msg.success {
+  color: var(--success);
+}
+
+.file-save-msg.error {
+  color: var(--error);
+}
+
+/* ── File Content (read-only) ── */
+
+.file-content {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  background: var(--bg-primary);
+}
+
+.file-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.file-content .line-num {
+  padding: 0 12px;
+  text-align: right;
+  color: var(--text-muted);
+  user-select: none;
+  width: 1%;
+  white-space: nowrap;
+  vertical-align: top;
+  border-right: 1px solid var(--border);
+  background: var(--bg-secondary);
+  font-size: 12px;
+}
+
+.file-content .line-text {
+  padding: 0 16px;
+  vertical-align: top;
+}
+
+.file-content .line-text pre {
+  margin: 0;
+  white-space: pre;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ── File Editor (textarea) ── */
+
+.file-editor {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+/* ── Button small (reuse) ── */
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 768px) {
+  .files-layout {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .files-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .files-list-date {
+    display: none;
+  }
+}
