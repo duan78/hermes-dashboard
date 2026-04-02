@@ -6,6 +6,32 @@ import './terminal.css'
 
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 
+/**
+ * Build the WebSocket URL. Works both in direct dev mode and
+ * behind a reverse-proxy path prefix like /dashboard/.
+ *
+ *  - Direct  (http://host:3100)  → ws://host:3100/ws/terminal
+ *  - Proxied (http://host/dashboard/) → ws://host/dashboard/ws/terminal
+ */
+function buildWsUrl() {
+  const proto = WS_PROTOCOL
+  const host = window.location.host
+
+  // Determine the base path from <base href> or the current pathname
+  let base = ''
+  const baseEl = document.querySelector('base')
+  if (baseEl && baseEl.getAttribute('href')) {
+    base = baseEl.getAttribute('href').replace(/\/$/, '')
+  } else {
+    // If the pathname starts with something other than / and contains
+    // at least two segments (e.g. /dashboard/), treat the first as base
+    const m = window.location.pathname.match(/^(\/[^/]+)\//)
+    if (m) base = m[1]
+  }
+
+  return `${proto}//${host}${base}/ws/terminal`
+}
+
 export default function TerminalPage() {
   const termRef = useRef(null)
   const containerRef = useRef(null)
@@ -53,9 +79,8 @@ export default function TerminalPage() {
     termRef.current = term
     term.open(containerRef.current)
 
-    // Connect WebSocket
-    const token = localStorage.getItem('hermes_token') || ''
-    const wsUrl = `${WS_PROTOCOL}//${window.location.host}/ws/terminal`
+    // Connect WebSocket — build URL dynamically to handle path prefixes
+    const wsUrl = buildWsUrl()
     const ws = new WebSocket(wsUrl)
 
     ws.binaryType = 'arraybuffer'

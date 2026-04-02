@@ -1,6 +1,11 @@
+import asyncio
+import os
+import struct
+import fcntl
+import termios
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -78,6 +83,114 @@ app.include_router(insights.router)
 app.include_router(chat.router)
 app.include_router(files.router)
 app.include_router(terminal.router)
+
+
+# ── Terminal WebSocket (mounted directly on app for reliable registration) ──
+
+@app.websocket("/ws/terminal")
+async def terminal_ws(websocket: WebSocket):
+    """WebSocket endpoint that spawns an interactive PTY shell."""
+    await websocket.accept()
+
+    shell = os.environ.get("SHELL", "/bin/bash")
+
+    try:
+        master_fd, slave_fd = os.openpty()
+    except OSError as e:
+        await websocket.send_text(f"\r\nFailed to create PTY: {e}\r\n")
+        await websocket.close()
+        return
+
+    cols, rows = 80, 24
+    home_dir = str(HERMES_HOME.parent) if HERMES_HOME else os.environ.get("HOME", "/root")
+
+    process = await asyncio.create_subprocess_exec(
+        shell,
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        env={
+            **os.environ,
+            "TERM": "xterm-256color",
+            "COLUMNS": str(cols),
+            "LINES": str(rows),
+            "HOME": home_dir,
+        },
+        start_new_session=True,
+    )
+
+    os.close(slave_fd)
+
+    async def read_pty():
+        """Read PTY output and send to WebSocket."""
+        loop = asyncio.get_event_loop()
+        try:
+            while process.returncode is None:
+                try:
+                    data = await loop.run_in_executor(None, os.read, master_fd, 4096)
+                    if not data:
+                        break
+                    await websocket.send_text(data.decode(errors="replace"))
+                except OSError:
+                    break
+        except Exception:
+            pass
+        finally:
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
+
+    async def write_pty():
+        """Read WebSocket messages and write to PTY."""
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                import json
+                try:
+                    msg = json.loads(raw)
+                except (json.JSONDecodeError, ValueError):
+                    os.write(master_fd, raw.encode())
+                    continue
+
+                if msg.get("type") == "input":
+                    os.write(master_fd, msg.get("data", "").encode())
+                elif msg.get("type") == "resize":
+                    nonlocal cols, rows
+                    cols = msg.get("cols", cols)
+                    rows = msg.get("rows", rows)
+                    try:
+                        winsize = struct.pack("HHHH", rows, cols, 0, 0)
+                        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
+                    except Exception:
+                        pass
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            pass
+
+    read_task = asyncio.create_task(read_pty())
+    write_task = asyncio.create_task(write_pty())
+
+    try:
+        await asyncio.gather(read_task, write_task, return_exceptions=True)
+    finally:
+        for task in [read_task, write_task]:
+            if not task.done():
+                task.cancel()
+        if process.returncode is None:
+            try:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=3)
+            except Exception:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+        try:
+            os.close(master_fd)
+        except OSError:
+            pass
 
 # Serve frontend static files in production
 static_dir = Path(__file__).parent.parent / "static"
