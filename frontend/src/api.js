@@ -25,6 +25,7 @@ export const api = {
   // Config
   getConfig: () => request('/config'),
   saveConfig: (yaml) => request('/config', { method: 'PUT', body: JSON.stringify({ yaml }) }),
+  saveStructuredConfig: (config) => request('/config/structured', { method: 'PUT', body: JSON.stringify(config) }),
   getConfigSections: () => request('/config/sections'),
   setConfigValue: (key, value) => request('/config/set', { method: 'POST', body: JSON.stringify({ key, value }) }),
 
