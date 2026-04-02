@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Clock, Plus, Pause, Play, Trash2, PlayCircle, RefreshCw } from 'lucide-react'
 import { api } from '../api'
+import Tooltip from '../components/Tooltip'
 
 export default function CronJobs() {
   const [jobs, setJobs] = useState([])
@@ -60,6 +61,7 @@ export default function CronJobs() {
       <div className="page-title">
         <Clock size={28} />
         Cron Jobs
+        <Tooltip text="Scheduled tasks that run automatically at defined times. Each cron job sends a prompt to the AI agent, which executes it like a normal conversation. Useful for recurring reports, health checks, data processing, and automated workflows." />
         <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
@@ -72,21 +74,35 @@ export default function CronJobs() {
 
       {showCreate && (
         <div className="card">
-          <div className="card-header"><span className="card-title">Create Cron Job</span></div>
+          <div className="card-header">
+            <span className="card-title">
+              Create Cron Job
+              <Tooltip text="Define a new scheduled task. The cron expression determines when it runs, and the prompt tells the AI what to do each time it triggers." />
+            </span>
+          </div>
           <div className="grid grid-2">
             <div className="form-group">
-              <label className="form-label">Schedule (cron expression)</label>
+              <label className="form-label">
+                Schedule (cron expression)
+                <Tooltip text='Standard 5-field cron expression: minute hour day-of-month month day-of-week. Examples: "*/30 * * * *" = every 30 min, "0 9 * * 1-5" = weekdays at 9 AM, "0 0 1 * *" = monthly on the 1st.' />
+              </label>
               <input className="form-input" placeholder="*/30 * * * *" value={newJob.schedule}
                 onChange={e => setNewJob({ ...newJob, schedule: e.target.value })} />
             </div>
             <div className="form-group">
-              <label className="form-label">Name (optional)</label>
+              <label className="form-label">
+                Name (optional)
+                <Tooltip text="A human-readable name to identify this job. If omitted, the job ID is used. Useful for managing multiple scheduled tasks." />
+              </label>
               <input className="form-input" placeholder="My job" value={newJob.name}
                 onChange={e => setNewJob({ ...newJob, name: e.target.value })} />
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Prompt</label>
+            <label className="form-label">
+              Prompt
+              <Tooltip text="The message sent to the AI agent each time the cron job triggers. This is treated like a user message in a new conversation. Be specific about what you want the agent to do." />
+            </label>
             <textarea className="form-textarea" placeholder="What should Hermes do?" value={newJob.prompt}
               onChange={e => setNewJob({ ...newJob, prompt: e.target.value })} />
           </div>
@@ -111,10 +127,10 @@ export default function CronJobs() {
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Schedule</th>
-                <th>Status</th>
-                <th>Last Run</th>
+                <th>Name <Tooltip text="The job's display name or its unique ID if no name was set." /></th>
+                <th>Schedule <Tooltip text='Cron expression defining when the job runs. Format: minute hour day-of-month month day-of-week. "*/30 * * * *" means every 30 minutes.' /></th>
+                <th>Status <Tooltip text="Active jobs run on their defined schedule. Paused jobs are temporarily suspended and won't execute until resumed." /></th>
+                <th>Last Run <Tooltip text="When this job was last executed. Shows 'Never' if the job hasn't run yet since creation." /></th>
                 <th>Actions</th>
               </tr>
             </thead>

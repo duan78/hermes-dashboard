@@ -1,0 +1,69 @@
+/* Tooltip component styles */
+
+.tip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.tip-icon {
+  color: var(--text-muted);
+  opacity: 0.4;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.tip-wrap:hover .tip-icon {
+  opacity: 1;
+  color: var(--info);
+}
+
+.tip-content {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1e2e;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-primary);
+  max-width: 350px;
+  min-width: 180px;
+  z-index: 9999;
+  white-space: normal;
+  text-align: left;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: tip-fade 0.15s ease;
+}
+
+.tip-content::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1a1e2e;
+}
+
+/* If tooltip would overflow left, align to left edge */
+.tip-wrap:first-child .tip-content {
+  left: -8px;
+  transform: none;
+}
+
+.tip-wrap:first-child .tip-content::after {
+  left: 20px;
+  transform: none;
+}
+
+@keyframes tip-fade {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}

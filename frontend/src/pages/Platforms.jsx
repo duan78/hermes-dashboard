@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Radio, RefreshCw, Wifi, WifiOff, Users } from 'lucide-react'
 import { api } from '../api'
+import Tooltip from '../components/Tooltip'
 
 export default function Platforms() {
   const [platforms, setPlatforms] = useState({})
@@ -31,6 +32,7 @@ export default function Platforms() {
       <div className="page-title">
         <Radio size={28} />
         Platform Connections
+        <Tooltip text="Communication platforms connected to Hermes. Each platform (CLI, Telegram, Discord, WhatsApp, Slack, Signal) can send and receive messages through the AI agent. Configure each platform in its respective settings." />
         <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
@@ -50,11 +52,18 @@ export default function Platforms() {
                 <span className={`badge ${isConnected ? 'badge-success' : state === 'not_configured' ? 'badge-warning' : 'badge-error'}`}>
                   {isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
                   {state}
+                  <Tooltip text={isConnected
+                    ? 'Connected and actively receiving/sending messages. The platform is fully operational.'
+                    : state === 'not_configured'
+                      ? 'Platform is not configured. Add the required credentials and settings in the Configuration page to enable it.'
+                      : 'Disconnected — the platform was configured but the connection has been lost. Check API credentials and network connectivity.'}
+                  />
                 </span>
               </div>
               {info.updated_at && (
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
                   Last update: {info.updated_at}
+                  <Tooltip text="When the platform status was last checked or updated. If this is stale, the platform may have changed state since." />
                 </div>
               )}
             </div>
@@ -65,7 +74,11 @@ export default function Platforms() {
       {/* Channel Directory */}
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
-          <span className="card-title"><Users size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />Channel Directory</span>
+          <span className="card-title">
+            <Users size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+            Channel Directory
+            <Tooltip text="Directory of all configured channels across platforms. Channels represent specific chat rooms, DMs, or group conversations where the agent is active. Each channel maps to a unique conversation session." />
+          </span>
         </div>
         {Object.entries(channels).map(([platform, chs]) => (
           <div key={platform} style={{ marginBottom: 16 }}>
@@ -76,7 +89,11 @@ export default function Platforms() {
               <div className="table-container">
                 <table>
                   <thead>
-                    <tr><th>Name</th><th>Type</th><th>ID</th></tr>
+                    <tr>
+                      <th>Name <Tooltip text="Display name or title of the channel. For Discord: channel name. For Telegram: chat title or username." /></th>
+                      <th>Type <Tooltip text="Channel type: 'dm' for direct messages, 'group' for group chats, 'channel' for Discord/Slack channels, 'server' for Discord guilds." /></th>
+                      <th>ID <Tooltip text="Unique platform-specific identifier for this channel. Used internally to route messages to the correct conversation session." /></th>
+                    </tr>
                   </thead>
                   <tbody>
                     {chs.map(ch => (

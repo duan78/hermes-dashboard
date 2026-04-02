@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BookOpen, Search, Trash2, Eye, RefreshCw } from 'lucide-react'
 import { api } from '../api'
+import Tooltip from '../components/Tooltip'
 
 export default function Skills() {
   const [skills, setSkills] = useState([])
@@ -70,13 +71,23 @@ export default function Skills() {
         </div>
         {selectedSkill.skill_md && (
           <div className="card">
-            <div className="card-header"><span className="card-title">SKILL.md</span></div>
+            <div className="card-header">
+              <span className="card-title">
+                SKILL.md
+                <Tooltip text="The skill's documentation file that defines its purpose, usage instructions, and examples. This content is loaded into the AI's context when the skill is activated." />
+              </span>
+            </div>
             <pre style={{ maxHeight: 500 }}>{selectedSkill.skill_md}</pre>
           </div>
         )}
         {selectedSkill.files && (
           <div className="card">
-            <div className="card-header"><span className="card-title">Files</span></div>
+            <div className="card-header">
+              <span className="card-title">
+                Files
+                <Tooltip text="All files that make up this skill: prompt templates, scripts, configuration, and documentation. Stored in ~/.hermes/skills/." />
+              </span>
+            </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {selectedSkill.files.map((f, i) => (
                 <span key={i} className="badge badge-info">{f}</span>
@@ -93,6 +104,7 @@ export default function Skills() {
       <div className="page-title">
         <BookOpen size={28} />
         Skills ({skills.length})
+        <Tooltip text="Installed skills that extend Hermes capabilities. Skills can provide specialized knowledge, custom workflows, or domain-specific tools. Install from the registry or create your own." />
         <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
@@ -130,10 +142,10 @@ export default function Skills() {
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Category</th>
-                <th>Source</th>
-                <th>Description</th>
+                <th>Name <Tooltip text="The skill's display name and unique identifier. Click Inspect to view the full skill documentation and files." /></th>
+                <th>Category <Tooltip text="Classification of the skill's domain: coding, productivity, communication, automation, etc. Use the filter dropdown to show only specific categories." /></th>
+                <th>Source <Tooltip text="Where the skill was installed from. 'builtin' comes with Hermes. 'registry' was installed from the online skill hub. 'local' was created manually." /></th>
+                <th>Description <Tooltip text="Brief summary of what the skill does and when it's useful." /></th>
                 <th>Actions</th>
               </tr>
             </thead>

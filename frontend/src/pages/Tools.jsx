@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Wrench, RefreshCw, CheckCircle, XCircle } from 'lucide-react'
 import { api } from '../api'
+import Tooltip from '../components/Tooltip'
 
 export default function Tools() {
   const [output, setOutput] = useState('')
@@ -47,6 +48,7 @@ export default function Tools() {
       <div className="page-title">
         <Wrench size={28} />
         Tools
+        <Tooltip text="All available tools the AI agent can use to interact with the world: execute code, browse the web, read/write files, manage memory, and more. Tools can be enabled or disabled per platform." />
         <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
@@ -59,10 +61,10 @@ export default function Tools() {
           <table>
             <thead>
               <tr>
-                <th>Status</th>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Platform</th>
+                <th>Status <Tooltip text="Whether the tool is currently available for the AI to use. Disabled tools cannot be called even if the agent tries to use them." /></th>
+                <th>Name <Tooltip text="The tool's identifier used in function calls. This is the exact name the AI references when invoking a tool." /></th>
+                <th>Description <Tooltip text="What the tool does and when the agent uses it. This description is provided to the AI model so it knows when to call each tool." /></th>
+                <th>Platform <Tooltip text="Which platform this tool is available on. Some tools are only available on certain platforms (e.g., browser tools may not work on CLI without a display)." /></th>
               </tr>
             </thead>
             <tbody>

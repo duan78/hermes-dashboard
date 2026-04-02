@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Brain, Save, RefreshCw, FileText } from 'lucide-react'
 import { api } from '../api'
+import Tooltip from '../components/Tooltip'
 
 export default function MemorySoul() {
   const [tab, setTab] = useState('soul')
@@ -71,6 +72,7 @@ export default function MemorySoul() {
       <div className="page-title">
         <Brain size={28} />
         Memory & SOUL
+        <Tooltip text="Manage the agent's persistent memory and personality. SOUL.md defines the core behavior and values. MEMORY.md stores learned facts across sessions. Memory files provide additional specialized context." />
         {saved && <span className="badge badge-success">Saved!</span>}
         <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
@@ -80,9 +82,15 @@ export default function MemorySoul() {
       {error && <div className="error-box">{error}</div>}
 
       <div className="tabs">
-        <button className={`tab ${tab === 'soul' ? 'active' : ''}`} onClick={() => setTab('soul')}>SOUL.md</button>
-        <button className={`tab ${tab === 'memory' ? 'active' : ''}`} onClick={() => setTab('memory')}>MEMORY.md</button>
-        <button className={`tab ${tab === 'files' ? 'active' : ''}`} onClick={() => setTab('files')}>Memory Files</button>
+        <button className={`tab ${tab === 'soul' ? 'active' : ''}`} onClick={() => setTab('soul')}>
+          SOUL.md <Tooltip text="The core personality file that defines how Hermes behaves: its values, communication style, behavioral guidelines, and ethical boundaries. This is injected into every conversation as the system prompt foundation." />
+        </button>
+        <button className={`tab ${tab === 'memory' ? 'active' : ''}`} onClick={() => setTab('memory')}>
+          MEMORY.md <Tooltip text="Persistent memory file that carries context across conversations. Contains notes, facts, and patterns the agent has learned over time. Automatically updated during conversations when memory is enabled." />
+        </button>
+        <button className={`tab ${tab === 'files' ? 'active' : ''}`} onClick={() => setTab('files')}>
+          Memory Files <Tooltip text="Additional memory files in ~/.hermes/memories/ that provide specialized context: documentation, skill-specific notes, user preferences, and other reference material the agent can draw upon." />
+        </button>
       </div>
 
       {tab === 'soul' && (
@@ -122,8 +130,8 @@ export default function MemorySoul() {
               <table>
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Size</th>
+                    <th>Name <Tooltip text="Filename of the memory file stored in ~/.hermes/memories/. The agent reads these files to gain additional context during conversations." /></th>
+                    <th>Size <Tooltip text="File size in kilobytes. Larger files provide more context but consume more tokens when injected into the conversation." /></th>
                     <th>Action</th>
                   </tr>
                 </thead>

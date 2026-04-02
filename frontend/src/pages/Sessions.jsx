@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw } from 'lucide-react'
 import { api } from '../api'
+import Tooltip from '../components/Tooltip'
 
 function SessionDetail({ sessionId, onBack }) {
   const [session, setSession] = useState(null)
@@ -24,26 +25,39 @@ function SessionDetail({ sessionId, onBack }) {
       <div className="page-title">
         <button className="btn btn-sm" onClick={onBack}><ArrowLeft size={14} /> Back</button>
         Session: {sessionId}
+        <Tooltip text="Detailed view of a single conversation session. Shows the AI model used, the originating platform, and all messages exchanged." />
       </div>
 
       <div className="grid grid-3" style={{ marginBottom: 20 }}>
         <div className="stat-card">
-          <div className="stat-label">Model</div>
+          <div className="stat-label">
+            Model
+            <Tooltip text="The AI model that was used for this session's conversations." />
+          </div>
           <div className="stat-value" style={{ fontSize: 16 }}>{session.model || 'N/A'}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Platform</div>
+          <div className="stat-label">
+            Platform
+            <Tooltip text="Where this conversation originated: CLI (terminal), Telegram, Discord, WhatsApp, or other connected platforms." />
+          </div>
           <div className="stat-value" style={{ fontSize: 16 }}>{session.platform || 'N/A'}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Messages</div>
+          <div className="stat-label">
+            Messages
+            <Tooltip text="Total number of messages exchanged in this session, including user prompts, AI responses, and tool call results." />
+          </div>
           <div className="stat-value">{messages.length}</div>
         </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <span className="card-title">Messages</span>
+          <span className="card-title">
+            Messages
+            <Tooltip text="Full conversation history for this session. User messages are highlighted. Tool calls show which external tools the AI used during the conversation." />
+          </span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{messages.length} total</span>
         </div>
         <div style={{ maxHeight: 600, overflowY: 'auto' }}>
@@ -108,6 +122,7 @@ export default function Sessions() {
       <div className="page-title">
         <MessageSquare size={28} />
         Sessions
+        <Tooltip text="All conversation sessions across every platform. Each session is a separate conversation with the AI agent. Click a session to view its full message history." />
         <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
@@ -119,10 +134,10 @@ export default function Sessions() {
         <table>
           <thead>
             <tr>
-              <th>Session ID</th>
-              <th>Model</th>
-              <th>Platform</th>
-              <th>Messages</th>
+              <th>Session ID <Tooltip text="Unique identifier for each conversation session. Click to view the full message history." /></th>
+              <th>Model <Tooltip text="AI model used for this session's conversations." /></th>
+              <th>Platform <Tooltip text="Communication channel where the conversation took place (CLI, Telegram, Discord, WhatsApp, etc.)." /></th>
+              <th>Messages <Tooltip text="Total number of messages (user + assistant + tool results) exchanged in this session." /></th>
               <th>Actions</th>
             </tr>
           </thead>
