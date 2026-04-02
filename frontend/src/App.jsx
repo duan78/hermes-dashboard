@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Wrench, BookOpen,
+  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X
 } from 'lucide-react'
 import Overview from './pages/Overview'
@@ -16,6 +16,7 @@ import Platforms from './pages/Platforms'
 import Insights from './pages/Insights'
 import Chat from './pages/Chat'
 import Files from './pages/Files'
+import TerminalPage from './pages/TerminalPage'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { to: '/config', icon: Settings, label: 'Configuration' },
   { to: '/sessions', icon: MessageSquare, label: 'Sessions' },
   { to: '/files', icon: FolderOpen, label: 'Files' },
+  { to: '/terminal', icon: Terminal, label: 'Terminal' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/skills', icon: BookOpen, label: 'Skills' },
   { to: '/cron', icon: Clock, label: 'Cron Jobs' },
@@ -75,6 +77,7 @@ function App() {
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/sessions/:id" element={<Sessions />} />
           <Route path="/files" element={<Files />} />
+          <Route path="/terminal" element={<TerminalPage />} />
           <Route path="/tools" element={<Tools />} />
           <Route path="/skills" element={<Skills />} />
           <Route path="/cron" element={<CronJobs />} />

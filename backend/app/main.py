@@ -20,6 +20,7 @@ from .routers import (
     insights,
     chat,
     files,
+    terminal,
 )
 
 app = FastAPI(
@@ -76,6 +77,7 @@ app.include_router(platforms.router)
 app.include_router(insights.router)
 app.include_router(chat.router)
 app.include_router(files.router)
+app.include_router(terminal.router)
 
 # Serve frontend static files in production
 static_dir = Path(__file__).parent.parent / "static"

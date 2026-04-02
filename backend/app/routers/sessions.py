@@ -10,23 +10,61 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 @router.get("")
 async def list_sessions():
-    """List all sessions with metadata."""
+    """List all unique sessions with metadata, deduplicated by session_id."""
     sessions_dir = hermes_path("sessions")
     if not sessions_dir.exists():
         return []
 
+    seen_ids = set()
     sessions = []
+
     for f in sorted(sessions_dir.glob("session_*.json"), reverse=True):
         try:
             data = json.loads(f.read_text())
+            sid = data.get("session_id", f.stem.replace("session_", ""))
+
+            # Deduplicate: keep first (most recent) occurrence per session_id
+            if sid in seen_ids:
+                continue
+            seen_ids.add(sid)
+
+            # Count actual messages from JSONL if available
+            msg_count = data.get("message_count", 0)
+            jsonl_path = hermes_path("sessions", f"{sid}.jsonl")
+            if jsonl_path.exists():
+                try:
+                    lines = jsonl_path.read_text(errors="replace").strip().split("\n")
+                    msg_count = sum(1 for l in lines if l.strip())
+                except Exception:
+                    pass
+
+            # Build a useful preview/title
+            preview = data.get("preview", "")
+            created_at = data.get("created_at", "")
+            if not preview:
+                # Use first user message from JSONL as preview
+                if jsonl_path.exists():
+                    try:
+                        for line in jsonl_path.read_text(errors="replace").strip().split("\n"):
+                            if not line.strip():
+                                continue
+                            msg = json.loads(line)
+                            if msg.get("role") == "user" and msg.get("content"):
+                                preview = msg["content"][:80]
+                                break
+                    except Exception:
+                        pass
+            if not preview and created_at:
+                preview = created_at
+
             sessions.append({
-                "id": data.get("session_id", f.stem.replace("session_", "")),
+                "id": sid,
                 "model": data.get("model", "unknown"),
                 "platform": data.get("platform", "unknown"),
-                "created": data.get("created_at", ""),
-                "messages_count": data.get("message_count", 0),
+                "created": created_at,
+                "messages_count": msg_count,
                 "tokens": data.get("tokens", {}),
-                "preview": data.get("preview", ""),
+                "preview": preview,
             })
         except (json.JSONDecodeError, Exception):
             continue

@@ -1,0 +1,30 @@
+/* ── Terminal Page ── */
+
+.terminal-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  height: calc(100vh - 140px);
+}
+
+.terminal-xterm {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+}
+
+.terminal-xterm .xterm {
+  padding: 4px;
+}
+
+/* ── xterm overrides ── */
+
+.terminal-xterm .xterm-viewport {
+  /* Use dashboard scrollbar */
+  scrollbar-width: thin;
+}
+
+.terminal-xterm .xterm-screen {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}

@@ -19,6 +19,12 @@ function formatTime(ts) {
 
 function getSessionPreview(session) {
   if (session.preview) return session.preview.slice(0, 60)
+  if (session.created) {
+    try {
+      const d = new Date(session.created)
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    } catch {}
+  }
   return `Session ${session.id?.slice(0, 8) || 'unknown'}`
 }
 
