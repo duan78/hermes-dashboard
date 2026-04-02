@@ -1,0 +1,16 @@
+[Unit]
+Description=Hermes Dashboard - Web admin for Hermes Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/hermes-dashboard
+Environment=PYTHONPATH=/root/hermes-dashboard
+Environment=HERMES_HOME=/root/.hermes
+ExecStart=/usr/bin/python3.12 -m uvicorn backend.app.main:app --host 127.0.0.1 --port 3100
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
