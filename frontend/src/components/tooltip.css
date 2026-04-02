@@ -1,4 +1,4 @@
-/* Tooltip component styles */
+/* Tooltip component */
 
 .tip-wrap {
   position: relative;
@@ -6,6 +6,7 @@
   align-items: center;
   cursor: help;
   flex-shrink: 0;
+  margin-left: 4px;
 }
 
 .tip-icon {
@@ -19,51 +20,66 @@
   color: var(--info);
 }
 
+/* ── Popup ── */
+
 .tip-content {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
   background: #1a1e2e;
-  border: 1px solid var(--border);
+  border: 1px solid #2e3248;
   border-radius: var(--radius);
   padding: 10px 14px;
   font-size: 13px;
   font-weight: 400;
   line-height: 1.5;
   color: var(--text-primary);
-  max-width: 350px;
-  min-width: 180px;
-  z-index: 9999;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
   white-space: normal;
   text-align: left;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   pointer-events: none;
-  animation: tip-fade 0.15s ease;
+  animation: tip-in 0.12s ease;
 }
 
-.tip-content::after {
-  content: '';
+.tip-content::-webkit-scrollbar { width: 4px; }
+.tip-content::-webkit-scrollbar-track { background: transparent; }
+.tip-content::-webkit-scrollbar-thumb { background: #2e3248; border-radius: 2px; }
+
+/* Position: above trigger — shift up by own height */
+.tip-above {
+  transform: translateY(-100%);
+}
+
+/* Position: below trigger */
+.tip-below {
+  transform: none;
+}
+
+/* ── Arrow ── */
+
+.tip-arrow {
   position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
+  width: 0;
+  height: 0;
   border: 6px solid transparent;
+  pointer-events: none;
+}
+
+.tip-above .tip-arrow {
+  bottom: -12px;
   border-top-color: #1a1e2e;
 }
 
-/* If tooltip would overflow left, align to left edge */
-.tip-wrap:first-child .tip-content {
-  left: -8px;
-  transform: none;
+.tip-below .tip-arrow {
+  top: -12px;
+  border-bottom-color: #1a1e2e;
 }
 
-.tip-wrap:first-child .tip-content::after {
-  left: 20px;
-  transform: none;
-}
+/* ── Animation ── */
 
-@keyframes tip-fade {
-  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+@keyframes tip-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
