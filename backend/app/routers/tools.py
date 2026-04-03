@@ -64,11 +64,20 @@ TOOL_CATEGORIES = {
             {"name": "Tinker / Atropos", "tag": "RL training platform", "env_vars": [{"key": "TINKER_API_KEY", "label": "Tinker API key", "url": "https://tinker-console.thinkingmachines.ai/keys"}, {"key": "WANDB_API_KEY", "label": "WandB API key", "url": "https://wandb.ai/authorize"}]},
         ],
     },
+    "vision": {
+        "name": "Vision",
+        "icon": "eye",
+        "providers": [
+            {"name": "Mistral (Pixtral)", "tag": "Pixtral Large via Mistral API", "config_key": "auxiliary.vision.provider", "config_value": "custom", "env_vars": [{"key": "MISTRAL_API_KEY", "label": "Mistral API Key", "url": "https://console.mistral.ai/api-keys/"}]},
+            {"name": "OpenRouter", "tag": "Vision via OpenRouter", "config_key": "auxiliary.vision.provider", "config_value": "openrouter", "env_vars": [{"key": "OPENROUTER_API_KEY", "label": "OpenRouter API Key", "url": "https://openrouter.ai/keys"}]},
+            {"name": "Anthropic", "tag": "Vision via Anthropic", "config_key": "auxiliary.vision.provider", "config_value": "anthropic", "env_vars": [{"key": "ANTHROPIC_API_KEY", "label": "Anthropic API Key", "url": "https://console.anthropic.com/settings/keys"}]},
+            {"name": "Nous Portal", "tag": "Vision via Nous Research", "config_key": "auxiliary.vision.provider", "config_value": "nous", "env_vars": []},
+        ],
+    },
 }
 
 # Toolsets that just need simple env vars (no provider selection)
 TOOLSET_ENV_REQUIREMENTS = {
-    "vision": {"env_vars": [{"key": "OPENROUTER_API_KEY", "label": "OpenRouter API key", "url": "https://openrouter.ai/keys"}]},
     "moa": {"env_vars": [{"key": "OPENROUTER_API_KEY", "label": "OpenRouter API key", "url": "https://openrouter.ai/keys"}]},
 }
 
