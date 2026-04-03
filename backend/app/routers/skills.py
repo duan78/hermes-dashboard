@@ -235,7 +235,46 @@ async def browse_skills(query: str = ""):
         return {"output": "", "error": str(e)}
 
 
-@router.get("/{skill_name}")
+@router.get("/registry")
+async def browse_registry(page: int = 1, size: int = 20, source: str = "all", query: str = ""):
+    """Browse the online skills registry."""
+    try:
+        if query:
+            output = await run_hermes(
+                "skills", "search", query, "--source", source, "--limit", str(size), timeout=30
+            )
+            result = _parse_browse_table(output, is_search=True)
+        else:
+            output = await run_hermes(
+                "skills", "browse", "--page", str(page), "--size", str(size), "--source", source, timeout=30
+            )
+            result = _parse_browse_table(output, is_search=False)
+
+        result["source"] = source
+        return result
+    except RuntimeError as e:
+        return {
+            "skills": [],
+            "total": 0,
+            "page": page,
+            "total_pages": 1,
+            "source": source,
+            "source_stats": {},
+            "error": str(e),
+        }
+
+
+@router.get("/registry/inspect/{skill_name}")
+async def inspect_registry_skill(skill_name: str):
+    """Preview a skill from the registry before installing."""
+    try:
+        output = await run_hermes("skills", "inspect", skill_name, timeout=30)
+        return {"output": output}
+    except RuntimeError as e:
+        return {"output": "", "error": str(e)}
+
+
+@router.get("/inspect/{skill_name}")
 async def inspect_skill(skill_name: str):
     """Get skill details including SKILL.md content."""
     skill_dir = hermes_path("skills", skill_name)
@@ -391,45 +430,6 @@ def _parse_browse_table(output: str, is_search: bool = False) -> dict:
         "total_pages": total_pages,
         "source_stats": source_stats,
     }
-
-
-@router.get("/registry")
-async def browse_registry(page: int = 1, size: int = 20, source: str = "all", query: str = ""):
-    """Browse the online skills registry."""
-    try:
-        if query:
-            output = await run_hermes(
-                "skills", "search", query, "--source", source, "--limit", str(size), timeout=30
-            )
-            result = _parse_browse_table(output, is_search=True)
-        else:
-            output = await run_hermes(
-                "skills", "browse", "--page", str(page), "--size", str(size), "--source", source, timeout=30
-            )
-            result = _parse_browse_table(output, is_search=False)
-
-        result["source"] = source
-        return result
-    except RuntimeError as e:
-        return {
-            "skills": [],
-            "total": 0,
-            "page": page,
-            "total_pages": 1,
-            "source": source,
-            "source_stats": {},
-            "error": str(e),
-        }
-
-
-@router.get("/registry/inspect/{skill_name}")
-async def inspect_registry_skill(skill_name: str):
-    """Preview a skill from the registry before installing."""
-    try:
-        output = await run_hermes("skills", "inspect", skill_name, timeout=30)
-        return {"output": output}
-    except RuntimeError as e:
-        return {"output": "", "error": str(e)}
 
 
 @router.post("/install")
