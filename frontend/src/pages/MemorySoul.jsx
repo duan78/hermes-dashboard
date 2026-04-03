@@ -321,6 +321,7 @@ function VectorMemoryTab({ showToast }) {
 // ── Main Page ──
 export default function MemorySoul() {
   const [activeTab, setActiveTab] = useState('files')
+  const [vectorAvailable, setVectorAvailable] = useState(false)
   const [files, setFiles] = useState([])
   const [selected, setSelected] = useState(null)
   const [content, setContent] = useState('')
@@ -354,6 +355,12 @@ export default function MemorySoul() {
   }, [])
 
   useEffect(() => { loadFiles() }, [loadFiles])
+
+  useEffect(() => {
+    api.vectorMemoryAvailable().then(data => {
+      setVectorAvailable(data.available === true)
+    }).catch(() => setVectorAvailable(false))
+  }, [])
 
   useEffect(() => {
     if (files.length > 0 && !selected) {
@@ -462,12 +469,14 @@ export default function MemorySoul() {
         >
           <FileText size={15} /> MD Files
         </button>
-        <button
-          className={`memory-tab ${activeTab === 'vector' ? 'active' : ''}`}
-          onClick={() => setActiveTab('vector')}
-        >
-          <Database size={15} /> Vector Memory
-        </button>
+        {vectorAvailable && (
+          <button
+            className={`memory-tab ${activeTab === 'vector' ? 'active' : ''}`}
+            onClick={() => setActiveTab('vector')}
+          >
+            <Database size={15} /> Vector Memory
+          </button>
+        )}
       </div>
 
       {/* Tab content */}

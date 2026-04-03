@@ -31,6 +31,15 @@ def _get_hermes_memory():
 _executor = ThreadPoolExecutor(max_workers=4)
 
 
+@router.get("/vector/available")
+async def vector_available():
+    """Check if vector memory (hermes-memory / LanceDB) is available."""
+    mem = _get_hermes_memory()
+    if mem:
+        return {"available": True}
+    return {"available": False, "error": _hermes_memory_error or "hermes-memory not installed"}
+
+
 def _vm_unavailable():
     raise HTTPException(503, f"Vector memory unavailable: {_hermes_memory_error or 'import failed'}")
 

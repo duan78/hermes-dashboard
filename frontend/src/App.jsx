@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
-  Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key
+  Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
+import { api } from './api'
 import Overview from './pages/Overview'
 import Config from './pages/Config'
 import Sessions from './pages/Sessions'
@@ -20,6 +21,7 @@ import Chat from './pages/Chat'
 import Files from './pages/Files'
 import TerminalPage from './pages/TerminalPage'
 import SkillsHub from './pages/SkillsHub'
+import FineTune from './pages/FineTune'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -36,16 +38,26 @@ const NAV_ITEMS = [
   { to: '/models', icon: Cpu, label: 'Models' },
   { to: '/platforms', icon: Radio, label: 'Platforms' },
   { to: '/api-keys', icon: Key, label: 'API Keys' },
+  { to: '/fine-tune', icon: Mic, label: 'Fine-Tune', feature: 'fineTune' },
   { to: '/insights', icon: BarChart3, label: 'Insights' },
 ]
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [features, setFeatures] = useState({})
   const location = useLocation()
 
   useEffect(() => {
     setSidebarOpen(false)
   }, [location])
+
+  useEffect(() => {
+    api.fineTuneAvailable().then(data => {
+      if (data.available) setFeatures(prev => ({ ...prev, fineTune: true }))
+    }).catch(() => {})
+  }, [])
+
+  const visibleNavItems = NAV_ITEMS.filter(item => !item.feature || features[item.feature])
 
   return (
     <div className="app-layout">
@@ -59,7 +71,7 @@ function App() {
           Hermes Dashboard
         </div>
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => (
+          {visibleNavItems.map(item => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -94,6 +106,7 @@ function App() {
           <Route path="/models" element={<Models />} />
           <Route path="/platforms" element={<Platforms />} />
           <Route path="/api-keys" element={<ApiKeys />} />
+          <Route path="/fine-tune" element={<FineTune />} />
           <Route path="/insights" element={<Insights />} />
         </Routes>
       </main>

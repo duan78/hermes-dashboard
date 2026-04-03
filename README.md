@@ -40,8 +40,11 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 | **Skills Hub** | Skill marketplace — browse and search available skills, install with one click, enriched metadata with detail drawer |
 | **Cron Jobs** | Manage scheduled tasks — create with cron expressions, pause/resume, trigger manually, delete |
 | **Memory & SOUL** | Edit `SOUL.md` (agent personality) and `MEMORY.md` (agent memory), browse and edit memory files |
+| **Vector Memory** | Visualize LanceDB vector memory — stats, semantic search, memory list, add/delete. Color-coded source badges. Only visible if hermes-memory is installed |
 | **Models** | View current model and provider, browse available models, switch model with one click |
 | **Platforms** | View connection status for all platforms (Telegram, Discord, WhatsApp, Signal, Slack), channel directory, pairing management |
+| **API Keys** | Manage API keys — view, add, and remove keys for providers, tools, and platforms. Masked previews with reveal toggle |
+| **Fine-Tune** | Collection of voice + transcription pairs for ASR fine-tuning — audio playback, transcript editing, stats. Only visible if fine-tune data exists |
 | **Insights** | Usage analytics with configurable time period — model usage charts, platform distribution, top tools, activity patterns, notable sessions |
 
 **Additional:** Dark/light theme toggle with system preference detection, responsive design with collapsible sidebar, contextual tooltips throughout the UI.
@@ -61,7 +64,7 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 ├─────────────────────────────────────────────────────┤
 │  Auth Middleware  │  Security Headers  │  CORS       │
 ├─────────────────────────────────────────────────────┤
-│  13 API Routers  │  WebSocket Terminal  │  Static   │
+│  15 API Routers  │  WebSocket Terminal  │  Static   │
 └──────────┬──────────────────────────────────────────┘
            │                              │
            ▼                              ▼
@@ -152,6 +155,37 @@ All endpoints are prefixed with `/api/`. Authentication via `Authorization: Bear
 | GET | `/api/memory/files` | List memory files |
 | GET | `/api/memory/files/{name}` | Read a memory file |
 | PUT | `/api/memory/files/{name}` | Save a memory file |
+
+### Vector Memory
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/memory/vector/available` | Check if vector memory (LanceDB) is available |
+| GET | `/api/memory/vector/stats` | Vector memory statistics |
+| GET | `/api/memory/vector/list` | List vector memories |
+| GET | `/api/memory/vector/search` | Semantic search in vector memory |
+| POST | `/api/memory/vector/store` | Store a new vector memory |
+| DELETE | `/api/memory/vector/delete` | Delete a vector memory by ID |
+| GET | `/api/memory/vector/usage` | Estimate embedding API usage |
+
+### API Keys
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/api-keys` | List all API key definitions with status |
+| POST | `/api/api-keys/set` | Set an API key value |
+| POST | `/api/api-keys/delete` | Remove an API key |
+
+### Fine-Tune
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/fine-tune/available` | Check if fine-tune training data exists |
+| GET | `/api/fine-tune/pairs` | List voice + transcription pairs |
+| PUT | `/api/fine-tune/pairs/{base_name}` | Update a pair's transcript |
+| DELETE | `/api/fine-tune/pairs/{base_name}` | Delete a pair (audio + transcript) |
+| GET | `/api/fine-tune/stats` | Global fine-tune statistics |
+| GET | `/api/fine-tune/audio/{date}/{base_name}` | Serve audio file for playback |
 
 ### Tools
 
@@ -349,7 +383,7 @@ hermes-dashboard/
 │           ├── overview.py        # Dashboard overview & logs
 │           ├── config.py          # Config CRUD
 │           ├── sessions.py        # Session management
-│           ├── memory.py          # SOUL.md, MEMORY.md, memory files
+│           ├── memory.py          # SOUL.md, MEMORY.md, memory files, vector memory
 │           ├── tools.py           # Tool listing & enable/disable
 │           ├── skills.py          # Skill management & Skills Hub
 │           ├── cron.py            # Cron job management
@@ -358,7 +392,9 @@ hermes-dashboard/
 │           ├── insights.py        # Usage analytics
 │           ├── chat.py            # Chat sessions & SSE streaming
 │           ├── files.py           # File browser & editor
-│           └── terminal.py        # WebSocket PTY terminal
+│           ├── terminal.py        # WebSocket PTY terminal
+│           ├── api_keys.py        # API key management
+│           └── fine_tune.py       # Fine-tune voice + transcription pairs
 └── frontend/
     ├── package.json
     ├── vite.config.js
@@ -385,10 +421,14 @@ hermes-dashboard/
             ├── Skills.jsx
             ├── SkillsHub.jsx
             ├── CronJobs.jsx
-            ├── MemorySoul.jsx
+            ├── MemorySoul.jsx         # Memory & SOUL + Vector Memory tabs
             ├── Models.jsx
             ├── Platforms.jsx
-            └── Insights.jsx
+            ├── ApiKeys.jsx
+            ├── FineTune.jsx            # Voice + transcription pairs
+            ├── Insights.jsx
+            ├── memory.css
+            └── fine-tune.css
 ```
 
 ## Reverse Proxy

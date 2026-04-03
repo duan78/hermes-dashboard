@@ -55,6 +55,7 @@ export const api = {
   deleteFile: (path) => request('/memory/delete', { method: 'DELETE', body: JSON.stringify({ path }) }),
 
   // Vector Memory (LanceDB)
+  vectorMemoryAvailable: () => request('/memory/vector/available'),
   vectorMemoryStats: () => request('/memory/vector/stats'),
   vectorMemoryList: (limit = 50, source = 'all') => request(`/memory/vector/list?limit=${limit}&source=${encodeURIComponent(source)}`),
   vectorMemorySearch: (query, topK = 10) => request(`/memory/vector/search?q=${encodeURIComponent(query)}&top_k=${topK}`),
@@ -122,4 +123,15 @@ export const api = {
   getApiKeys: () => request('/api-keys'),
   setApiKey: (key, value) => request('/api-keys/set', { method: 'POST', body: JSON.stringify({ key, value }) }),
   deleteApiKey: (key) => request('/api-keys/delete', { method: 'POST', body: JSON.stringify({ key }) }),
+
+  // Fine-Tune
+  fineTuneAvailable: () => request('/fine-tune/available'),
+  fineTunePairs: (date, limit = 50, offset = 0) => {
+    const params = new URLSearchParams({ limit, offset })
+    if (date) params.set('date', date)
+    return request(`/fine-tune/pairs?${params}`)
+  },
+  fineTuneUpdatePair: (baseName, transcript) => request(`/fine-tune/pairs/${encodeURIComponent(baseName)}`, { method: 'PUT', body: JSON.stringify({ transcript }) }),
+  fineTuneDeletePair: (baseName) => request(`/fine-tune/pairs/${encodeURIComponent(baseName)}`, { method: 'DELETE' }),
+  fineTuneStats: () => request('/fine-tune/stats'),
 };
