@@ -1,7 +1,119 @@
 import { useState, useEffect } from 'react'
-import { Radio, RefreshCw, Wifi, WifiOff, Users, Key, Check, X, Loader2 } from 'lucide-react'
+import { Radio, RefreshCw, Wifi, WifiOff, Users, Key, Check, X, Loader2, Settings, Eye, EyeOff, Save } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+
+function ConfigureModal({ platform, envVars, onClose, onSave }) {
+  const [formValues, setFormValues] = useState({})
+  const [revealed, setRevealed] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    // Initialize form values
+    const init = {}
+    for (const v of envVars) {
+      init[v.key] = ''
+    }
+    setFormValues(init)
+    setRevealed({})
+    setSaved(false)
+    setError(null)
+  }, [platform, envVars])
+
+  const handleSave = async () => {
+    // Only include non-empty values
+    const vars = {}
+    for (const v of envVars) {
+      if (formValues[v.key]) {
+        vars[v.key] = formValues[v.key]
+      }
+    }
+    if (Object.keys(vars).length === 0) {
+      setError('Please fill in at least one value')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(platform, vars)
+      setSaved(true)
+      setTimeout(() => onClose(), 1200)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+        <div className="modal-header">
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Settings size={18} />
+            Configure {platform.charAt(0).toUpperCase() + platform.slice(1).replace('_', ' ')}
+          </h3>
+          <button className="btn btn-sm" onClick={onClose} style={{ padding: '2px 8px' }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: '16px 0' }}>
+          {envVars.map(v => (
+            <div key={v.key} style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                {v.label}
+                {v.is_set && <span className="badge badge-success" style={{ marginLeft: 8, fontSize: 10 }}>Set</span>}
+              </label>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{v.description}</div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={v.password && !revealed[v.key] ? 'password' : 'text'}
+                  className="form-control"
+                  placeholder={v.is_set ? '•••••••• (leave blank to keep current)' : `Enter ${v.label}...`}
+                  value={formValues[v.key] || ''}
+                  onChange={e => setFormValues(prev => ({ ...prev, [v.key]: e.target.value }))}
+                  style={{ width: '100%', paddingRight: v.password ? 40 : 12, boxSizing: 'border-box' }}
+                />
+                {v.password && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => setRevealed(prev => ({ ...prev, [v.key]: !prev[v.key] }))}
+                    style={{
+                      position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)',
+                      padding: '2px 6px', border: 'none', background: 'transparent', color: 'var(--text-muted)'
+                    }}
+                  >
+                    {revealed[v.key] ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {error && <div className="error-box" style={{ marginBottom: 12 }}>{error}</div>}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn" onClick={onClose}>Cancel</button>
+          {saved ? (
+            <button className="btn btn-primary" disabled>
+              <Check size={14} /> Saved!
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
+              {' '}Save
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Platforms() {
   const [platforms, setPlatforms] = useState({})
@@ -11,6 +123,11 @@ export default function Platforms() {
   const [pairingOutput, setPairingOutput] = useState('')
   const [pairingLoading, setPairingLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState({})
+
+  // Configuration modal state
+  const [envVars, setEnvVars] = useState({})
+  const [envVarsLoading, setEnvVarsLoading] = useState(false)
+  const [modalPlatform, setModalPlatform] = useState(null)
 
   const load = async () => {
     try {
@@ -63,6 +180,31 @@ export default function Platforms() {
     }
   }
 
+  const openConfigure = async (platformName) => {
+    if (envVars[platformName]) {
+      setModalPlatform(platformName)
+      return
+    }
+    setEnvVarsLoading(true)
+    try {
+      const data = await api.getPlatformEnvVars()
+      setEnvVars(data)
+      setModalPlatform(platformName)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setEnvVarsLoading(false)
+    }
+  }
+
+  const handleConfigureSave = async (platform, vars) => {
+    const result = await api.configurePlatform(platform, vars)
+    // Refresh env vars and platform status
+    const [envData] = await Promise.all([api.getPlatformEnvVars(), load()])
+    setEnvVars(envData)
+    return result
+  }
+
   useEffect(() => { load(); loadPairing() }, [])
 
   // Parse pairing output into entries
@@ -70,13 +212,11 @@ export default function Platforms() {
     if (!text) return []
     const entries = []
     for (const line of text.split('\n')) {
-      // Try patterns like "code  user_id  platform  status"
       const match = line.match(/([A-Z0-9\-]{4,})\s+(\S+)\s+(\w+)\s+(\w+)/i)
       if (match) {
         entries.push({ code: match[1], userId: match[2], platform: match[3], status: match[4] })
         continue
       }
-      // Simpler: just a code
       const codeMatch = line.match(/\b([A-Z0-9]{6,})\b/)
       if (codeMatch && !entries.find(e => e.code === codeMatch[1])) {
         const parts = line.trim().split(/\s+/)
@@ -113,17 +253,18 @@ export default function Platforms() {
         {Object.entries(platforms).map(([name, info]) => {
           const state = info.state
           const isConnected = state === 'connected'
+          const isNotConfigured = state === 'not_configured'
           return (
             <div key={name} className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 16, fontWeight: 600, textTransform: 'capitalize' }}>{name}</span>
-                <span className={`badge ${isConnected ? 'badge-success' : state === 'not_configured' ? 'badge-warning' : 'badge-error'}`}>
+                <span className={`badge ${isConnected ? 'badge-success' : isNotConfigured ? 'badge-warning' : 'badge-error'}`}>
                   {isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
                   {state}
                   <Tooltip text={isConnected
                     ? 'Connected and actively receiving/sending messages. The platform is fully operational.'
-                    : state === 'not_configured'
-                      ? 'Platform is not configured. Add the required credentials and settings in the Configuration page to enable it.'
+                    : isNotConfigured
+                      ? 'Platform is not configured. Click Configure to add the required credentials and enable it.'
                       : 'Disconnected — the platform was configured but the connection has been lost. Check API credentials and network connectivity.'}
                   />
                 </span>
@@ -134,10 +275,33 @@ export default function Platforms() {
                   <Tooltip text="When the platform status was last checked or updated. If this is stale, the platform may have changed state since." />
                 </div>
               )}
+              <div style={{ marginTop: 12 }}>
+                {isNotConfigured ? (
+                  <button className="btn btn-primary btn-sm" onClick={() => openConfigure(name)} disabled={envVarsLoading}>
+                    {envVarsLoading ? <Loader2 size={12} className="spin" /> : <Settings size={12} />}
+                    {' '}Configure
+                  </button>
+                ) : (
+                  <button className="btn btn-sm" onClick={() => openConfigure(name)} disabled={envVarsLoading}>
+                    {envVarsLoading ? <Loader2 size={12} className="spin" /> : <Settings size={12} />}
+                    {' '}Settings
+                  </button>
+                )}
+              </div>
             </div>
           )
         })}
       </div>
+
+      {/* Configure Modal */}
+      {modalPlatform && envVars[modalPlatform] && (
+        <ConfigureModal
+          platform={modalPlatform}
+          envVars={envVars[modalPlatform]}
+          onClose={() => setModalPlatform(null)}
+          onSave={handleConfigureSave}
+        />
+      )}
 
       {/* Pairing Section */}
       <div className="card" style={{ marginTop: 16 }}>

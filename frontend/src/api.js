@@ -84,6 +84,8 @@ export const api = {
   listPairing: () => request('/platforms/pairing'),
   approvePairing: (code) => request('/platforms/pairing/approve', { method: 'POST', body: JSON.stringify({ code }) }),
   revokePairing: (userId) => request('/platforms/pairing/revoke', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
+  getPlatformEnvVars: () => request('/platforms/env-vars'),
+  configurePlatform: (platform, vars) => request('/platforms/configure', { method: 'POST', body: JSON.stringify({ platform, vars }) }),
 
   // Insights
   getInsights: (days = 7) => request(`/insights?days=${days}`),
