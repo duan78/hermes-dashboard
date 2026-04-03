@@ -139,8 +139,9 @@ async def list_skills_detailed():
     seen = set()
     for skill_md_path in sorted(skills_dir.rglob("SKILL.md")):
         skill_dir = skill_md_path.parent
-        # Skip hidden dirs and already-seen names (parent category dirs without SKILL.md)
-        if any(part.startswith(".") for part in skill_dir.parts):
+        # Skip hidden dirs (only check relative parts under skills_dir) and already-seen names
+        rel_parts = skill_dir.relative_to(skills_dir).parts
+        if any(part.startswith(".") for part in rel_parts):
             continue
         name = skill_dir.name
         if name in seen:
@@ -218,7 +219,8 @@ async def list_skills():
     seen = set()
     for skill_md_path in sorted(skills_dir.rglob("SKILL.md")):
         skill_dir = skill_md_path.parent
-        if any(part.startswith(".") for part in skill_dir.parts):
+        rel_parts = skill_dir.relative_to(skills_dir).parts
+        if any(part.startswith(".") for part in rel_parts):
             continue
         name = skill_dir.name
         if name in seen:
