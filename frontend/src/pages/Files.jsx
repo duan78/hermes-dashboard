@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   FolderOpen, FileText, Folder, ChevronRight, ChevronDown,
-  RefreshCw, Save, X, Edit3, File, ArrowLeft, Home
+  RefreshCw, Save, X, Edit3, File, ArrowLeft, Home, Trash2, Plus, Check
 } from 'lucide-react'
 import { api } from '../api'
 import './files.css'
@@ -142,7 +142,7 @@ function Breadcrumb({ path, onNavigate }) {
 
 // ── File Content Viewer / Editor ──
 
-function FileViewer({ fileData, onSaved }) {
+function FileViewer({ fileData, onSaved, onDelete }) {
   const [editing, setEditing] = useState(false)
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
@@ -186,6 +186,12 @@ function FileViewer({ fileData, onSaved }) {
     }
   }
 
+  const handleDelete = () => {
+    if (confirm(`Delete file "${fileData.name}"? This cannot be undone.`)) {
+      onDelete(fileData.path)
+    }
+  }
+
   return (
     <div className="file-viewer">
       <div className="file-viewer-header">
@@ -201,6 +207,9 @@ function FileViewer({ fileData, onSaved }) {
               {saveMsg}
             </span>
           )}
+          <button className="btn btn-sm btn-danger" onClick={handleDelete} title="Delete this file">
+            <Trash2 size={13} />
+          </button>
           {editing ? (
             <>
               <button className="btn btn-sm btn-primary" onClick={saveFile} disabled={saving}>
@@ -251,6 +260,10 @@ export default function Files() {
   const [fileData, setFileData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [showNewFile, setShowNewFile] = useState(false)
+  const [newFileName, setNewFileName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [selectedFile, setSelectedFile] = useState(null)
 
   const loadTree = useCallback(async () => {
     try {
@@ -294,8 +307,10 @@ export default function Files() {
   const handleSelect = (path, isDir) => {
     if (isDir) {
       loadDirectory(path)
+      setSelectedFile(null)
     } else {
       loadFile(path)
+      setSelectedFile(path)
     }
   }
 
@@ -316,14 +331,65 @@ export default function Files() {
     }
   }
 
+  const handleDeleteFile = async (path) => {
+    try {
+      await api.deleteFile(path)
+      setFileData(null)
+      setSelectedFile(null)
+      loadTree()
+      loadDirectory(currentPath)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  const handleDeleteSelected = () => {
+    if (!selectedFile) return
+    const name = selectedFile.split('/').pop()
+    if (confirm(`Delete "${name}"? This cannot be undone.`)) {
+      handleDeleteFile(selectedFile)
+    }
+  }
+
+  const handleCreateFile = async () => {
+    const name = newFileName.trim()
+    if (!name) return
+    setCreating(true)
+    try {
+      const path = currentPath ? `${currentPath}/${name}` : name
+      await api.writeFile(path, '')
+      setShowNewFile(false)
+      setNewFileName('')
+      loadTree()
+      loadDirectory(currentPath)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleNewFileKeyDown = (e) => {
+    if (e.key === 'Enter') handleCreateFile()
+    if (e.key === 'Escape') { setShowNewFile(false); setNewFileName('') }
+  }
+
   return (
     <div>
       <div className="page-title">
         <FolderOpen size={28} />
         File Explorer
-        <button className="btn btn-sm" onClick={handleRefresh} style={{ marginLeft: 'auto' }}>
-          <RefreshCw size={14} /> Refresh
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button className="btn btn-sm" onClick={() => setShowNewFile(true)}>
+            <Plus size={14} /> New File
+          </button>
+          <button className="btn btn-sm btn-danger" onClick={handleDeleteSelected} disabled={!selectedFile} title={selectedFile ? `Delete ${selectedFile.split('/').pop()}` : 'Select a file to delete'}>
+            <Trash2 size={14} />
+          </button>
+          <button className="btn btn-sm" onClick={handleRefresh}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-box">{error}</div>}
@@ -364,7 +430,7 @@ export default function Files() {
           {loading && <div className="spinner" />}
 
           {!loading && fileData ? (
-            <FileViewer fileData={fileData} onSaved={() => loadFile(fileData.path)} />
+            <FileViewer fileData={fileData} onSaved={() => loadFile(fileData.path)} onDelete={handleDeleteFile} />
           ) : !loading ? (
             <div className="files-list">
               {currentPath && (
@@ -379,13 +445,34 @@ export default function Files() {
                   <span>..</span>
                 </button>
               )}
-              {entries.length === 0 && !currentPath && (
+              {/* New file inline input */}
+              {showNewFile && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}>
+                  <FileText size={16} className="files-list-icon" />
+                  <input
+                    className="form-input"
+                    style={{ flex: 1, padding: '4px 8px', fontSize: 13 }}
+                    placeholder="filename.ext"
+                    value={newFileName}
+                    onChange={e => setNewFileName(e.target.value)}
+                    onKeyDown={handleNewFileKeyDown}
+                    autoFocus
+                  />
+                  <button className="btn btn-sm btn-primary" onClick={handleCreateFile} disabled={creating || !newFileName.trim()}>
+                    {creating ? '...' : <Check size={13} />}
+                  </button>
+                  <button className="btn btn-sm" onClick={() => { setShowNewFile(false); setNewFileName('') }}>
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+              {entries.length === 0 && !currentPath && !showNewFile && (
                 <div className="empty-state">No files found</div>
               )}
               {entries.map(entry => (
                 <button
                   key={entry.path}
-                  className={`files-list-item ${currentPath === entry.path ? 'active' : ''}`}
+                  className={`files-list-item ${selectedFile === entry.path ? 'active' : ''}`}
                   onClick={() => handleSelect(entry.path, entry.is_dir)}
                 >
                   {entry.is_dir ? (
