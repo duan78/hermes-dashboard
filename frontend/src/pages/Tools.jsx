@@ -63,6 +63,56 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
         </div>
 
         <div className="tool-config-body">
+          {toolInfo.mode === "combined" && (
+            <div style={{
+              background: 'var(--accent-alpha, rgba(99,102,241,0.1))',
+              border: '1px solid var(--accent, #6366f1)',
+              borderRadius: 10,
+              padding: '14px 16px',
+              marginBottom: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)' }}>
+                  ⚡ Combined Mode Active
+                </span>
+                {toolInfo.active_provider && (
+                  <span className="badge badge-success" style={{ fontSize: 10 }}>Active</span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 }}>
+                {toolInfo.mode_description || 'Queries multiple search APIs in parallel and deduplicates results by URL.'}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {toolInfo.combined_backends && toolInfo.combined_backends.map(be => (
+                  <div key={be.key} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: be.is_set ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)',
+                    border: `1px solid ${be.is_set ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
+                    borderRadius: 8,
+                    padding: '6px 10px',
+                    fontSize: 12,
+                  }}>
+                    <span style={{ fontWeight: 600 }}>{be.name}</span>
+                    {be.is_set ? (
+                      <span style={{ color: 'var(--success)', fontSize: 11 }}><Check size={12} /> {be.value_preview}</span>
+                    ) : (
+                      <span style={{ color: 'var(--error)', fontSize: 11 }}>Not configured</span>
+                    )}
+                    {!be.is_set && be.url && (
+                      <a href={be.url} target="_blank" rel="noopener" style={{ color: 'var(--accent)', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                        <ExternalLink size={10} /> Get key
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {toolInfo.combined_active_count > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
+                  {toolInfo.combined_active_count} backend{toolInfo.combined_active_count > 1 ? 's' : ''} configured — results are queried in parallel and deduplicated
+                </div>
+              )}
+            </div>
+          )}
           {toolInfo.has_providers ? (
             <>
               <div style={{ marginBottom: 16 }}>

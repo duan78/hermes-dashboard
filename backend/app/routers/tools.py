@@ -25,12 +25,23 @@ TOOL_CATEGORIES = {
     "web": {
         "name": "Web Search & Extract",
         "icon": "search",
+        "mode": "combined",
+        "mode_description": "Queries multiple search APIs in parallel and deduplicates results by URL for maximum coverage.",
         "providers": [
-            {"name": "Firecrawl Cloud", "tag": "Hosted service - search, extract, and crawl", "env_vars": [{"key": "FIRECRAWL_API_KEY", "label": "Firecrawl API key", "url": "https://firecrawl.dev"}], "config_key": "web.backend", "config_value": "firecrawl"},
+            {"name": "Combined (Brave + LinkUp + Tavily)", "tag": "Parallel multi-backend search — queries all configured APIs simultaneously, deduplicates by URL, merges results", "env_vars": [], "config_key": "web.backend", "config_value": "combined", "is_combined": True},
+            {"name": "Brave Search", "tag": "Privacy-first search engine with high-quality web index", "env_vars": [{"key": "BRAVE_API_KEY", "label": "Brave API key", "url": "https://brave.com/search/api/"}], "config_key": "web.backend", "config_value": "brave"},
+            {"name": "LinkUp", "tag": "AI-powered search with rich content extraction and deep results", "env_vars": [{"key": "LINKUP_API_KEY", "label": "LinkUp API key", "url": "https://linkup.so"}], "config_key": "web.backend", "config_value": "linkup"},
+            {"name": "Tavily", "tag": "AI-native search, extract, and crawl", "env_vars": [{"key": "TAVILY_API_KEY", "label": "Tavily API key", "url": "https://app.tavily.com/home"}], "config_key": "web.backend", "config_value": "tavily"},
+            {"name": "Firecrawl Cloud", "tag": "Hosted service — search, extract, and crawl", "env_vars": [{"key": "FIRECRAWL_API_KEY", "label": "Firecrawl API key", "url": "https://firecrawl.dev"}], "config_key": "web.backend", "config_value": "firecrawl"},
             {"name": "Exa", "tag": "AI-native search and contents", "env_vars": [{"key": "EXA_API_KEY", "label": "Exa API key", "url": "https://exa.ai"}], "config_key": "web.backend", "config_value": "exa"},
             {"name": "Parallel", "tag": "AI-native search and extract", "env_vars": [{"key": "PARALLEL_API_KEY", "label": "Parallel API key", "url": "https://parallel.ai"}], "config_key": "web.backend", "config_value": "parallel"},
-            {"name": "Tavily", "tag": "AI-native search, extract, and crawl", "env_vars": [{"key": "TAVILY_API_KEY", "label": "Tavily API key", "url": "https://app.tavily.com/home"}], "config_key": "web.backend", "config_value": "tavily"},
-            {"name": "Firecrawl Self-Hosted", "tag": "Free - run your own instance", "env_vars": [{"key": "FIRECRAWL_API_URL", "label": "Firecrawl instance URL"}], "config_key": "web.backend", "config_value": "firecrawl"},
+            {"name": "Firecrawl Self-Hosted", "tag": "Free — run your own instance", "env_vars": [{"key": "FIRECRAWL_API_URL", "label": "Firecrawl instance URL"}], "config_key": "web.backend", "config_value": "firecrawl"},
+        ],
+        "combined_backends": [
+            {"key": "BRAVE_API_KEY", "name": "Brave Search", "url": "https://brave.com/search/api/"},
+            {"key": "LINKUP_API_KEY", "name": "LinkUp", "url": "https://linkup.so"},
+            {"key": "TAVILY_API_KEY", "name": "Tavily", "url": "https://app.tavily.com/home"},
+            {"key": "PARALLEL_API_KEY", "name": "Parallel", "url": "https://parallel.ai"},
         ],
     },
     "image_gen": {
@@ -180,6 +191,22 @@ async def get_tool_config():
             "providers": [],
             "active_provider": None,
         }
+
+        # For combined mode tools, add info about available backends
+        if cat.get("mode") == "combined" and cat.get("combined_backends"):
+            entry["mode"] = "combined"
+            entry["mode_description"] = cat.get("mode_description", "")
+            entry["combined_backends"] = []
+            for be in cat["combined_backends"]:
+                val = _get_env_value(be["key"])
+                entry["combined_backends"].append({
+                    "key": be["key"],
+                    "name": be["name"],
+                    "url": be.get("url", ""),
+                    "is_set": bool(val),
+                    "value_preview": val[:4] + "****" if val and len(val) > 8 else ("****" if val else ""),
+                })
+            entry["combined_active_count"] = sum(1 for be in entry["combined_backends"] if be["is_set"])
 
         for prov in cat["providers"]:
             env_vars = []
