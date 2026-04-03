@@ -255,6 +255,183 @@ async def inspect_skill(skill_name: str):
     return result
 
 
+def _parse_browse_table(output: str, is_search: bool = False) -> dict:
+    """Parse the Unicode box table output from hermes skills browse/search into structured JSON."""
+    lines = output.strip().split("\n")
+    skills = []
+    total = 0
+    page = 1
+    total_pages = 1
+    source = "all"
+    source_stats = {}
+
+    # Extract header info: "(232 skills, page 1/47)" or "3 result(s)"
+    header_match = re.search(r'\((\d+)\s+skill[s]?,\s+page\s+(\d+)/(\d+)\)', output)
+    if header_match:
+        total = int(header_match.group(1))
+        page = int(header_match.group(2))
+        total_pages = int(header_match.group(3))
+
+    search_match = re.search(r'(\d+)\s+result[s]?\)', output)
+    if search_match and not header_match:
+        total = int(search_match.group(1))
+        total_pages = 1
+        page = 1
+
+    # Extract source stats from footer: "Sources: claude-marketplace: 3, ..."
+    footer_match = re.search(r'Sources:\s*(.+)', output)
+    if footer_match:
+        stats_str = footer_match.group(1)
+        for pair in stats_str.split(','):
+            pair = pair.strip()
+            if ':' in pair:
+                parts = pair.rsplit(':', 1)
+                src_name = parts[0].strip()
+                src_count = int(parts[1].strip()) if parts[1].strip().isdigit() else 0
+                source_stats[src_name] = src_count
+
+    # Determine columns based on format:
+    # Browse: # | Name | Description | Source | Trust
+    # Search: Name | Description | Source | Trust | Identifier
+    data_lines = []
+    in_table = False
+    for line in lines:
+        stripped = line.strip()
+        # Detect table boundaries
+        if any(c in line for c in ('┏', '┡', '┃', '┗', '└', '│')):
+            # Skip pure separator/header rows
+            if any(c in line for c in ('┏', '┡', '┗', '└')):
+                if '┡' in line or '┏' in line:
+                    in_table = True
+                continue
+            if '┃' in line and ('#' in line or 'Name' in line or 'Trust' in line or 'Identifier' in line or 'Description' in line):
+                continue
+            if '│' in line:
+                data_lines.append(line)
+
+    # Parse data rows
+    i = 0
+    while i < len(data_lines):
+        line = data_lines[i]
+        fields = [f.strip() for f in line.split('│')]
+        # Remove empty strings from split at edges
+        fields = [f for f in fields if f != '' or True]  # keep all fields for index alignment
+        # Re-split more carefully: split on │ and take middle parts
+        parts = line.split('│')
+        # parts[0] is before first │, parts[-1] is after last │
+        cols = [p.strip() for p in parts[1:-1]]  # exclude leading/trailing empty
+
+        if is_search:
+            # Name | Description | Source | Trust | Identifier
+            if len(cols) >= 4:
+                name = cols[0]
+                desc = cols[1]
+                src = cols[2] if len(cols) > 2 else ''
+                trust = cols[3] if len(cols) > 3 else ''
+                identifier = cols[4] if len(cols) > 4 else ''
+            else:
+                i += 1
+                continue
+        else:
+            # # | Name | Description | Source | Trust
+            if len(cols) >= 4:
+                num = cols[0]
+                name = cols[1]
+                desc = cols[2]
+                src = cols[3] if len(cols) > 3 else ''
+                trust = cols[4] if len(cols) > 4 else ''
+                identifier = ''
+            else:
+                i += 1
+                continue
+
+        # Check if next lines are continuation rows (empty # and Name columns)
+        while i + 1 < len(data_lines):
+            next_line = data_lines[i + 1]
+            next_parts = next_line.split('│')
+            next_cols = [p.strip() for p in next_parts[1:-1]]
+
+            if is_search:
+                # Continuation: empty Name, non-empty Description
+                if len(next_cols) >= 1 and not next_cols[0] and next_cols[1]:
+                    desc += ' ' + next_cols[1]
+                    i += 1
+                else:
+                    break
+            else:
+                # Continuation: empty # and Name
+                if len(next_cols) >= 2 and not next_cols[0] and not next_cols[1]:
+                    if next_cols[2]:
+                        desc += ' ' + next_cols[2]
+                    i += 1
+                else:
+                    break
+
+        # Clean up trust: remove ★ prefix
+        trust_clean = trust.replace('★', '').strip() or trust.strip()
+
+        skill_entry = {
+            "name": name,
+            "description": desc.strip(),
+            "source": src,
+            "trust": trust_clean,
+        }
+        if identifier:
+            skill_entry["identifier"] = identifier
+
+        if name:  # Only add if we got a name
+            skills.append(skill_entry)
+
+        i += 1
+
+    return {
+        "skills": skills,
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "source_stats": source_stats,
+    }
+
+
+@router.get("/registry")
+async def browse_registry(page: int = 1, size: int = 20, source: str = "all", query: str = ""):
+    """Browse the online skills registry."""
+    try:
+        if query:
+            output = await run_hermes(
+                "skills", "search", query, "--source", source, "--limit", str(size), timeout=30
+            )
+            result = _parse_browse_table(output, is_search=True)
+        else:
+            output = await run_hermes(
+                "skills", "browse", "--page", str(page), "--size", str(size), "--source", source, timeout=30
+            )
+            result = _parse_browse_table(output, is_search=False)
+
+        result["source"] = source
+        return result
+    except RuntimeError as e:
+        return {
+            "skills": [],
+            "total": 0,
+            "page": page,
+            "total_pages": 1,
+            "source": source,
+            "source_stats": {},
+            "error": str(e),
+        }
+
+
+@router.get("/registry/inspect/{skill_name}")
+async def inspect_registry_skill(skill_name: str):
+    """Preview a skill from the registry before installing."""
+    try:
+        output = await run_hermes("skills", "inspect", skill_name, timeout=30)
+        return {"output": output}
+    except RuntimeError as e:
+        return {"output": "", "error": str(e)}
+
+
 @router.post("/install")
 async def install_skill(body: dict = Body(...)):
     """Install a skill."""

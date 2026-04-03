@@ -70,6 +70,12 @@ export const api = {
   skillDetail: (name) => request(`/skills/detail/${encodeURIComponent(name)}`),
   installSkill: (name) => request('/skills/install', { method: 'POST', body: JSON.stringify({ name }) }),
   uninstallSkill: (name) => request('/skills/uninstall', { method: 'POST', body: JSON.stringify({ name }) }),
+  browseRegistry: (page = 1, size = 20, source = 'all', query = '') => {
+    const params = new URLSearchParams({ page, size, source })
+    if (query) params.set('query', query)
+    return request(`/skills/registry?${params}`)
+  },
+  inspectRegistrySkill: (name) => request(`/skills/registry/inspect/${encodeURIComponent(name)}`),
 
   // Cron
   listCronJobs: () => request('/cron'),
