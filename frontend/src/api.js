@@ -54,6 +54,14 @@ export const api = {
   createFile: (name) => request('/memory/create', { method: 'POST', body: JSON.stringify({ name }) }),
   deleteFile: (path) => request('/memory/delete', { method: 'DELETE', body: JSON.stringify({ path }) }),
 
+  // Vector Memory (LanceDB)
+  vectorMemoryStats: () => request('/memory/vector/stats'),
+  vectorMemoryList: (limit = 50, source = 'all') => request(`/memory/vector/list?limit=${limit}&source=${encodeURIComponent(source)}`),
+  vectorMemorySearch: (query, topK = 10) => request(`/memory/vector/search?q=${encodeURIComponent(query)}&top_k=${topK}`),
+  vectorMemoryStore: (text, source = 'manual', metadata = null) => request('/memory/vector/store', { method: 'POST', body: JSON.stringify({ text, source, metadata }) }),
+  vectorMemoryDelete: (memoryId) => request('/memory/vector/delete', { method: 'DELETE', body: JSON.stringify({ memory_id: memoryId }) }),
+  vectorMemoryUsage: () => request('/memory/vector/usage'),
+
   // Tools
   listTools: () => request('/tools'),
   listToolsPlatform: (platform) => request(`/tools/${platform}`),

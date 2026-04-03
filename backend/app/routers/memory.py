@@ -1,10 +1,38 @@
+import asyncio
+import sys
 from pathlib import Path
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException, Body
 from ..utils import hermes_path
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
+
+# ── Vector memory (hermes-memory / LanceDB) ──
+_hermes_memory = None
+_hermes_memory_error = None
+
+def _get_hermes_memory():
+    global _hermes_memory, _hermes_memory_error
+    if _hermes_memory is not None:
+        return _hermes_memory
+    if _hermes_memory_error is not None:
+        return None
+    try:
+        sys.path.insert(0, "/root/hermes-memory")
+        from hermes_memory import HermesMemory
+        _hermes_memory = HermesMemory()
+        return _hermes_memory
+    except Exception as e:
+        _hermes_memory_error = str(e)
+        return None
+
+_executor = ThreadPoolExecutor(max_workers=4)
+
+
+def _vm_unavailable():
+    raise HTTPException(503, f"Vector memory unavailable: {_hermes_memory_error or 'import failed'}")
 
 # Directories to scan for .md files
 _HERMES_ROOT = hermes_path()
@@ -226,3 +254,131 @@ async def delete_file(body: dict = Body(...)):
         raise HTTPException(403, "Cannot delete SOUL.md — it is the agent's identity file")
     resolved.unlink()
     return {"status": "deleted", "path": path_str}
+
+
+# ── Vector Memory endpoints ──
+
+@router.get("/vector/stats")
+async def vector_stats():
+    """Return vector memory statistics."""
+    mem = _get_hermes_memory()
+    if not mem:
+        if _hermes_memory_error:
+            _vm_unavailable()
+        return {"total_memories": 0, "db_size_mb": 0, "sources": {}, "oldest": None, "newest": None}
+    try:
+        stats = await asyncio.to_thread(mem.stats)
+        # Get source breakdown from list
+        items = await asyncio.to_thread(lambda: mem.list(limit=10000))
+        sources = {}
+        oldest = None
+        newest = None
+        for item in items:
+            src = item.get("source", "unknown")
+            sources[src] = sources.get(src, 0) + 1
+            ts = item.get("created_at")
+            if ts:
+                if oldest is None or ts < oldest:
+                    oldest = ts
+                if newest is None or ts > newest:
+                    newest = ts
+        return {
+            "total_memories": stats.get("total_memories", len(items)),
+            "db_size_mb": stats.get("db_size_mb", 0),
+            "sources": sources,
+            "oldest": oldest,
+            "newest": newest,
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Stats error: {e}")
+
+
+@router.get("/vector/list")
+async def vector_list(limit: int = 50, source: str = "all"):
+    """List vector memories."""
+    mem = _get_hermes_memory()
+    if not mem:
+        if _hermes_memory_error:
+            _vm_unavailable()
+        return {"memories": []}
+    try:
+        items = await asyncio.to_thread(lambda: mem.list(limit=min(limit, 500)))
+        if source != "all":
+            items = [m for m in items if m.get("source") == source]
+        return {"memories": items}
+    except Exception as e:
+        raise HTTPException(500, f"List error: {e}")
+
+
+@router.get("/vector/search")
+async def vector_search(q: str = "", top_k: int = 10):
+    """Semantic search in vector memory."""
+    if not q:
+        raise HTTPException(400, "Query parameter 'q' is required")
+    mem = _get_hermes_memory()
+    if not mem:
+        _vm_unavailable()
+    try:
+        results = await mem.search(query=q, top_k=min(top_k, 50))
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(500, f"Search error: {e}")
+
+
+@router.post("/vector/store")
+async def vector_store(body: dict = Body(...)):
+    """Store a new vector memory manually."""
+    text = body.get("text", "").strip()
+    if not text:
+        raise HTTPException(400, "text is required")
+    mem = _get_hermes_memory()
+    if not mem:
+        _vm_unavailable()
+    try:
+        memory_id = await mem.store(
+            text=text,
+            source=body.get("source", "manual"),
+            metadata=body.get("metadata"),
+        )
+        return {"status": "stored", "id": memory_id}
+    except Exception as e:
+        raise HTTPException(500, f"Store error: {e}")
+
+
+@router.delete("/vector/delete")
+async def vector_delete(body: dict = Body(...)):
+    """Delete a vector memory by ID."""
+    memory_id = body.get("memory_id", "").strip()
+    if not memory_id:
+        raise HTTPException(400, "memory_id is required")
+    mem = _get_hermes_memory()
+    if not mem:
+        _vm_unavailable()
+    try:
+        deleted = await mem.delete(memory_id)
+        if not deleted:
+            raise HTTPException(404, f"Memory '{memory_id}' not found")
+        return {"status": "deleted", "id": memory_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Delete error: {e}")
+
+
+@router.get("/vector/usage")
+async def vector_usage():
+    """Estimate Mistral embedding API usage."""
+    mem = _get_hermes_memory()
+    if not mem:
+        if _hermes_memory_error:
+            _vm_unavailable()
+        return {"estimated_embed_calls": 0, "estimated_tokens": 0}
+    try:
+        items = await asyncio.to_thread(lambda: mem.list(limit=10000))
+        total_chars = sum(len(m.get("text", "")) for m in items)
+        return {
+            "estimated_embed_calls": len(items),
+            "estimated_tokens": int(total_chars * 1.3),
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Usage error: {e}")
