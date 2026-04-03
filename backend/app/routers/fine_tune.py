@@ -159,9 +159,15 @@ async def stats():
 @router.get("/audio/{date}/{base_name}")
 async def serve_audio(date: str, base_name: str):
     """Serve an audio file for in-browser playback."""
-    # Build expected path
-    audio_path = _AUDIO_DIR / date / f"{base_name}.ogg"
-    if not audio_path.exists():
+    # Try .ogg first, then .opus (legacy OpenClaw format)
+    audio_path = None
+    for ext in (".ogg", ".opus"):
+        candidate = _AUDIO_DIR / date / f"{base_name}{ext}"
+        if candidate.exists():
+            audio_path = candidate
+            break
+
+    if not audio_path:
         # Fallback: search in metadata for exact path
         entries = _read_metadata()
         for e in entries:
@@ -170,8 +176,10 @@ async def serve_audio(date: str, base_name: str):
                 if p.exists():
                     audio_path = p
                     break
-        if not audio_path.exists():
+        if not audio_path:
             raise HTTPException(404, "Audio file not found")
+
+    media_type = "audio/ogg" if audio_path.suffix == ".ogg" else "audio/ogg; codecs=opus"
 
     def iterfile():
         with open(audio_path, "rb") as f:
@@ -180,6 +188,6 @@ async def serve_audio(date: str, base_name: str):
 
     return StreamingResponse(
         iterfile(),
-        media_type="audio/ogg",
-        headers={"Content-Disposition": f"inline; filename={base_name}.ogg"},
+        media_type=media_type,
+        headers={"Content-Disposition": f"inline; filename={audio_path.name}"},
     )
