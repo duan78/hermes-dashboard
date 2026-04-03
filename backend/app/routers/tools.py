@@ -156,44 +156,6 @@ async def list_tools():
         return {"output": "", "error": str(e)}
 
 
-@router.get("/{platform}")
-async def list_tools_platform(platform: str):
-    """List tools for a specific platform."""
-    try:
-        output = await run_hermes("tools", "list", "--platform", platform, timeout=15)
-        return {"output": output}
-    except RuntimeError as e:
-        return {"output": "", "error": str(e)}
-
-
-@router.post("/enable")
-async def enable_tool(body: dict = Body(...)):
-    """Enable a tool for a platform."""
-    tool = body.get("tool")
-    platform = body.get("platform", "cli")
-    if not tool:
-        raise HTTPException(400, "Missing 'tool'")
-    try:
-        output = await run_hermes("tools", "enable", tool, "--platform", platform, timeout=15)
-        return {"status": "enabled", "output": output}
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
-
-
-@router.post("/disable")
-async def disable_tool(body: dict = Body(...)):
-    """Disable a tool for a platform."""
-    tool = body.get("tool")
-    platform = body.get("platform", "cli")
-    if not tool:
-        raise HTTPException(400, "Missing 'tool'")
-    try:
-        output = await run_hermes("tools", "disable", tool, "--platform", platform, timeout=15)
-        return {"status": "disabled", "output": output}
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
-
-
 @router.get("/config")
 async def get_tool_config():
     """Return tool categories with provider info and current env var status."""
@@ -315,3 +277,41 @@ async def set_tool_env(body: dict = Body(...)):
             raise HTTPException(500, f"Env saved but config update failed: {e}")
 
     return {"status": "ok", "key": key}
+
+
+@router.get("/platform/{platform}")
+async def list_tools_platform(platform: str):
+    """List tools for a specific platform."""
+    try:
+        output = await run_hermes("tools", "list", "--platform", platform, timeout=15)
+        return {"output": output}
+    except RuntimeError as e:
+        return {"output": "", "error": str(e)}
+
+
+@router.post("/enable")
+async def enable_tool(body: dict = Body(...)):
+    """Enable a tool for a platform."""
+    tool = body.get("tool")
+    platform = body.get("platform", "cli")
+    if not tool:
+        raise HTTPException(400, "Missing 'tool'")
+    try:
+        output = await run_hermes("tools", "enable", tool, "--platform", platform, timeout=15)
+        return {"status": "enabled", "output": output}
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+
+
+@router.post("/disable")
+async def disable_tool(body: dict = Body(...)):
+    """Disable a tool for a platform."""
+    tool = body.get("tool")
+    platform = body.get("platform", "cli")
+    if not tool:
+        raise HTTPException(400, "Missing 'tool'")
+    try:
+        output = await run_hermes("tools", "disable", tool, "--platform", platform, timeout=15)
+        return {"status": "disabled", "output": output}
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
