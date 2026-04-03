@@ -3,7 +3,7 @@ import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
-  Shield, Network, UserCheck, Users, HardDrive
+  Shield, Network, UserCheck, Users, HardDrive, Bot
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { api } from './api'
