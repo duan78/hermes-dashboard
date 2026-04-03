@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   MessageCircle, Plus, Send, Loader2, Wrench, ChevronDown, ChevronRight,
-  Bot, User, Trash2, PanelLeftClose, PanelLeft
+  Bot, User, Trash2, PanelLeftClose, PanelLeft, Square
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -172,7 +172,7 @@ function ChatSidebar({ sessions, activeId, onSelect, onNew, onDelete, collapsed,
 
 // ── Chat Input ──
 
-function ChatInput({ onSend, disabled }) {
+function ChatInput({ onSend, disabled, onStop }) {
   const [value, setValue] = useState('')
   const textareaRef = useRef(null)
 
@@ -214,14 +214,24 @@ function ChatInput({ onSend, disabled }) {
         disabled={disabled}
         rows={1}
       />
-      <button
-        className="chat-send-btn"
-        onClick={handleSend}
-        disabled={disabled || !value.trim()}
-        title="Send message"
-      >
-        {disabled ? <Loader2 size={18} className="spin" /> : <Send size={18} />}
-      </button>
+      {disabled && onStop ? (
+        <button
+          className="chat-stop-btn"
+          onClick={onStop}
+          title="Stop generating"
+        >
+          <Square size={18} />
+        </button>
+      ) : (
+        <button
+          className="chat-send-btn"
+          onClick={handleSend}
+          disabled={disabled || !value.trim()}
+          title="Send message"
+        >
+          {disabled ? <Loader2 size={18} className="spin" /> : <Send size={18} />}
+        </button>
+      )}
     </div>
   )
 }
@@ -301,6 +311,16 @@ export default function Chat() {
     loadSessions()
     if (sid === activeId) newSession()
   }, [activeId, loadSessions, newSession])
+
+  // Stop streaming
+  const stopStreaming = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort()
+      abortRef.current = null
+    }
+    setStreaming(false)
+    setStreamingText('')
+  }, [])
 
   // SSE streaming send
   const sendMessage = useCallback(async (text) => {
@@ -445,7 +465,11 @@ export default function Chat() {
             <div ref={messagesEndRef} />
           </div>
         )}
-        <ChatInput onSend={sendMessage} disabled={streaming} />
+        <ChatInput
+          onSend={sendMessage}
+          disabled={streaming}
+          onStop={stopStreaming}
+        />
       </div>
     </div>
   )

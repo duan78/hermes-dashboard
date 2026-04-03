@@ -393,6 +393,27 @@
   cursor: not-allowed;
 }
 
+/* ── Stop Button ── */
+
+.chat-stop-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--error);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chat-stop-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
 /* ── Markdown Content ── */
 
 .chat-md {
