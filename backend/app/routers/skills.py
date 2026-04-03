@@ -134,11 +134,24 @@ async def list_skills_detailed():
 
     skills = []
     categories = {}
-    for d in sorted(skills_dir.iterdir()):
-        if not d.is_dir() or d.name.startswith("."):
+
+    # Collect all skill directories (max depth 3 to find nested skills)
+    seen = set()
+    for skill_md_path in sorted(skills_dir.rglob("SKILL.md")):
+        skill_dir = skill_md_path.parent
+        # Skip hidden dirs and already-seen names (parent category dirs without SKILL.md)
+        if any(part.startswith(".") for part in skill_dir.parts):
             continue
-        detail = _get_skill_detail(d)
+        name = skill_dir.name
+        if name in seen:
+            continue
+        seen.add(name)
+
+        detail = _get_skill_detail(skill_dir)
         if detail:
+            # If no category from metadata, use parent folder name as category
+            if not detail.get("category") and skill_dir.parent != skills_dir:
+                detail["category"] = skill_dir.parent.name
             skills.append(detail)
             cat = detail.get("category") or "uncategorized"
             categories[cat] = categories.get(cat, 0) + 1
@@ -153,9 +166,20 @@ async def list_skills_detailed():
 @router.get("/detail/{skill_name}")
 async def skill_detail(skill_name: str):
     """Get full skill detail including SKILL.md content and file listing."""
-    skill_dir = hermes_path("skills", skill_name)
-    if not skill_dir.exists() or not skill_dir.is_dir():
-        raise HTTPException(404, f"Skill '{skill_name}' not found")
+    skills_dir = hermes_path("skills")
+
+    # Try direct path first, then search nested
+    skill_dir = skills_dir / skill_name
+    if not skill_dir.is_dir() or not (skill_dir / "SKILL.md").exists():
+        # Search in subdirectories
+        found = None
+        for candidate in skills_dir.rglob(skill_name):
+            if candidate.is_dir() and (candidate / "SKILL.md").exists():
+                found = candidate
+                break
+        if not found:
+            raise HTTPException(404, f"Skill '{skill_name}' not found")
+        skill_dir = found
 
     detail = _get_skill_detail(skill_dir)
     if not detail:
@@ -191,13 +215,19 @@ async def list_skills():
         return []
 
     skills = []
-    for d in sorted(skills_dir.iterdir()):
-        if not d.is_dir():
+    seen = set()
+    for skill_md_path in sorted(skills_dir.rglob("SKILL.md")):
+        skill_dir = skill_md_path.parent
+        if any(part.startswith(".") for part in skill_dir.parts):
             continue
-        skill_md = d / "SKILL.md"
-        meta_file = d / "skill.json"
+        name = skill_dir.name
+        if name in seen:
+            continue
+        seen.add(name)
+
+        meta_file = skill_dir / "skill.json"
         skill = {
-            "name": d.name,
+            "name": name,
             "source": "builtin",
             "category": "",
             "description": "",
@@ -213,11 +243,11 @@ async def list_skills():
                 })
             except json.JSONDecodeError:
                 pass
-        if skill_md.exists():
-            # First line as description fallback
-            first_lines = skill_md.read_text(errors="replace")[:200]
-            if not skill["description"]:
-                skill["description"] = first_lines.split("\n")[0].strip("# ")
+        if not skill["description"]:
+            first_lines = skill_md_path.read_text(errors="replace")[:200]
+            skill["description"] = first_lines.split("\n")[0].strip("# ")
+        if not skill["category"] and skill_dir.parent != skills_dir:
+            skill["category"] = skill_dir.parent.name
         skills.append(skill)
     return skills
 
