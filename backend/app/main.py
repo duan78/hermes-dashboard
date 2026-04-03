@@ -28,6 +28,9 @@ from .routers import (
     terminal,
     api_keys,
     fine_tune,
+    gateway,
+    diagnostics,
+    webhooks,
 )
 
 app = FastAPI(
@@ -87,6 +90,9 @@ app.include_router(files.router)
 app.include_router(terminal.router)
 app.include_router(api_keys.router)
 app.include_router(fine_tune.router)
+app.include_router(gateway.router)
+app.include_router(diagnostics.router)
+app.include_router(webhooks.router)
 
 
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2 } from 'lucide-react'
+import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2, BarChart3, Calendar } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
@@ -206,6 +206,34 @@ export default function Sessions() {
 
   const displaySessions = searchResults !== null ? searchResults : sessions
 
+  // Compute stats
+  const totalSessions = sessions.length
+  const totalMessages = sessions.reduce((sum, s) => sum + (s.messages_count || 0), 0)
+  const platformCounts = sessions.reduce((acc, s) => {
+    const p = s.platform || 'unknown'
+    acc[p] = (acc[p] || 0) + 1
+    return acc
+  }, {})
+  // Sessions per day (last 7 days)
+  const now = Date.now()
+  const dayBuckets = Array(7).fill(0)
+  const dayLabels = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now - i * 86400000)
+    dayLabels.push(d.toLocaleDateString('en', { weekday: 'short' }))
+  }
+  sessions.forEach(s => {
+    if (s.created) {
+      try {
+        const t = new Date(s.created).getTime()
+        const daysAgo = Math.floor((now - t) / 86400000)
+        if (daysAgo >= 0 && daysAgo < 7) {
+          dayBuckets[6 - daysAgo]++
+        }
+      } catch {}
+    }
+  })
+
   return (
     <div>
       <div className="page-title">
@@ -246,6 +274,61 @@ export default function Sessions() {
       </div>
 
       {error && <div className="error-box">{error}</div>}
+
+      {/* Stats */}
+      <div className="grid grid-4" style={{ marginBottom: 16 }}>
+        <div className="stat-card">
+          <div className="stat-label">
+            Total Sessions
+            <Tooltip text="Total number of unique conversation sessions across all platforms." />
+          </div>
+          <div className="stat-value">{totalSessions}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">
+            Total Messages
+            <Tooltip text="Total messages across all sessions." />
+          </div>
+          <div className="stat-value">{sessions.reduce((sum, s) => sum + (s.messages_count || 0), 0)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">
+            <BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+            By Platform
+            <Tooltip text="Number of sessions per communication platform." />
+          </div>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+            {Object.entries(platformCounts).map(([p, c]) => (
+              <span key={p} className="badge badge-info" style={{ fontSize: 10 }}>{p}: {c}</span>
+            ))}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">
+            <Calendar size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+            Last 7 Days
+            <Tooltip text="Number of sessions created per day over the last 7 days." />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 32, marginTop: 4 }}>
+            {dayBuckets.map((count, i) => {
+              const max = Math.max(...dayBuckets, 1)
+              const h = Math.max((count / max) * 28, 2)
+              return (
+                <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>{count}</div>
+                  <div style={{
+                    background: count > 0 ? 'var(--accent)' : 'var(--border)',
+                    height: h,
+                    borderRadius: 2,
+                    transition: 'height 0.2s',
+                  }} />
+                  <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 2 }}>{dayLabels[i]}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
 
       <div className="session-search-bar">
         <div className="session-search-input-wrap">

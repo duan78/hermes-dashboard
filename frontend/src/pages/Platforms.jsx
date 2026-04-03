@@ -1,7 +1,31 @@
 import { useState, useEffect } from 'react'
-import { Radio, RefreshCw, Wifi, WifiOff, Users, Key, Check, X, Loader2, Settings, Eye, EyeOff, Save } from 'lucide-react'
+import { Radio, RefreshCw, Wifi, WifiOff, Users, Key, Check, X, Loader2, Settings, Eye, EyeOff, Save, Send, MessageCircle, Smartphone, Shield, Hash, Grid, Home, Mail } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+
+const PLATFORM_INFO = {
+  telegram: { desc: "Telegram bot integration. Receives and sends messages through a Telegram bot.", icon: Send },
+  discord: { desc: "Discord bot integration. Connects to Discord servers and channels via bot token.", icon: MessageCircle },
+  whatsapp: { desc: "WhatsApp messaging integration. Connects via linked device or API mode.", icon: Smartphone },
+  signal: { desc: "Signal messaging integration. Uses signal-http-relay for sending/receiving.", icon: Shield },
+  slack: { desc: "Slack workspace integration. Connects via Socket Mode with bot and app tokens.", icon: Hash },
+  matrix: { desc: "Matrix protocol integration. Supports E2E encryption for secure messaging.", icon: Grid },
+  dingtalk: { desc: "DingTalk (China) enterprise messaging integration.", icon: MessageCircle },
+  feishu: { desc: "Feishu/Lark enterprise messaging integration.", icon: MessageCircle },
+  wecom: { desc: "WeCom (WeChat Work) enterprise messaging integration.", icon: MessageCircle },
+  mattermost: { desc: "Mattermost open-source messaging integration.", icon: MessageCircle },
+  home_assistant: { desc: "Home Assistant smart home integration. Controls devices and reads sensors.", icon: Home },
+  email: { desc: "Email integration for sending and receiving messages via SMTP/IMAP.", icon: Mail },
+}
+
+function PlatformIcon({ name }) {
+  const info = PLATFORM_INFO[name]
+  if (info) {
+    const Icon = info.icon
+    return <Icon size={20} />
+  }
+  return <Radio size={20} />
+}
 
 function ConfigureModal({ platform, envVars, onClose, onSave }) {
   const [formValues, setFormValues] = useState({})
@@ -11,7 +35,6 @@ function ConfigureModal({ platform, envVars, onClose, onSave }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    // Initialize form values
     const init = {}
     for (const v of envVars) {
       init[v.key] = ''
@@ -23,7 +46,6 @@ function ConfigureModal({ platform, envVars, onClose, onSave }) {
   }, [platform, envVars])
 
   const handleSave = async () => {
-    // Only include non-empty values
     const vars = {}
     for (const v of envVars) {
       if (formValues[v.key]) {
@@ -66,12 +88,13 @@ function ConfigureModal({ platform, envVars, onClose, onSave }) {
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                 {v.label}
                 {v.is_set && <span className="badge badge-success" style={{ marginLeft: 8, fontSize: 10 }}>Set</span>}
+                {!v.is_set && <span className="badge badge-error" style={{ marginLeft: 8, fontSize: 10 }}>Not Set</span>}
               </label>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{v.description}</div>
               <div style={{ position: 'relative' }}>
                 <input
                   type={v.password && !revealed[v.key] ? 'password' : 'text'}
-                  className="form-control"
+                  className="form-input"
                   placeholder={v.is_set ? '•••••••• (leave blank to keep current)' : `Enter ${v.label}...`}
                   value={formValues[v.key] || ''}
                   onChange={e => setFormValues(prev => ({ ...prev, [v.key]: e.target.value }))}
@@ -199,7 +222,6 @@ export default function Platforms() {
 
   const handleConfigureSave = async (platform, vars) => {
     const result = await api.configurePlatform(platform, vars)
-    // Refresh env vars and platform status
     const [envData] = await Promise.all([api.getPlatformEnvVars(), load()])
     setEnvVars(envData)
     return result
@@ -207,7 +229,6 @@ export default function Platforms() {
 
   useEffect(() => { load(); loadPairing() }, [])
 
-  // Parse pairing output into entries
   const parsePairingEntries = (text) => {
     if (!text) return []
     const entries = []
@@ -248,34 +269,64 @@ export default function Platforms() {
 
       {error && <div className="error-box">{error}</div>}
 
-      {/* Platform Status */}
+      {/* Platform Status Cards */}
       <div className="grid grid-3">
         {Object.entries(platforms).map(([name, info]) => {
           const state = info.state
           const isConnected = state === 'connected'
           const isNotConfigured = state === 'not_configured'
+          const pInfo = PLATFORM_INFO[name]
+          const platformEnvVars = envVars[name] || []
+          const setCount = platformEnvVars.filter(v => v.is_set).length
+          const totalCount = platformEnvVars.length
+
           return (
             <div key={name} className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 16, fontWeight: 600, textTransform: 'capitalize' }}>{name}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <PlatformIcon name={name} />
+                  <span style={{ fontSize: 16, fontWeight: 600, textTransform: 'capitalize' }}>{name.replace('_', ' ')}</span>
+                  <Tooltip text={pInfo?.desc || `${name} platform integration`} />
+                </div>
                 <span className={`badge ${isConnected ? 'badge-success' : isNotConfigured ? 'badge-warning' : 'badge-error'}`}>
                   {isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
                   {state}
-                  <Tooltip text={isConnected
-                    ? 'Connected and actively receiving/sending messages. The platform is fully operational.'
-                    : isNotConfigured
-                      ? 'Platform is not configured. Click Configure to add the required credentials and enable it.'
-                      : 'Disconnected — the platform was configured but the connection has been lost. Check API credentials and network connectivity.'}
-                  />
                 </span>
               </div>
-              {info.updated_at && (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-                  Last update: {info.updated_at}
-                  <Tooltip text="When the platform status was last checked or updated. If this is stale, the platform may have changed state since." />
+
+              {pInfo && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.4 }}>
+                  {pInfo.desc}
                 </div>
               )}
-              <div style={{ marginTop: 12 }}>
+
+              {/* Required env vars status */}
+              {totalCount > 0 && (
+                <div style={{ marginTop: 8, fontSize: 11 }}>
+                  <div style={{ color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>Required Variables</div>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {platformEnvVars.map(v => (
+                      <span
+                        key={v.key}
+                        className={`badge ${v.is_set ? 'badge-success' : 'badge-error'}`}
+                        style={{ fontSize: 10, padding: '1px 6px' }}
+                      >
+                        {v.is_set ? <Check size={8} /> : <X size={8} />}
+                        {v.key}
+                        <Tooltip text={v.description} />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {info.updated_at && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                  Last update: {info.updated_at}
+                </div>
+              )}
+
+              <div style={{ marginTop: 10 }}>
                 {isNotConfigured ? (
                   <button className="btn btn-primary btn-sm" onClick={() => openConfigure(name)} disabled={envVarsLoading}>
                     {envVarsLoading ? <Loader2 size={12} className="spin" /> : <Settings size={12} />}
@@ -377,7 +428,7 @@ export default function Platforms() {
           <span className="card-title">
             <Users size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
             Channel Directory
-            <Tooltip text="Directory of all configured channels across platforms. Channels represent specific chat rooms, DMs, or group conversations where the agent is active. Each channel maps to a unique conversation session." />
+            <Tooltip text="Directory of all configured channels across platforms. Channels represent specific chat rooms, DMs, or group conversations where the agent is active." />
           </span>
         </div>
         {Object.entries(channels).map(([platform, chs]) => (
@@ -390,9 +441,9 @@ export default function Platforms() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Name <Tooltip text="Display name or title of the channel. For Discord: channel name. For Telegram: chat title or username." /></th>
-                      <th>Type <Tooltip text="Channel type: 'dm' for direct messages, 'group' for group chats, 'channel' for Discord/Slack channels, 'server' for Discord guilds." /></th>
-                      <th>ID <Tooltip text="Unique platform-specific identifier for this channel. Used internally to route messages to the correct conversation session." /></th>
+                      <th>Name <Tooltip text="Display name or title of the channel." /></th>
+                      <th>Type <Tooltip text="Channel type: 'dm' for direct messages, 'group' for group chats, 'channel' for Discord/Slack channels." /></th>
+                      <th>ID <Tooltip text="Unique platform-specific identifier for this channel." /></th>
                     </tr>
                   </thead>
                   <tbody>

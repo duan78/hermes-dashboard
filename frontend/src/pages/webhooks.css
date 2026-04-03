@@ -1,0 +1,44 @@
+.webhook-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.webhook-url {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.webhook-events {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.webhook-add-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.webhook-add-form .form-group {
+  margin-bottom: 0;
+}
+
+.webhook-add-form .form-input {
+  min-width: 280px;
+}
+
+.webhook-add-form .form-select {
+  min-width: 180px;
+}

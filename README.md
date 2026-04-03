@@ -29,10 +29,11 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 
 | Page | Description |
 |------|-------------|
-| **Overview** | Dashboard home — gateway status, uptime, active model, session/message counts, installed skills, cron jobs, platform connections, recent logs |
+| **Overview** | Dashboard home — gateway status, uptime, active model, session/message counts, installed skills, cron jobs, platform connections, recent logs, system metrics (CPU, RAM, Disk, Load) |
+| **Gateway Control** | Gateway service management — real-time status (PID, memory, CPU, tasks, uptime), start/stop/restart controls with confirmation modal, live log streaming (SSE), log filtering by level and search |
 | **Chat** | Full chat interface with SSE streaming responses, session sidebar, markdown rendering, tool call indicators, and typing animation. Falls back to direct LLM API if gateway is unavailable |
 | **Configuration** | Edit `config.yaml` with a structured section-based editor (Model, Agent, Terminal, Browser, Display, Streaming, TTS, Memory, Cron, Privacy). Includes raw YAML editor and secret masking |
-| **Sessions** | Browse all Hermes sessions with metadata, search across sessions, view full message history, delete or prune old sessions, export sessions |
+| **Sessions** | Browse all Hermes sessions with metadata, search across sessions, view full message history, delete or prune old sessions, export sessions, session stats with per-day chart and platform breakdown |
 | **Files** | File browser for `HERMES_HOME` — directory tree, file viewer/editor, create and delete files. Path traversal protection and binary file blocking |
 | **Terminal** | WebSocket-based terminal emulator (xterm.js) with full interactive PTY, resize support, and custom color theme |
 | **Tools** | List all Hermes tools, enable/disable individual tools per platform (CLI, Telegram, Discord, etc.) |
@@ -42,10 +43,12 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 | **Memory & SOUL** | Edit `SOUL.md` (agent personality) and `MEMORY.md` (agent memory), browse and edit memory files |
 | **Vector Memory** | Visualize LanceDB vector memory — stats, semantic search, memory list, add/delete. Color-coded source badges. Only visible if hermes-memory is installed |
 | **Models** | View current model and provider, browse available models, switch model with one click |
-| **Platforms** | View connection status for all platforms (Telegram, Discord, WhatsApp, Signal, Slack), channel directory, pairing management |
+| **Platforms** | View connection status for all platforms (Telegram, Discord, WhatsApp, Signal, Slack, Matrix, DingTalk, Feishu, WeCom, Mattermost, Home Assistant), per-platform env var status, descriptions, configure API credentials, channel directory, pairing management |
 | **API Keys** | Manage API keys — view, add, and remove keys for providers, tools, and platforms. Masked previews with reveal toggle |
 | **Fine-Tune** | Collection of voice + transcription pairs for ASR fine-tuning — audio playback, transcript editing, stats. Only visible if fine-tune data exists |
-| **Insights** | Usage analytics with configurable time period — model usage charts, platform distribution, top tools, activity patterns, notable sessions |
+| **Insights** | Usage analytics with configurable time period — model usage charts, platform distribution, top tools, activity patterns, notable sessions, hourly activity heatmap, top 10 skills, average response time, messages by platform, tokens by day |
+| **Diagnostics** | Run health checks on Hermes installation — quick check (file/status verification) or full diagnostics (`hermes doctor`). Grouped results with pass/warn/fail indicators |
+| **Webhooks** | Manage Hermes webhooks — list active webhooks, create new (URL + events), delete |
 
 **Additional:** Dark/light theme toggle with system preference detection, responsive design with collapsible sidebar, contextual tooltips throughout the UI.
 
@@ -64,7 +67,7 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 ├─────────────────────────────────────────────────────┤
 │  Auth Middleware  │  Security Headers  │  CORS       │
 ├─────────────────────────────────────────────────────┤
-│  15 API Routers  │  WebSocket Terminal  │  Static   │
+│  18 API Routers  │  WebSocket Terminal  │  Static   │
 └──────────┬──────────────────────────────────────────┘
            │                              │
            ▼                              ▼
@@ -121,6 +124,33 @@ All endpoints are prefixed with `/api/`. Authentication via `Authorization: Bear
 |--------|----------|-------------|
 | GET | `/api/overview` | Dashboard overview stats |
 | GET | `/api/overview/logs?lines=N` | Recent gateway logs |
+| GET | `/api/overview/system` | System metrics (CPU, RAM, Disk, Load) |
+
+### Gateway Control
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/gateway/status` | Gateway service status via systemctl |
+| POST | `/api/gateway/restart` | Restart the gateway service |
+| POST | `/api/gateway/stop` | Stop the gateway service |
+| POST | `/api/gateway/start` | Start the gateway service |
+| GET | `/api/gateway/logs?lines=N&level=X&search=Y` | Parsed gateway log entries |
+| GET | `/api/gateway/logs/stream?level=X` | SSE streaming gateway logs |
+
+### Diagnostics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/diagnostics/run` | Run full `hermes doctor` diagnostics |
+| GET | `/api/diagnostics/quick` | Quick health checks (file/status verification) |
+
+### Webhooks
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/webhooks/list` | List configured webhooks |
+| POST | `/api/webhooks/create` | Create a new webhook |
+| DELETE | `/api/webhooks/delete` | Delete a webhook |
 
 ### Configuration
 
@@ -274,6 +304,38 @@ All endpoints are prefixed with `/api/`. Authentication via `Authorization: Bear
 |--------|----------|-------------|
 | GET | `/api/health` | Health check (always unauthenticated) |
 
+### Gateway Control
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/gateway/status` | Gateway service status (state, PID, memory, CPU, uptime, tasks) |
+| POST | `/api/gateway/restart` | Restart gateway service |
+| POST | `/api/gateway/stop` | Stop gateway service |
+| POST | `/api/gateway/start` | Start gateway service |
+| GET | `/api/gateway/logs?lines=N&level=X&search=Y` | Get parsed log entries with filtering |
+| GET | `/api/gateway/logs/stream?level=X` | SSE stream for real-time log viewing |
+
+### System Metrics (Overview)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/overview/system` | CPU usage, RAM, Disk, Load average metrics |
+
+### Diagnostics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/diagnostics/run` | Run `hermes doctor` full diagnostics |
+| GET | `/api/diagnostics/quick` | Quick health checks (gateway, config, env, files, disk) |
+
+### Webhooks
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/webhooks/list` | List configured webhooks |
+| POST | `/api/webhooks/create` | Create a new webhook (URL + events) |
+| DELETE | `/api/webhooks/delete` | Delete a webhook by URL |
+
 ## Getting Started
 
 ### Prerequisites
@@ -394,7 +456,10 @@ hermes-dashboard/
 │           ├── files.py           # File browser & editor
 │           ├── terminal.py        # WebSocket PTY terminal
 │           ├── api_keys.py        # API key management
-│           └── fine_tune.py       # Fine-tune voice + transcription pairs
+│           ├── fine_tune.py       # Fine-tune voice + transcription pairs
+│           ├── gateway.py       # Gateway service control, logs, SSE streaming
+│           ├── diagnostics.py  # Health checks, hermes doctor integration
+│           └── webhooks.py     # Webhook management
 └── frontend/
     ├── package.json
     ├── vite.config.js
@@ -427,7 +492,12 @@ hermes-dashboard/
             ├── ApiKeys.jsx
             ├── FineTune.jsx            # Voice + transcription pairs
             ├── Insights.jsx
-            ├── memory.css
+            ├── GatewayControl.jsx      # Gateway service control, live logs
+            ├── Diagnostics.jsx       # Health checks & diagnostics
+            ├── Webhooks.jsx          # Webhook management
+            ├── GatewayControl.jsx   # Gateway service control & live logs
+            ├── Diagnostics.jsx     # Health checks
+            ├── Webhooks.jsx        # Webhook management            ├── memory.css
             └── fine-tune.css
 ```
 

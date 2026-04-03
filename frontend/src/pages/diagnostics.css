@@ -1,0 +1,55 @@
+.diag-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.diag-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.diag-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.diag-check:last-child {
+  border-bottom: none;
+}
+
+.diag-check:hover {
+  background: var(--bg-hover);
+}
+
+.diag-check-icon {
+  flex-shrink: 0;
+}
+
+.diag-check-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.diag-check-message {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.diag-raw-output {
+  margin-top: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: 12px;
+}

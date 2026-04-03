@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Activity, Cpu, MessageSquare, BookOpen, Clock, Radio, RefreshCw } from 'lucide-react'
+import { LayoutDashboard, Activity, Cpu, MessageSquare, Radio, RefreshCw, Package, ChevronDown, Loader2, RotateCcw } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import './overview.css'
 
 function formatUptime(seconds) {
   if (!seconds || seconds < 0) return 'N/A'
@@ -13,21 +14,56 @@ function formatUptime(seconds) {
   return `${m}m`
 }
 
+function ProgressBar({ percent, color }) {
+  return (
+    <div style={{ background: 'var(--bg-tertiary)', borderRadius: 4, height: 6, overflow: 'hidden', width: '100%' }}>
+      <div style={{
+        background: color,
+        height: '100%',
+        width: `${Math.min(percent, 100)}%`,
+        borderRadius: 4,
+        transition: 'width 0.3s',
+      }} />
+    </div>
+  )
+}
+
+function getCpuColor(pct) {
+  if (pct < 50) return 'var(--success)'
+  if (pct < 80) return 'var(--warning)'
+  return 'var(--error)'
+}
+
 export default function Overview() {
   const [data, setData] = useState(null)
   const [logs, setLogs] = useState([])
+  const [sysMetrics, setSysMetrics] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  // Hermes Agent version/update state
+  const [versionInfo, setVersionInfo] = useState(null)
+  const [changelog, setChangelog] = useState(null)
+  const [showChangelog, setShowChangelog] = useState(false)
+  const [updating, setUpdating] = useState(false)
+  const [updateFeedback, setUpdateFeedback] = useState(null)
+  const [confirmUpdate, setConfirmUpdate] = useState(false)
+  const [versionLoading, setVersionLoading] = useState(false)
+  const [lastCheck, setLastCheck] = useState(null)
 
   const load = async () => {
     try {
       setLoading(true)
-      const [overview, logData] = await Promise.all([
+      const [overview, logData, sys, versionData] = await Promise.all([
         api.getOverview(),
         api.getLogs(50),
+        api.getSystemMetrics().catch(() => null),
+        api.hermesVersion().catch(() => null),
       ])
       setData(overview)
       setLogs(logData.logs || [])
+      setSysMetrics(sys)
+      setVersionInfo(versionData)
       setError(null)
     } catch (e) {
       setError(e.message)
@@ -38,7 +74,58 @@ export default function Overview() {
 
   useEffect(() => { load() }, [])
 
-  if (loading && !data) return <div className="spinner" />
+  // Auto-refresh system metrics every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const sys = await api.getSystemMetrics()
+        setSysMetrics(sys)
+      } catch {}
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const checkForUpdates = async () => {
+    setVersionLoading(true)
+    try {
+      const data = await api.hermesVersion()
+      setVersionInfo(data)
+      setLastCheck(new Date().toISOString())
+    } catch (e) {
+      console.error('Version check failed:', e)
+    } finally {
+      setVersionLoading(false)
+    }
+  }
+
+  const doUpdate = async () => {
+    setConfirmUpdate(false)
+    setUpdating(true)
+    setUpdateFeedback(null)
+    try {
+      const data = await api.hermesUpdate()
+      if (data.success) {
+        setUpdateFeedback({ type: 'success', message: 'Update successful! Restart the gateway to apply changes.' })
+        const v = await api.hermesVersion()
+        setVersionInfo(v)
+      } else {
+        setUpdateFeedback({ type: 'error', message: data.error || data.output || 'Update failed' })
+      }
+    } catch (e) {
+      setUpdateFeedback({ type: 'error', message: e.message })
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const loadChangelog = async () => {
+    try {
+      const data = await api.hermesChangelog()
+      setChangelog(data)
+    } catch {}
+  }
+
+  if (loading) return <div className="spinner" />
   if (error) return <div className="error-box">{error}</div>
   if (!data) return null
 
@@ -49,13 +136,13 @@ export default function Overview() {
       <div className="page-title">
         <LayoutDashboard size={28} />
         Overview
-        <Tooltip text="High-level status of your Hermes Agent: gateway health, active model, session count, installed skills, and connected platforms." />
+        <Tooltip text="High-level status of your Hermes Agent: gateway health, active model, session count, installed skills, connected platforms, and system metrics." />
         <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
 
-      {/* Status bar */}
+      {/* Row 1: Status bar */}
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <div className="stat-card">
           <div className="stat-label">
@@ -70,13 +157,13 @@ export default function Overview() {
           </div>
           <div className="stat-detail">
             Uptime: {formatUptime(data.uptime_seconds)}
-            <Tooltip text="How long the gateway has been running since last restart. If uptime is short, the gateway may have recently restarted." />
+            <Tooltip text="How long the gateway has been running since last restart." />
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">
             Model
-            <Tooltip text="The AI model currently active for all conversations. Configured in the Configuration page under Model settings." />
+            <Tooltip text="The AI model currently active for all conversations." />
           </div>
           <div className="stat-value" style={{ fontSize: 18 }}>{data.model?.name || 'N/A'}</div>
           <div className="stat-detail">{data.model?.provider || ''}</div>
@@ -84,7 +171,7 @@ export default function Overview() {
         <div className="stat-card">
           <div className="stat-label">
             Sessions
-            <Tooltip text="Total number of conversation sessions. Each session represents a separate conversation thread across all platforms (CLI, Telegram, Discord, etc.)." />
+            <Tooltip text="Total number of conversation sessions across all platforms." />
           </div>
           <div className="stat-value">{data.sessions?.total || 0}</div>
           <div className="stat-detail">
@@ -95,20 +182,196 @@ export default function Overview() {
         <div className="stat-card">
           <div className="stat-label">
             Skills / Cron
-            <Tooltip text="Installed skills extend Hermes capabilities (coding, web search, etc.). Active cron jobs are scheduled tasks that run automatically at defined times." />
+            <Tooltip text="Installed skills extend Hermes capabilities. Active cron jobs are scheduled tasks that run automatically." />
           </div>
           <div className="stat-value">{data.skills_installed} / {data.cron_active}</div>
           <div className="stat-detail">Installed / Active</div>
         </div>
       </div>
 
+      {/* Row 2: System Metrics */}
+      {sysMetrics && (
+        <div className="grid grid-4" style={{ marginBottom: 20 }}>
+          <div className="stat-card">
+            <div className="stat-label">
+              CPU Usage
+              <Tooltip text="Current CPU utilization percentage." />
+            </div>
+            <div className="stat-value" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: getCpuColor(sysMetrics.cpu_percent) }}>{sysMetrics.cpu_percent}%</span>
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <ProgressBar percent={sysMetrics.cpu_percent} color={getCpuColor(sysMetrics.cpu_percent)} />
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">
+              RAM
+              <Tooltip text="System memory usage." />
+            </div>
+            <div className="stat-value" style={{ fontSize: 20 }}>
+              {sysMetrics.ram_used_gb} / {sysMetrics.ram_total_gb} GB
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <ProgressBar percent={sysMetrics.ram_percent} color={sysMetrics.ram_percent < 70 ? 'var(--success)' : sysMetrics.ram_percent < 90 ? 'var(--warning)' : 'var(--error)'} />
+              <div className="stat-detail">{sysMetrics.ram_percent}% used</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">
+              Disk
+              <Tooltip text="Root filesystem disk usage." />
+            </div>
+            <div className="stat-value" style={{ fontSize: 20 }}>
+              {sysMetrics.disk_used_gb} / {sysMetrics.disk_total_gb} GB
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <ProgressBar percent={sysMetrics.disk_percent} color={sysMetrics.disk_percent < 70 ? 'var(--success)' : sysMetrics.disk_percent < 90 ? 'var(--warning)' : 'var(--error)'} />
+              <div className="stat-detail">{sysMetrics.disk_percent}% used</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">
+              Load Average
+              <Tooltip text="System load averages over 1, 5, and 15 minutes." />
+            </div>
+            <div className="stat-value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>
+              {sysMetrics.load_avg[0]?.toFixed(2)}
+            </div>
+            <div className="stat-detail">
+              1m / {sysMetrics.load_avg[1]?.toFixed(2)} / {sysMetrics.load_avg[2]?.toFixed(2)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Row 3: Hermes Agent Version */}
+      {versionInfo && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-header">
+            <span className="card-title">
+              <Package size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 8 }} />
+              Hermes Agent
+              <Tooltip text="Current Hermes Agent version and update status. Pull latest changes from git and reinstall dependencies. Gateway restart required after update." />
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+              {lastCheck && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                  Last checked: {new Date(lastCheck).toLocaleTimeString()}
+                </span>
+              )}
+              <button className="btn btn-sm" onClick={checkForUpdates} disabled={versionLoading} style={{ fontSize: 11 }}>
+                {versionLoading ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />}
+                {' '}Check Updates
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap', padding: '0 4px' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {versionInfo.current_version || 'v?'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                {versionInfo.version_date && <span>Released {versionInfo.version_date}</span>}
+                {versionInfo.python_version && (
+                  <span style={{ marginLeft: 8 }}>Python {versionInfo.python_version}</span>
+                )}
+                {versionInfo.openai_sdk_version && (
+                  <span style={{ marginLeft: 8 }}>OpenAI SDK {versionInfo.openai_sdk_version}</span>
+                )}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              {versionInfo.update_available ? (
+                <div>
+                  <span className="badge badge-warning" style={{ fontSize: 13, padding: '6px 14px' }}>
+                    {versionInfo.commits_behind} update{versionInfo.commits_behind === 1 ? '' : 's'} available
+                  </span>
+                  <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                    <button className="btn btn-sm" onClick={() => { setShowChangelog(!showChangelog); if (!changelog) loadChangelog() }} style={{ fontSize: 11 }}>
+                      <ChevronDown size={12} /> {showChangelog ? 'Hide' : 'View'} Changelog
+                    </button>
+                    <button
+                      className="btn btn-sm"
+                      style={{ background: 'rgba(245,158,11,0.1)', borderColor: 'var(--warning)', color: '#d4a574' }}
+                      onClick={() => setConfirmUpdate(true)}
+                      disabled={updating}
+                    >
+                      <RotateCcw size={12} />
+                      {' '}Update Now
+                      <Tooltip text="Pull latest changes from git and reinstall dependencies. Gateway restart required after update." />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <span className="badge badge-success" style={{ fontSize: 13, padding: '6px 14px' }}>
+                    Up to date
+                  </span>
+                </div>
+              )}
+
+              {updateFeedback && (
+                <div className={`action-feedback ${updateFeedback.type}`} style={{ marginTop: 12 }}>
+                  {updateFeedback.message}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Changelog */}
+          {showChangelog && changelog && changelog.commits && changelog.commits.length > 0 && (
+            <div style={{ marginTop: 16, maxHeight: 300, overflow: 'auto', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', padding: 8 }}>
+              {changelog.commits.map((c, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, padding: '4px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', flexShrink: 0 }}>{c.hash.slice(0, 7)}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{c.message}</span>
+                </div>
+              ))}
+              {changelog.total_behind > 20 && (
+                <div style={{ textAlign: 'center', padding: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                  ... and {changelog.total_behind - 20} more commits
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Update confirmation modal */}
+      {confirmUpdate && (
+        <div className="modal-overlay" onClick={() => setConfirmUpdate(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Confirm Hermes Agent Update</h3>
+              <button className="btn btn-sm" onClick={() => setConfirmUpdate(false)} style={{ padding: '2px 8px' }}>X</button>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5, margin: '12px 0' }}>
+              This will pull the latest changes from Git and reinstall Hermes dependencies.
+              <br />
+              <strong style={{ color: 'var(--warning)' }}>The Gateway must be restarted</strong> after the update for changes to take effect.
+              <br />
+              Continue?
+            </p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setConfirmUpdate(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={doUpdate} disabled={updating}>
+                {updating ? <Loader2 size={14} className="spin" /> : <RotateCcw size={14} />}
+                {' '}Update Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Platforms */}
-      <div className="card">
+      <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-header">
           <span className="card-title">
             <Radio size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 8 }} />
             Platforms
-            <Tooltip text="Communication platforms connected to Hermes. Each platform (CLI, Telegram, Discord, WhatsApp) can send and receive messages through the agent." />
+            <Tooltip text="Communication platforms connected to Hermes." />
           </span>
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -130,7 +393,7 @@ export default function Overview() {
           <span className="card-title">
             <Activity size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 8 }} />
             Recent Logs
-            <Tooltip text="Recent gateway log output showing agent activity, errors, and system events. Useful for debugging issues and monitoring agent behavior." />
+            <Tooltip text="Recent gateway log output." />
           </span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{logs.length} lines</span>
         </div>

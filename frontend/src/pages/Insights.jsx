@@ -284,6 +284,143 @@ export default function Insights() {
         </div>
       )}
 
+      {/* Hourly Activity Heatmap */}
+      {data.hourly_activity && data.hourly_activity.some(v => v > 0) && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              Activity by Hour
+              <Tooltip text="Heatmap showing message activity per hour of the day (0-23). Taller bars indicate busier hours. Helps identify when the agent is most active." />
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80, padding: '0 4px' }}>
+            {data.hourly_activity.map((count, i) => {
+              const max = Math.max(...data.hourly_activity, 1)
+              const h = Math.max((count / max) * 70, 2)
+              const isHot = count > max * 0.6
+              return (
+                <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>{count || ''}</div>
+                  <div style={{
+                    background: isHot ? 'var(--accent)' : count > 0 ? 'var(--info)' : 'var(--border)',
+                    height: h,
+                    borderRadius: 2,
+                    transition: 'height 0.2s',
+                    opacity: count > 0 ? 1 : 0.3,
+                  }} />
+                  <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 2 }}>{i}h</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Top Skills */}
+      {data.top_skills && data.top_skills.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              Top 10 Skills Used
+              <Tooltip text="Most frequently invoked tools/skills by the AI agent. Shows which capabilities are most relied upon." />
+            </span>
+          </div>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Skill <Tooltip text="Tool or skill identifier name." /></th>
+                  <th>Calls <Tooltip text="Number of times this skill was invoked." /></th>
+                  <th>Usage <Tooltip text="Relative usage compared to other skills." /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.top_skills.map((s, i) => {
+                  const maxCalls = Math.max(...data.top_skills.map(x => x.count))
+                  const pct = maxCalls > 0 ? (s.count / maxCalls) * 100 : 0
+                  return (
+                    <tr key={i}>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{s.skill}</td>
+                      <td>{s.count}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ background: 'var(--bg-tertiary)', borderRadius: 4, height: 6, flex: 1, overflow: 'hidden' }}>
+                            <div style={{ background: 'var(--accent)', height: '100%', width: `${pct}%`, borderRadius: 4 }} />
+                          </div>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 40 }}>{pct.toFixed(0)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Avg Response Time */}
+      {data.avg_response_seconds > 0 && (
+        <div className="grid grid-2" style={{ marginBottom: 0 }}>
+          <div className="stat-card">
+            <div className="stat-label">
+              Avg Response Time
+              <Tooltip text="Average time between a user message and the AI response. Calculated from all sessions in the selected period." />
+            </div>
+            <div className="stat-value">{data.avg_response_seconds}s</div>
+            <div className="stat-detail">Average first-response latency</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">
+              Messages by Platform
+              <Tooltip text="Total messages sent/received broken down by communication platform." />
+            </div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
+              {Object.entries(data.platform_messages || {}).map(([p, c]) => (
+                <span key={p} className="badge badge-info" style={{ fontSize: 11 }}>{p}: {c}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tokens by Day */}
+      {data.tokens_by_day && Object.keys(data.tokens_by_day).length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header">
+            <span className="card-title">
+              Tokens by Day
+              <Tooltip text="Daily token consumption over the selected period. Shows trends in usage volume." />
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 64, padding: '0 4px' }}>
+            {Object.entries(data.tokens_by_day)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([day, tokens]) => {
+                const allTokens = Object.values(data.tokens_by_day)
+                const max = Math.max(...allTokens, 1)
+                const h = Math.max((tokens / max) * 56, 2)
+                return (
+                  <div key={day} style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>
+                      {tokens > 1000 ? `${(tokens / 1000).toFixed(1)}k` : tokens}
+                    </div>
+                    <div style={{
+                      background: 'var(--success)',
+                      height: h,
+                      borderRadius: 2,
+                      opacity: tokens > 0 ? 0.7 : 0.3,
+                    }} />
+                    <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {day.slice(5)}
+                    </div>
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Raw Output fallback */}
       {data.raw && (
         <div className="card">

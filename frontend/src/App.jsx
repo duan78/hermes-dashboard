@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
-  Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic
+  Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { api } from './api'
@@ -22,9 +22,13 @@ import Files from './pages/Files'
 import TerminalPage from './pages/TerminalPage'
 import SkillsHub from './pages/SkillsHub'
 import FineTune from './pages/FineTune'
+import GatewayControl from './pages/GatewayControl'
+import Diagnostics from './pages/Diagnostics'
+import WebhooksPage from './pages/Webhooks'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
+  { to: '/gateway', icon: Activity, label: 'Gateway' },
   { to: '/chat', icon: MessageCircle, label: 'Chat' },
   { to: '/config', icon: Settings, label: 'Configuration' },
   { to: '/sessions', icon: MessageSquare, label: 'Sessions' },
@@ -40,6 +44,8 @@ const NAV_ITEMS = [
   { to: '/api-keys', icon: Key, label: 'API Keys' },
   { to: '/fine-tune', icon: Mic, label: 'Fine-Tune', feature: 'fineTune' },
   { to: '/insights', icon: BarChart3, label: 'Insights' },
+  { to: '/diagnostics', icon: Stethoscope, label: 'Diagnostics' },
+  { to: '/webhooks', icon: Webhook, label: 'Webhooks' },
 ]
 
 function App() {
@@ -91,6 +97,7 @@ function App() {
       <main className="main-content">
         <Routes>
           <Route path="/" element={<Overview />} />
+          <Route path="/gateway" element={<GatewayControl />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/chat/:id" element={<Chat />} />
           <Route path="/config" element={<Config />} />
@@ -108,6 +115,8 @@ function App() {
           <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/fine-tune" element={<FineTune />} />
           <Route path="/insights" element={<Insights />} />
+          <Route path="/diagnostics" element={<Diagnostics />} />
+          <Route path="/webhooks" element={<WebhooksPage />} />
         </Routes>
       </main>
     </div>

@@ -21,6 +21,10 @@ export const api = {
   // Overview
   getOverview: () => request('/overview'),
   getLogs: (lines = 100) => request(`/overview/logs?lines=${lines}`),
+  getSystemMetrics: () => request('/overview/system'),
+  hermesVersion: () => request('/overview/version'),
+  hermesUpdate: () => request('/overview/update', { method: 'POST' }),
+  hermesChangelog: () => request('/overview/changelog'),
 
   // Config
   getConfig: () => request('/config'),
@@ -134,4 +138,24 @@ export const api = {
   fineTuneUpdatePair: (baseName, transcript) => request(`/fine-tune/pairs/${encodeURIComponent(baseName)}`, { method: 'PUT', body: JSON.stringify({ transcript }) }),
   fineTuneDeletePair: (baseName) => request(`/fine-tune/pairs/${encodeURIComponent(baseName)}`, { method: 'DELETE' }),
   fineTuneStats: () => request('/fine-tune/stats'),
+
+  // Gateway
+  gatewayStatus: () => request('/gateway/status'),
+  gatewayRestart: () => request('/gateway/restart', { method: 'POST' }),
+  gatewayStop: () => request('/gateway/stop', { method: 'POST' }),
+  gatewayStart: () => request('/gateway/start', { method: 'POST' }),
+  gatewayLogs: (lines = 100, level = 'all', search = '') => {
+    const params = new URLSearchParams({ lines, level })
+    if (search) params.set('search', search)
+    return request(`/gateway/logs?${params}`)
+  },
+
+  // Diagnostics
+  runDiagnostics: () => request('/diagnostics/run', { method: 'POST' }),
+  quickDiagnostics: () => request('/diagnostics/quick'),
+
+  // Webhooks
+  listWebhooks: () => request('/webhooks/list'),
+  createWebhook: (url, events = []) => request('/webhooks/create', { method: 'POST', body: JSON.stringify({ url, events }) }),
+  deleteWebhook: (url) => request('/webhooks/delete', { method: 'DELETE', body: JSON.stringify({ url }) }),
 };
