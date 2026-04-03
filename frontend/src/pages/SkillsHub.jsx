@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Puzzle, Search, RefreshCw, X, FileText, Folder, Tag, ChevronRight,
-  ExternalLink, Trash2, Package, Filter
+  ExternalLink, Trash2, Package, Filter, Download, Loader2, CheckCircle
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -17,13 +17,18 @@ function formatSize(bytes) {
 
 // ── Skill Card ──
 
-function SkillCard({ skill, onClick }) {
+function SkillCard({ skill, onClick, installed }) {
   const desc = skill.description || 'No description available'
   return (
     <button className="sh-card" onClick={() => onClick(skill.name)}>
       <div className="sh-card-header">
         <span className="sh-card-icon"><Puzzle size={18} /></span>
         <span className="sh-card-name">{skill.display_name || skill.name}</span>
+        {installed && (
+          <span className="sh-badge" style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--success)', marginLeft: 'auto', fontSize: 10 }}>
+            <CheckCircle size={10} /> installed
+          </span>
+        )}
       </div>
       <div className="sh-card-desc">{desc.slice(0, 120)}{desc.length > 120 ? '...' : ''}</div>
       <div className="sh-card-footer">
@@ -42,7 +47,7 @@ function SkillCard({ skill, onClick }) {
 
 // ── Detail Drawer ──
 
-function SkillDrawer({ skill, onClose }) {
+function SkillDrawer({ skill, onClose, isInstalled, onInstall, installing, installResult }) {
   if (!skill) return null
 
   const content = skill.skill_md || ''
@@ -50,6 +55,8 @@ function SkillDrawer({ skill, onClose }) {
   const displayContent = content.startsWith('---')
     ? content.slice(content.indexOf('---', 3) + 3).trim()
     : content
+
+  const skillName = skill.name
 
   return (
     <div className="sh-overlay" onClick={onClose}>
@@ -68,9 +75,31 @@ function SkillDrawer({ skill, onClose }) {
               <span className="sh-badge muted">{skill.source}</span>
             </div>
           </div>
-          <button className="sh-drawer-close" onClick={onClose}>
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isInstalled ? (
+              <span className="badge badge-success" style={{ fontSize: 13, padding: '6px 14px' }}>
+                <CheckCircle size={14} /> Installed
+              </span>
+            ) : (
+              <button
+                className="btn btn-primary"
+                onClick={() => onInstall(skillName)}
+                disabled={installing}
+              >
+                {installing ? (
+                  <><Loader2 size={14} className="spin" /> Installing...</>
+                ) : (
+                  <><Download size={14} /> Install</>
+                )}
+              </button>
+            )}
+            {installResult === 'success' && !isInstalled && (
+              <span style={{ color: 'var(--success)', fontSize: 12 }}>Installed! Refreshing...</span>
+            )}
+            <button className="sh-drawer-close" onClick={onClose}>
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {skill.description && (
@@ -141,12 +170,16 @@ export default function SkillsHub() {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [selectedSkill, setSelectedSkill] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [installing, setInstalling] = useState(false)
+  const [installResult, setInstallResult] = useState(null)
+  const [installedSkills, setInstalledSkills] = useState([])
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const d = await api.listSkillsDetailed()
+      const [d, installed] = await Promise.all([api.listSkillsDetailed(), api.listSkills()])
       setData(d)
+      setInstalledSkills(Array.isArray(installed) ? installed.map(s => s.name) : [])
       setError(null)
     } catch (e) {
       setError(e.message)
@@ -159,6 +192,7 @@ export default function SkillsHub() {
 
   const openSkill = async (name) => {
     setDetailLoading(true)
+    setInstallResult(null)
     try {
       const detail = await api.skillDetail(name)
       setSelectedSkill(detail)
@@ -166,6 +200,22 @@ export default function SkillsHub() {
       setError(e.message)
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  const handleInstall = async (name) => {
+    setInstalling(true)
+    setInstallResult(null)
+    try {
+      await api.installSkill(name)
+      setInstallResult('success')
+      // Refresh installed skills list
+      const installed = await api.listSkills()
+      setInstalledSkills(Array.isArray(installed) ? installed.map(s => s.name) : [])
+    } catch (e) {
+      setInstallResult(`error: ${e.message}`)
+    } finally {
+      setInstalling(false)
     }
   }
 
@@ -251,7 +301,12 @@ export default function SkillsHub() {
       ) : (
         <div className="sh-grid">
           {filtered.map(skill => (
-            <SkillCard key={skill.name} skill={skill} onClick={openSkill} />
+            <SkillCard
+              key={skill.name}
+              skill={skill}
+              onClick={openSkill}
+              installed={installedSkills.includes(skill.name)}
+            />
           ))}
         </div>
       )}
@@ -261,6 +316,10 @@ export default function SkillsHub() {
         <SkillDrawer
           skill={selectedSkill}
           onClose={() => setSelectedSkill(null)}
+          isInstalled={installedSkills.includes(selectedSkill.name)}
+          onInstall={handleInstall}
+          installing={installing}
+          installResult={installResult}
         />
       )}
 
