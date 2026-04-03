@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X
 } from 'lucide-react'
+import { ThemeToggle } from './contexts/ThemeContext'
 import Overview from './pages/Overview'
 import Config from './pages/Config'
 import Sessions from './pages/Sessions'
@@ -68,6 +69,9 @@ function App() {
             </NavLink>
           ))}
         </nav>
+        <div className="sidebar-footer">
+          <ThemeToggle />
+        </div>
       </aside>
 
       <main className="main-content">

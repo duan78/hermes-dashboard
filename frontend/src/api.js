@@ -31,6 +31,7 @@ export const api = {
 
   // Sessions
   listSessions: () => request('/sessions'),
+  searchSessions: (q) => request(`/sessions/search?q=${encodeURIComponent(q)}`),
   getSession: (id) => request(`/sessions/${id}`),
   deleteSession: (id) => request(`/sessions/${id}`, { method: 'DELETE' }),
   pruneSessions: (days = 30) => request(`/sessions/prune?days=${days}`, { method: 'POST' }),

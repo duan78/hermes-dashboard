@@ -424,6 +424,62 @@ pre {
   max-width: 400px;
 }
 
+/* Session search */
+.session-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.session-search-input-wrap {
+  position: relative;
+  max-width: 480px;
+  flex: 1;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.session-search-input {
+  padding-left: 34px !important;
+  padding-right: 32px !important;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+.search-clear-btn:hover { color: var(--text-primary); }
+
+.search-loading {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.search-highlight {
+  background: rgba(139, 92, 246, 0.3);
+  color: var(--text-primary);
+  padding: 1px 2px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
 /* Responsive mobile menu toggle */
 .mobile-toggle {
   display: none;
@@ -507,9 +563,29 @@ pre {
   --text-muted: #8b90a0;
   --border: #d4d7e0;
   --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --accent-bg: rgba(139, 92, 246, 0.1);
 }
 [data-theme="light"] .tip-content,
 [data-theme="light"] .tip-arrow { /* tooltip stays dark */ }
+
+[data-theme="light"] .badge-success { background: rgba(16,185,129,0.12); }
+[data-theme="light"] .badge-error { background: rgba(239,68,68,0.1); }
+[data-theme="light"] .badge-warning { background: rgba(245,158,11,0.12); }
+[data-theme="light"] .badge-info { background: rgba(59,130,246,0.1); }
+[data-theme="light"] .btn-danger { background: rgba(239,68,68,0.08); }
+[data-theme="light"] .error-box { background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.2); }
+
+/* Sidebar footer */
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+.theme-toggle {
+  color: var(--text-muted) !important;
+}
+.theme-toggle:hover {
+  color: var(--accent) !important;
+}
 
 /* ── Log line coloring ── */
 .log-line-error { color: var(--error); }

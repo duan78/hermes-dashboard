@@ -8,6 +8,90 @@ from ..utils import hermes_path, run_hermes
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
+@router.get("/search")
+async def search_sessions(q: str = Query(min_length=1, max_length=200)):
+    """Search sessions by content. Searches through session previews and JSONL message content."""
+    sessions_dir = hermes_path("sessions")
+    if not sessions_dir.exists():
+        return []
+
+    query_lower = q.lower()
+    results = []
+    seen_ids = set()
+
+    # Search through session JSON files for metadata matches
+    for f in sorted(sessions_dir.glob("session_*.json"), reverse=True):
+        try:
+            data = json.loads(f.read_text())
+            sid = data.get("session_id", f.stem.replace("session_", ""))
+            if sid in seen_ids:
+                continue
+
+            # Check metadata fields
+            preview = data.get("preview", "")
+            model = data.get("model", "")
+            platform = data.get("platform", "")
+            matched_in = []
+
+            if query_lower in preview.lower():
+                matched_in.append("preview")
+            if query_lower in model.lower():
+                matched_in.append("model")
+            if query_lower in platform.lower():
+                matched_in.append("platform")
+
+            # Check JSONL messages for content match
+            jsonl_path = hermes_path("sessions", f"{sid}.jsonl")
+            snippet = ""
+            if jsonl_path.exists():
+                try:
+                    for line in jsonl_path.read_text(errors="replace").strip().split("\n"):
+                        if not line.strip():
+                            continue
+                        msg = json.loads(line)
+                        content = msg.get("content", "")
+                        if content and query_lower in content.lower():
+                            if not matched_in:
+                                matched_in.append("messages")
+                            # Extract a snippet around the match
+                            idx = content.lower().find(query_lower)
+                            start = max(0, idx - 40)
+                            end = min(len(content), idx + len(q) + 40)
+                            snippet = (content[start:end]).strip()
+                            if start > 0:
+                                snippet = "..." + snippet
+                            if end < len(content):
+                                snippet = snippet + "..."
+                            break
+                except Exception:
+                    pass
+
+            if matched_in:
+                seen_ids.add(sid)
+                msg_count = data.get("message_count", 0)
+                if jsonl_path.exists():
+                    try:
+                        lines = jsonl_path.read_text(errors="replace").strip().split("\n")
+                        msg_count = sum(1 for l in lines if l.strip())
+                    except Exception:
+                        pass
+
+                results.append({
+                    "id": sid,
+                    "model": model or "unknown",
+                    "platform": platform or "unknown",
+                    "created": data.get("created_at", ""),
+                    "messages_count": msg_count,
+                    "preview": preview,
+                    "matched_in": matched_in,
+                    "snippet": snippet,
+                })
+        except (json.JSONDecodeError, Exception):
+            continue
+
+    return results
+
+
 @router.get("")
 async def list_sessions():
     """List all unique sessions with metadata, deduplicated by session_id."""

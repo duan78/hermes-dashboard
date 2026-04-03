@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw } from 'lucide-react'
+import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
@@ -87,12 +87,29 @@ function SessionDetail({ sessionId, onBack }) {
   )
 }
 
+function HighlightText({ text, query }) {
+  if (!query) return text
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="search-highlight">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
+
 export default function Sessions() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState(null)
+  const [searching, setSearching] = useState(false)
+  const debounceRef = useRef(null)
 
   const load = async () => {
     try {
@@ -109,6 +126,34 @@ export default function Sessions() {
 
   useEffect(() => { load() }, [])
 
+  const doSearch = useCallback(async (q) => {
+    if (!q.trim()) {
+      setSearchResults(null)
+      return
+    }
+    try {
+      setSearching(true)
+      const results = await api.searchSessions(q)
+      setSearchResults(results)
+    } catch (e) {
+      console.error('Search failed:', e)
+    } finally {
+      setSearching(false)
+    }
+  }, [])
+
+  const onSearchChange = (e) => {
+    const val = e.target.value
+    setSearchQuery(val)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => doSearch(val), 300)
+  }
+
+  const clearSearch = () => {
+    setSearchQuery('')
+    setSearchResults(null)
+  }
+
   if (id) return <SessionDetail sessionId={id} onBack={() => navigate('/sessions')} />
 
   const deleteSession = async (sid) => {
@@ -116,6 +161,8 @@ export default function Sessions() {
     try { await api.deleteSession(sid); load() }
     catch (e) { setError(e.message) }
   }
+
+  const displaySessions = searchResults !== null ? searchResults : sessions
 
   return (
     <div>
@@ -130,6 +177,25 @@ export default function Sessions() {
 
       {error && <div className="error-box">{error}</div>}
 
+      <div className="session-search-bar">
+        <div className="session-search-input-wrap">
+          <Search size={16} className="search-icon" />
+          <input
+            type="text"
+            className="form-input session-search-input"
+            placeholder="Search sessions..."
+            value={searchQuery}
+            onChange={onSearchChange}
+          />
+          {searchQuery && (
+            <button className="search-clear-btn" onClick={clearSearch}>
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        {searching && <span className="search-loading">Searching...</span>}
+      </div>
+
       <div className="table-container">
         <table>
           <thead>
@@ -138,20 +204,39 @@ export default function Sessions() {
               <th>Model <Tooltip text="AI model used for this session's conversations." /></th>
               <th>Platform <Tooltip text="Communication channel where the conversation took place (CLI, Telegram, Discord, WhatsApp, etc.)." /></th>
               <th>Messages <Tooltip text="Total number of messages (user + assistant + tool results) exchanged in this session." /></th>
+              {searchResults !== null && <th>Match</th>}
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {sessions.map(s => (
+            {displaySessions.map(s => (
               <tr key={s.id}>
                 <td>
                   <a href={`#/sessions/${s.id}`} style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
                     {s.id}
                   </a>
+                  {s.preview && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <HighlightText text={s.preview.slice(0, 100)} query={searchQuery} />
+                    </div>
+                  )}
                 </td>
                 <td>{s.model}</td>
                 <td><span className="badge badge-info">{s.platform}</span></td>
                 <td>{s.messages_count}</td>
+                {searchResults !== null && (
+                  <td>
+                    {s.snippet ? (
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        <HighlightText text={s.snippet} query={searchQuery} />
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {(s.matched_in || []).join(', ')}
+                      </span>
+                    )}
+                  </td>
+                )}
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-sm" onClick={() => navigate(`/sessions/${s.id}`)}>
@@ -164,8 +249,10 @@ export default function Sessions() {
                 </td>
               </tr>
             ))}
-            {sessions.length === 0 && (
-              <tr><td colSpan={5} className="empty-state">No sessions found</td></tr>
+            {displaySessions.length === 0 && (
+              <tr><td colSpan={searchResults !== null ? 6 : 5} className="empty-state">
+                {searchResults !== null ? 'No matching sessions found' : 'No sessions found'}
+              </td></tr>
             )}
           </tbody>
         </table>

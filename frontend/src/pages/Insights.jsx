@@ -69,38 +69,43 @@ export default function Insights() {
       )}
 
       {/* Models Used */}
-      {data.models.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">
-              Models Used
-              <Tooltip text="Breakdown of which AI models were used across all sessions. Shows session count, total tokens consumed, and estimated cost per model. Useful for optimizing cost and performance." />
-            </span>
+      {data.models.length > 0 && (() => {
+        const maxTokens = Math.max(...data.models.map(m => {
+          const t = parseFloat(String(m.tokens).replace(/,/g, '')) || 0
+          return t
+        }))
+        return (
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">
+                Tokens by Model
+                <Tooltip text="Visual breakdown of token consumption per model. Bar length represents relative token usage. Use this to identify which models consume the most resources." />
+              </span>
+            </div>
+            <div className="token-charts">
+              {data.models.map((m, i) => {
+                const tokens = parseFloat(String(m.tokens).replace(/,/g, '')) || 0
+                const pct = maxTokens > 0 ? (tokens / maxTokens) * 100 : 0
+                return (
+                  <div key={i} className="token-chart-row">
+                    <div className="token-chart-label">
+                      <span className="mono-sm">{m.model}</span>
+                      <span className="token-chart-meta">{m.sessions} sessions</span>
+                    </div>
+                    <div className="token-chart-bar-bg">
+                      <div className="token-chart-bar-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="token-chart-values">
+                      <span className="token-chart-tokens">{m.tokens}</span>
+                      <span className="token-chart-cost">{m.cost}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Model <Tooltip text="AI model identifier. Multiple models appear if you've switched models during the period or use different models per platform." /></th>
-                  <th>Sessions <Tooltip text="Number of conversation sessions that used this model. A session uses one model throughout." /></th>
-                  <th>Tokens <Tooltip text="Total tokens consumed (input + output) across all sessions using this model. More tokens = higher cost." /></th>
-                  <th>Cost <Tooltip text="Estimated cost for this model's usage. Based on published per-token pricing for the model." /></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.models.map((m, i) => (
-                  <tr key={i}>
-                    <td className="mono-sm">{m.model}</td>
-                    <td>{m.sessions}</td>
-                    <td>{m.tokens}</td>
-                    <td>{m.cost}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Platforms */}
       {data.platforms.length > 0 && (
@@ -111,30 +116,56 @@ export default function Insights() {
               <Tooltip text="Usage breakdown by communication platform (CLI, Telegram, Discord, etc.). Shows which platforms are most active and their resource consumption." />
             </span>
           </div>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Platform <Tooltip text="Communication channel where conversations originated." /></th>
-                  <th>Sessions <Tooltip text="Number of separate conversation sessions on this platform." /></th>
-                  <th>Messages <Tooltip text="Total messages exchanged (user + assistant + tool results) on this platform." /></th>
-                  <th>Tokens <Tooltip text="Total tokens consumed by this platform's conversations." /></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.platforms.map((p, i) => (
-                  <tr key={i}>
-                    <td>{p.platform}</td>
-                    <td>{p.sessions}</td>
-                    <td>{p.messages}</td>
-                    <td>{p.tokens}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="platform-charts">
+            {data.platforms.map((p, i) => {
+              const maxSessions = Math.max(...data.platforms.map(x => parseInt(x.sessions) || 0))
+              const sessions = parseInt(p.sessions) || 0
+              const pct = maxSessions > 0 ? (sessions / maxSessions) * 100 : 0
+              return (
+                <div key={i} className="platform-chart-row">
+                  <span className="badge badge-info" style={{ minWidth: 80, justifyContent: 'center' }}>{p.platform}</span>
+                  <div className="token-chart-bar-bg">
+                    <div className="platform-chart-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="token-chart-tokens">{p.sessions} sess / {p.messages} msg</span>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
+
+      {/* Cost Breakdown */}
+      {data.models.length > 0 && data.models.some(m => m.cost && m.cost !== 'N/A') && (() => {
+        const costs = data.models
+          .map(m => ({ model: m.model, cost: parseFloat(String(m.cost).replace(/[$,]/g, '')) || 0 }))
+          .filter(c => c.cost > 0)
+        const maxCost = Math.max(...costs.map(c => c.cost))
+        if (costs.length === 0) return null
+        return (
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">
+                Cost Breakdown
+                <Tooltip text="Estimated cost per model for the selected period. Based on published per-token pricing. Useful for budgeting and cost optimization." />
+              </span>
+            </div>
+            <div className="cost-breakdown">
+              {costs.map((c, i) => (
+                <div key={i} className="cost-row">
+                  <div className="cost-row-label">
+                    <span className="cost-row-model">{c.model}</span>
+                  </div>
+                  <div className="cost-row-bar-bg">
+                    <div className="cost-row-bar-fill" style={{ width: maxCost > 0 ? `${(c.cost / maxCost) * 100}%` : '0%' }} />
+                  </div>
+                  <span className="cost-row-value">${c.cost.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Top Tools */}
       {data.tools.length > 0 && (

@@ -127,4 +127,166 @@
   .progress-bar-bg {
     width: 60px;
   }
+
+  .token-chart-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .token-chart-bar-bg {
+    width: 100%;
+  }
+
+  .token-chart-values {
+    justify-content: flex-start;
+  }
+
+  .platform-chart-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+/* ── Token chart (horizontal bar per model) ── */
+
+.token-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.token-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.token-chart-label {
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.token-chart-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.token-chart-bar-bg {
+  flex: 1;
+  background: var(--bg-tertiary);
+  height: 22px;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.token-chart-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #a78bfa);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+.token-chart-values {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 140px;
+  justify-content: flex-end;
+}
+
+.token-chart-tokens {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.token-chart-cost {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--success);
+  white-space: nowrap;
+}
+
+/* ── Platform charts ── */
+
+.platform-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.platform-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.platform-chart-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--info), #60a5fa);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+/* ── Cost breakdown ── */
+
+.cost-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.cost-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cost-row-label {
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cost-row-model {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.cost-row-bar-bg {
+  flex: 1;
+  background: var(--bg-tertiary);
+  height: 18px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cost-row-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--success), #34d399);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+.cost-row-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--success);
+  min-width: 80px;
+  text-align: right;
 }
