@@ -36,6 +36,7 @@ export const api = {
   deleteSession: (id) => request(`/sessions/${id}`, { method: 'DELETE' }),
   pruneSessions: (days = 30) => request(`/sessions/prune?days=${days}`, { method: 'POST' }),
   getSessionStats: () => request('/sessions/stats'),
+  exportSession: (id) => request(`/sessions/${id}/export`),
 
   // Memory & SOUL
   getSoul: () => request('/memory/soul'),
@@ -79,6 +80,8 @@ export const api = {
   getPlatformsStatus: () => request('/platforms/status'),
   getChannels: () => request('/platforms/channels'),
   listPairing: () => request('/platforms/pairing'),
+  approvePairing: (code) => request('/platforms/pairing/approve', { method: 'POST', body: JSON.stringify({ code }) }),
+  revokePairing: (userId) => request('/platforms/pairing/revoke', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
 
   // Insights
   getInsights: (days = 7) => request(`/insights?days=${days}`),
