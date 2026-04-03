@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Search, Trash2, Eye, RefreshCw } from 'lucide-react'
+import { BookOpen, Search, Trash2, Eye, RefreshCw, Download, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
@@ -11,6 +11,8 @@ export default function Skills() {
   const [browseResults, setBrowseResults] = useState('')
   const [selectedSkill, setSelectedSkill] = useState(null)
   const [filter, setFilter] = useState('')
+  const [installing, setInstalling] = useState({})
+  const [installResult, setInstallResult] = useState({})
 
   const load = async () => {
     try {
@@ -54,6 +56,53 @@ export default function Skills() {
       setError(e.message)
     }
   }
+
+  const installSkill = async (name) => {
+    setInstalling(prev => ({ ...prev, [name]: true }))
+    setInstallResult(prev => ({ ...prev, [name]: null }))
+    try {
+      await api.installSkill(name)
+      setInstallResult(prev => ({ ...prev, [name]: 'success' }))
+      load()
+      setTimeout(() => {
+        setInstallResult(prev => ({ ...prev, [name]: null }))
+      }, 3000)
+    } catch (e) {
+      setInstallResult(prev => ({ ...prev, [name]: `error: ${e.message}` }))
+    } finally {
+      setInstalling(prev => ({ ...prev, [name]: false }))
+    }
+  }
+
+  // Parse browse results into structured entries
+  const parseBrowseResults = (text) => {
+    if (!text) return []
+    const lines = text.split('\n').filter(l => l.trim())
+    const entries = []
+    for (const line of lines) {
+      // Try to match common patterns: "  skill_name  - description" or numbered lists
+      const match = line.match(/^\s*(?:\d+[\.\)]\s*)?(\w[\w\-]*)\s*[-–—:]\s*(.+)/)
+      if (match) {
+        entries.push({ name: match[1].trim(), description: match[2].trim() })
+        continue
+      }
+      // Also match bullet points
+      const bulletMatch = line.match(/^\s*[*\-•]\s*(\w[\w\-]*)(?:\s*[-–—:]\s*(.+))?/)
+      if (bulletMatch) {
+        entries.push({ name: bulletMatch[1].trim(), description: bulletMatch[2]?.trim() || '' })
+        continue
+      }
+      // Match lines that are just a skill name (single word, no spaces)
+      const simpleMatch = line.match(/^\s*(\w[\w\-]{2,})\s*$/)
+      if (simpleMatch) {
+        entries.push({ name: simpleMatch[1].trim(), description: '' })
+      }
+    }
+    return entries
+  }
+
+  const installedNames = new Set(skills.map(s => s.name))
+  const browseEntries = parseBrowseResults(browseResults)
 
   const categories = [...new Set(skills.map(s => s.category).filter(Boolean))]
   const filtered = skills.filter(s =>
@@ -130,10 +179,67 @@ export default function Skills() {
       {browseResults && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
-            <span className="card-title">Browse Results</span>
-            <button className="btn btn-sm" onClick={() => setBrowseResults('')}>Close</button>
+            <span className="card-title">
+              Browse Results
+              <Tooltip text="Skills available in the online registry. Click Install to add them to your Hermes instance." />
+            </span>
+            <button className="btn btn-sm" onClick={() => { setBrowseResults(''); setInstallResult({}) }}>Close</button>
           </div>
-          <pre style={{ maxHeight: 300 }}>{browseResults}</pre>
+          {browseEntries.length > 0 ? (
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Skill Name</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {browseEntries.map(entry => {
+                    const isInstalled = installedNames.has(entry.name)
+                    const isInstalling = !!installing[entry.name]
+                    const result = installResult[entry.name]
+                    return (
+                      <tr key={entry.name}>
+                        <td style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{entry.name}</td>
+                        <td style={{ maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {entry.description || '-'}
+                        </td>
+                        <td>
+                          {isInstalled ? (
+                            <span className="badge badge-success"><CheckCircle size={12} /> Installed</span>
+                          ) : result === 'success' ? (
+                            <span className="badge badge-success"><CheckCircle size={12} /> Just installed</span>
+                          ) : result?.startsWith('error') ? (
+                            <span className="badge badge-error"><XCircle size={12} /> Failed</span>
+                          ) : null}
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => installSkill(entry.name)}
+                            disabled={isInstalling || isInstalled}
+                          >
+                            {isInstalling ? (
+                              <><Loader2 size={12} className="spin" /> Installing</>
+                            ) : isInstalled ? (
+                              <><CheckCircle size={12} /> Installed</>
+                            ) : (
+                              <><Download size={12} /> Install</>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <pre style={{ maxHeight: 300 }}>{browseResults}</pre>
+          )}
         </div>
       )}
 
