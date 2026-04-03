@@ -30,7 +30,7 @@
   font-size: 13px;
   font-weight: 400;
   line-height: 1.5;
-  color: var(--text-primary);
+  color: #e4e6eb;
   max-height: 300px;
   overflow-y: auto;
   overflow-wrap: break-word;
