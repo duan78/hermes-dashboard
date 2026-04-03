@@ -3,7 +3,7 @@ import {
   Settings, Save, RotateCcw, ChevronDown, ChevronRight,
   Cpu, Sparkles, Terminal as TerminalIcon, Globe, Monitor,
   Zap, Database, Volume2, Shield, Archive, Layers, Code, Plug,
-  Eye, EyeOff, Check, X,
+  Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
 } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
@@ -50,6 +50,26 @@ const SECTIONS = [
     ],
   },
   {
+    id: 'delegation', title: 'Delegation', icon: GitBranch,
+    desc: 'Configure subagent delegation: use a cheaper/faster model for child agent tasks.',
+    fields: [
+      { key: 'delegation.model', label: 'Subagent Model', type: 'text', desc: 'Model used by delegate_task for child agents. E.g. "google/gemini-3-flash-preview". Empty = inherit parent model.' },
+      { key: 'delegation.provider', label: 'Subagent Provider', type: 'text', desc: 'Provider for subagent delegation. E.g. "openrouter". Empty = inherit parent provider + credentials.' },
+      { key: 'delegation.base_url', label: 'Subagent Base URL', type: 'text', desc: 'Direct OpenAI-compatible endpoint for subagents. Leave empty to use provider routing.' },
+      { key: 'delegation.api_key', label: 'Subagent API Key', type: 'secret', desc: 'API key for delegation.base_url. Falls back to OPENAI_API_KEY if empty.' },
+      { key: 'delegation.max_iterations', label: 'Max Iterations', type: 'number', min: 1, max: 200, desc: 'Per-subagent iteration cap. Each subagent gets its own budget, independent of the parent\'s max_iterations. Default: 50.' },
+    ],
+  },
+  {
+    id: 'smart_routing', title: 'Smart Routing', icon: Brain,
+    desc: 'Smart model routing: automatically use a cheaper model for simple queries.',
+    fields: [
+      { key: 'smart_model_routing.enabled', label: 'Enabled', type: 'toggle', desc: 'Enable smart routing to automatically detect simple queries (short, low-complexity) and route them to a cheaper model instead of the main model.' },
+      { key: 'smart_model_routing.max_simple_chars', label: 'Max Simple Chars', type: 'number', min: 50, max: 1000, desc: 'Maximum character length for a query to be considered "simple". Queries shorter than this threshold may be routed to the cheap model. Default: 160.' },
+      { key: 'smart_model_routing.max_simple_words', label: 'Max Simple Words', type: 'number', min: 5, max: 200, desc: 'Maximum word count for a query to be considered "simple". Default: 28.' },
+    ],
+  },
+  {
     id: 'terminal', title: 'Terminal', icon: TerminalIcon,
     desc: 'Configure the shell execution environment: local, Docker, or cloud backends.',
     fields: [
@@ -57,10 +77,13 @@ const SECTIONS = [
       { key: 'terminal.timeout', label: 'Timeout (s)', type: 'number', min: 10, max: 600, desc: 'Maximum execution time per terminal command in seconds. Commands running longer are killed. Increase for long-running builds or tests. Default: 180.' },
       { key: 'terminal.cwd', label: 'Working Directory', type: 'text', desc: 'Default working directory for terminal commands. "." means the directory where Hermes was started. Use an absolute path for consistency.' },
       { key: 'terminal.persistent_shell', label: 'Persistent Shell', type: 'toggle', desc: 'Keep a long-lived bash shell between commands. Preserves working directory (cd), environment variables (export), and shell state across executions. Recommended: enabled for most workflows.' },
-      { key: 'terminal.lifetime_seconds', label: 'Lifetime (s)', type: 'number', min: 30, max: 3600, desc: 'How long a persistent shell stays alive before being recycled. After this time, a fresh shell is created. Default: 300 (5 min).' },
       { key: 'terminal.docker_image', label: 'Docker Image', type: 'text', desc: 'Container image used when backend is "docker". Must include required tools (Python, Node.js, etc.). Example: "nikolaik/python-nodejs:python3.11-nodejs20".' },
       { key: 'terminal.container_cpu', label: 'Container CPU', type: 'number', min: 1, max: 16, desc: 'CPU cores allocated to the container. More cores = faster parallel execution. Default: 1.' },
       { key: 'terminal.container_memory', label: 'Container Memory (MB)', type: 'number', min: 256, max: 32768, desc: 'Memory in MB allocated to the container. Increase for memory-intensive tasks (data processing, ML). Default: 5120 (5 GB).' },
+      { key: 'terminal.container_disk', label: 'Container Disk (MB)', type: 'number', min: 1024, max: 102400, desc: 'Disk space in MB allocated to the container. Default: 51200 (50 GB).' },
+      { key: 'terminal.container_persistent', label: 'Persistent Container FS', type: 'toggle', desc: 'Persist the container filesystem across sessions. When enabled, files created inside the container survive restarts. Default: true.' },
+      { key: 'terminal.docker_mount_cwd_to_workspace', label: 'Mount CWD to /workspace', type: 'toggle', desc: 'Mount the host\'s current working directory into /workspace inside the Docker container. Off by default because passing host directories weakens isolation.' },
+      { key: 'terminal.env_passthrough', label: 'Env Passthrough', type: 'text', desc: 'Comma-separated list of environment variable names to pass through to sandboxed execution (terminal and execute_code). Skill-declared vars are passed automatically.' },
     ],
   },
   {
@@ -71,7 +94,7 @@ const SECTIONS = [
       { key: 'browser.command_timeout', label: 'Command Timeout (s)', type: 'number', min: 5, max: 120, desc: 'Maximum time for each browser command (click, type, navigate). If a page is slow to load, increase this value. Default: 30.' },
       { key: 'browser.record_sessions', label: 'Record Sessions', type: 'toggle', desc: 'Record browser sessions as screenshots for debugging. Useful for troubleshooting automated browsing tasks. Increases storage usage.' },
       { key: 'browser.allow_private_urls', label: 'Allow Private URLs', type: 'toggle', desc: 'Allow browsing private/local network URLs (localhost, 192.168.x.x, internal domains). Disabled by default for security. Enable only in trusted environments.' },
-      { key: 'browser.cloud_provider', label: 'Cloud Provider', type: 'select', options: ['local', 'browserbase'], desc: 'Browser hosting provider. "local" runs on the host machine (requires browser installed). "browserbase" uses cloud browsers for scalable, isolated sessions.' },
+      { key: 'browser.camofox.managed_persistence', label: 'Camofox Managed Persistence', type: 'toggle', desc: 'Send a stable profile-scoped userId to Camofox server so it can map to a persistent browser profile directory. When false (default), each session gets a random ephemeral userId.' },
     ],
   },
   {
@@ -85,8 +108,11 @@ const SECTIONS = [
       { key: 'display.inline_diffs', label: 'Inline Diffs', type: 'toggle', desc: 'Show code changes as inline diffs (highlighted additions/removals) instead of showing the entire new file. Makes it easier to see what changed.' },
       { key: 'display.show_cost', label: 'Show Cost', type: 'toggle', desc: 'Display token usage and estimated cost after each response. Useful for monitoring API spending.' },
       { key: 'display.bell_on_complete', label: 'Bell on Complete', type: 'toggle', desc: 'Play a terminal bell sound when a response completes. Useful when multitasking — you\'ll hear when the AI is done.' },
-      { key: 'display.tool_progress', label: 'Tool Progress', type: 'select', options: ['off', 'on', 'minimal'], desc: 'Progress indicators during tool execution. "off" hides them, "on" shows full progress with details, "minimal" shows brief status only.' },
+      { key: 'display.tool_progress_command', label: 'Tool Progress Command', type: 'toggle', desc: 'Enable the /verbose command in messaging gateways to toggle tool progress display on the fly.' },
       { key: 'display.tool_preview_length', label: 'Tool Preview Length', type: 'number', min: 0, max: 1000, desc: 'Number of characters to preview from tool outputs inline. 0 disables preview entirely. Set to 200-500 for useful summaries without clutter.' },
+      { key: 'display.resume_display', label: 'Resume Display', type: 'select', options: ['full', 'summary', 'off'], desc: 'How to display resumed session context. "full" shows the full conversation history, "summary" shows a condensed summary, "off" shows nothing.' },
+      { key: 'display.busy_input_mode', label: 'Busy Input Mode', type: 'select', options: ['interrupt', 'queue', 'reject'], desc: 'Behavior when user sends a message while the agent is busy. "interrupt" sends the message immediately (may disrupt), "queue" buffers it for next turn, "reject" drops it with a notice.' },
+      { key: 'display.skin', label: 'Skin', type: 'text', desc: 'Display skin/theme name for the CLI interface. "default" uses the built-in theme. Custom skins can be defined in the skins directory.' },
     ],
   },
   {
@@ -117,10 +143,12 @@ const SECTIONS = [
       { key: 'tts.provider', label: 'TTS Provider', type: 'select', options: ['edge', 'elevenlabs', 'openai', 'neutts'], desc: 'Text-to-speech engine. "edge" uses free Microsoft Edge TTS (recommended). "elevenlabs" uses ElevenLabs API (high quality, paid). "openai" uses OpenAI TTS. "neutts" runs a local model.' },
       { key: 'tts.edge.voice', label: 'Edge Voice', type: 'text', desc: 'Voice identifier for Edge TTS. Format: "lang-Region-VoiceName". Examples: "fr-FR-DeniseNeural", "en-US-AriaNeural", "en-US-GuyNeural". List voices with: hermes config check.' },
       { key: 'stt.enabled', label: 'STT Enabled', type: 'toggle', desc: 'Enable speech-to-text for voice input. Allows recording audio messages that are transcribed and sent as text to the AI.' },
-      { key: 'stt.provider', label: 'STT Provider', type: 'select', options: ['openai', 'local'], desc: 'Speech recognition engine. "openai" uses the Whisper API (accurate, requires API key). "local" runs Whisper locally (free, requires model download).' },
+      { key: 'stt.provider', label: 'STT Provider', type: 'select', options: ['openai', 'local', 'groq'], desc: 'Speech recognition engine. "openai" uses the Whisper API (accurate, requires API key). "local" runs Whisper locally (free, requires model download). "groq" uses Groq\'s fast Whisper.' },
       { key: 'voice.record_key', label: 'Record Key', type: 'text', desc: 'Keyboard shortcut to start/stop voice recording. Format: modifier+key (e.g., "ctrl+b", "alt+r"). Must not conflict with system shortcuts.' },
       { key: 'voice.max_recording_seconds', label: 'Max Recording (s)', type: 'number', min: 5, max: 600, desc: 'Maximum voice recording duration in seconds. Recordings are automatically stopped after this time. Default: 120 (2 min).' },
       { key: 'voice.auto_tts', label: 'Auto TTS', type: 'toggle', desc: 'Automatically speak all AI responses using TTS. Every response will be read aloud. Useful for accessibility or hands-free use.' },
+      { key: 'voice.silence_threshold', label: 'Silence Threshold', type: 'number', min: 0, max: 32767, desc: 'RMS audio level below which sound is considered silence (0-32767). Lower values require quieter environments. Default: 200.' },
+      { key: 'voice.silence_duration', label: 'Silence Duration (s)', type: 'number', min: 0.5, max: 30, step: 0.5, desc: 'Seconds of continuous silence before auto-stopping the recording. Default: 3.0.' },
     ],
   },
   {
@@ -132,6 +160,7 @@ const SECTIONS = [
       { key: 'security.tirith_timeout', label: 'Tirith Timeout (s)', type: 'number', min: 1, max: 30, desc: 'Maximum time in seconds for Tirith security checks. If checks take longer, the fail_open setting determines the outcome. Default: 5.' },
       { key: 'security.tirith_fail_open', label: 'Fail Open', type: 'toggle', desc: 'If Tirith security check times out, allow the operation (true) or block it (false). "true" is more permissive, "false" is more secure but may block legitimate operations during slowdowns.' },
       { key: 'privacy.redact_pii', label: 'Redact PII', type: 'toggle', desc: 'Automatically detect and redact personally identifiable information (names, emails, phone numbers, SSNs) from logs and stored data. Important for compliance and privacy.' },
+      { key: 'security.website_blocklist.enabled', label: 'Website Blocklist', type: 'toggle', desc: 'Enable website blocklist that prevents the agent from accessing certain domains. Useful for compliance and security.' },
     ],
   },
   {
@@ -142,7 +171,9 @@ const SECTIONS = [
       { key: 'compression.threshold', label: 'Threshold', type: 'number', min: 0, max: 1, step: 0.1, desc: 'Compression triggers when context reaches this fraction of the model\'s context window. 0.5 = compress at 50% capacity. Lower values compress sooner but may lose detail. Default: 0.5.' },
       { key: 'compression.target_ratio', label: 'Target Ratio', type: 'number', min: 0, max: 1, step: 0.1, desc: 'Target size after compression as a fraction of original. 0.2 means compress to 20% of original size. Lower = more aggressive compression. Default: 0.2.' },
       { key: 'compression.protect_last_n', label: 'Protect Last N', type: 'number', min: 0, max: 100, desc: 'Number of recent messages to protect from compression. These are always preserved in full. Higher values keep more recent context but leave less room for compression. Default: 20.' },
-      { key: 'compression.summary_model', label: 'Summary Model', type: 'text', desc: 'Model used for generating compression summaries. Can be a cheaper/faster model to save costs. Default: "google/gemini-3-flash-preview". Any OpenAI-compatible model works.' },
+      { key: 'compression.summary_model', label: 'Summary Model', type: 'text', desc: 'Model used for generating compression summaries. Can be a cheaper/faster model to save costs. Default: "" (uses main model). Any OpenAI-compatible model works.' },
+      { key: 'compression.summary_provider', label: 'Summary Provider', type: 'text', desc: 'Provider for the compression summary model. "auto" detects from model name. Use "custom" with summary_base_url.' },
+      { key: 'compression.summary_base_url', label: 'Summary Base URL', type: 'text', desc: 'Custom API endpoint for the compression summary model. Only used when summary_provider is "custom".' },
     ],
   },
   {
@@ -151,7 +182,7 @@ const SECTIONS = [
     fields: [
       { key: 'checkpoints.enabled', label: 'Checkpoints', type: 'toggle', desc: 'Enable session checkpoints that save conversation state periodically. Allows resuming interrupted conversations exactly where you left off.' },
       { key: 'checkpoints.max_snapshots', label: 'Max Snapshots', type: 'number', min: 1, max: 200, desc: 'Maximum number of checkpoint snapshots to keep per session. Older snapshots are automatically cleaned up. Default: 50.' },
-      { key: 'approvals.mode', label: 'Approval Mode', type: 'select', options: ['manual', 'auto'], desc: 'How tool approvals work. "manual" requires user confirmation before executing potentially dangerous tools (file writes, shell commands). "auto" approves everything automatically — use only in trusted environments.' },
+      { key: 'approvals.mode', label: 'Approval Mode', type: 'select', options: ['manual', 'smart', 'auto'], desc: 'How tool approvals work. "manual" requires user confirmation for dangerous tools. "smart" uses an auxiliary LLM to auto-approve low-risk commands. "auto" approves everything — use only in trusted environments.' },
       { key: 'approvals.timeout', label: 'Approval Timeout (s)', type: 'number', min: 10, max: 300, desc: 'Seconds to wait for user approval before auto-rejecting the tool call. Increase for slow interactions or when stepping away. Default: 60.' },
       { key: 'session_reset.mode', label: 'Reset Mode', type: 'select', options: ['both', 'idle', 'scheduled', 'off'], desc: 'When to automatically reset sessions. "both" resets on idle AND on schedule. "idle" only after inactivity. "scheduled" only at a specific hour. "off" never auto-resets.' },
       { key: 'session_reset.idle_minutes', label: 'Idle Reset (min)', type: 'number', min: 10, max: 10080, desc: 'Minutes of inactivity before resetting a session. 1440 = 24 hours. The session context is cleared and a fresh conversation starts. Default: 1440.' },
@@ -160,10 +191,18 @@ const SECTIONS = [
   },
   {
     id: 'code_execution', title: 'Code Execution', icon: Code,
-    desc: 'Configure code execution limits: timeout and maximum tool calls per execution session.',
+    desc: 'Configure code execution limits: timeout, max tool calls, and file read limits.',
     fields: [
       { key: 'code_execution.timeout', label: 'Timeout (s)', type: 'number', min: 10, max: 600, desc: 'Maximum execution time for code execution tasks in seconds. Longer tasks are terminated. Increase for complex computations or large builds. Default: 300 (5 min).' },
       { key: 'code_execution.max_tool_calls', label: 'Max Tool Calls', type: 'number', min: 1, max: 200, desc: 'Maximum number of tool calls allowed in a single code execution session. Prevents runaway tool call loops. Default: 50.' },
+      { key: 'file_read_max_chars', label: 'File Read Max Chars', type: 'number', min: 10000, max: 500000, desc: 'Maximum characters returned by a single read_file call. Reads exceeding this are rejected with guidance to use offset+limit. 100K chars ≈ 25-35K tokens. Default: 100000.' },
+    ],
+  },
+  {
+    id: 'cron', title: 'Cron & Scheduling', icon: Clock,
+    desc: 'Cron job settings: response wrapping and scheduled task behavior.',
+    fields: [
+      { key: 'cron.wrap_response', label: 'Wrap Cron Response', type: 'toggle', desc: 'Wrap delivered cron responses with a header (task name) and footer ("The agent cannot see this message"). Set to false for clean output.' },
     ],
   },
   {
@@ -174,10 +213,26 @@ const SECTIONS = [
       { key: 'human_delay.mode', label: 'Human Delay Mode', type: 'select', options: ['off', 'typing', 'reading'], desc: 'Simulate human-like response delay. "off" sends instantly. "typing" adds delay proportional to response length. "reading" simulates reading time before responding. Makes the AI feel more natural on messaging platforms.' },
       { key: 'human_delay.min_ms', label: 'Delay Min (ms)', type: 'number', min: 0, max: 5000, desc: 'Minimum artificial delay in milliseconds before sending a response. Only applies when human_delay.mode is not "off". Default: 800.' },
       { key: 'human_delay.max_ms', label: 'Delay Max (ms)', type: 'number', min: 0, max: 10000, desc: 'Maximum artificial delay in milliseconds. The actual delay is randomized between min and max. Default: 2500.' },
-      { key: 'discord.require_mention', label: 'Discord: Require Mention', type: 'toggle', desc: 'Bot only responds when explicitly @mentioned in Discord channels. Prevents the bot from responding to every message. Recommended: enabled in busy servers.' },
-      { key: 'discord.auto_thread', label: 'Discord: Auto Thread', type: 'toggle', desc: 'Automatically create a Discord thread for each new conversation. Keeps channels organized by grouping related messages together.' },
-      { key: 'discord.reactions', label: 'Discord: Reactions', type: 'toggle', desc: 'Add emoji reactions to messages for visual feedback (e.g., thinking indicator, completion checkmark). Makes the bot feel more interactive.' },
       { key: 'group_sessions_per_user', label: 'Group Sessions/User', type: 'toggle', desc: 'Create separate conversation sessions for each user in group channels. When enabled, each user gets their own context. When disabled, all users share one conversation in the channel.' },
+    ],
+  },
+  {
+    id: 'discord', title: 'Discord', icon: Plug,
+    desc: 'Discord bot platform settings for gateway mode.',
+    fields: [
+      { key: 'discord.require_mention', label: 'Require Mention', type: 'toggle', desc: 'Bot only responds when explicitly @mentioned in Discord channels. Prevents the bot from responding to every message. Recommended: enabled in busy servers.' },
+      { key: 'discord.free_response_channels', label: 'Free Response Channels', type: 'text', desc: 'Comma-separated channel IDs where the bot responds without being @mentioned. Leave empty to require mentions everywhere.' },
+      { key: 'discord.auto_thread', label: 'Auto Thread', type: 'toggle', desc: 'Automatically create a Discord thread for each new conversation. Keeps channels organized by grouping related messages together.' },
+      { key: 'discord.reactions', label: 'Reactions', type: 'toggle', desc: 'Add emoji reactions to messages for visual feedback (e.g., thinking indicator, completion checkmark). Makes the bot feel more interactive.' },
+    ],
+  },
+  {
+    id: 'advanced', title: 'Advanced', icon: Wrench,
+    desc: 'Advanced settings: skills directories, toolsets, and other expert options.',
+    fields: [
+      { key: 'toolsets', label: 'Toolsets', type: 'text', desc: 'Comma-separated list of active toolset names. "hermes-cli" is the built-in default. Additional toolsets provide extra capabilities.' },
+      { key: 'skills.external_dirs', label: 'External Skill Dirs', type: 'text', desc: 'Comma-separated list of external skill directories for sharing skills across tools/agents. Each path is expanded (~, ${VAR}). E.g. "~/.agents/skills, /shared/team-skills".' },
+      { key: 'prefill_messages_file', label: 'Prefill Messages File', type: 'text', desc: 'Path to a JSON file containing prefill messages (list of {role, content} dicts) injected at the start of every API call for few-shot priming. Never saved to sessions or logs.' },
     ],
   },
 ]
@@ -367,7 +422,7 @@ export default function Config() {
             </button>
           )}
           <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || !hasChanges}>
-            <Save size={14} /> {saving ? 'Saving...' : 'Save'}
+            <Save size={14} /> {saving ? 'Saving...' : 'Save All'}
             {hasChanges && <span className="save-badge" />}
           </button>
         </div>
@@ -385,6 +440,7 @@ export default function Config() {
             <div className="accordion-header" onClick={() => toggleSection(section.id)}>
               <Icon size={18} className="accordion-icon" />
               <span className="accordion-title">{section.title}</span>
+              <span className="field-count">{section.fields.length} settings</span>
               <Tooltip text={section.desc} />
               {changed && <span className="changed-dot" />}
               <span className="accordion-chevron">
