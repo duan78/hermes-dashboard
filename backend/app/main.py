@@ -31,6 +31,12 @@ from .routers import (
     gateway,
     diagnostics,
     webhooks,
+    env_vars,
+    plugins_router,
+    mcp,
+    auth_pairing,
+    profiles,
+    backup,
 )
 
 app = FastAPI(
@@ -93,6 +99,12 @@ app.include_router(fine_tune.router)
 app.include_router(gateway.router)
 app.include_router(diagnostics.router)
 app.include_router(webhooks.router)
+app.include_router(env_vars.router)
+app.include_router(plugins_router.router)
+app.include_router(mcp.router)
+app.include_router(auth_pairing.router)
+app.include_router(profiles.router)
+app.include_router(backup.router)
 
 
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──

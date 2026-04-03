@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
-  Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook
+  Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
+  Shield, Network, UserCheck, Users, HardDrive
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { api } from './api'
@@ -25,6 +26,12 @@ import FineTune from './pages/FineTune'
 import GatewayControl from './pages/GatewayControl'
 import Diagnostics from './pages/Diagnostics'
 import WebhooksPage from './pages/Webhooks'
+import EnvVarsPage from './pages/EnvVars'
+import PluginsPage from './pages/Plugins'
+import McpServersPage from './pages/McpServers'
+import AuthPairingPage from './pages/AuthPairing'
+import ProfilesPage from './pages/Profiles'
+import BackupRestorePage from './pages/BackupRestore'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -46,6 +53,12 @@ const NAV_ITEMS = [
   { to: '/insights', icon: BarChart3, label: 'Insights' },
   { to: '/diagnostics', icon: Stethoscope, label: 'Diagnostics' },
   { to: '/webhooks', icon: Webhook, label: 'Webhooks' },
+  { to: '/env-vars', icon: Shield, label: 'Environment' },
+  { to: '/plugins', icon: Puzzle, label: 'Plugins' },
+  { to: '/mcp', icon: Network, label: 'MCP Servers' },
+  { to: '/auth-pairing', icon: UserCheck, label: 'Auth & Pairing' },
+  { to: '/profiles', icon: Users, label: 'Profiles' },
+  { to: '/backup', icon: HardDrive, label: 'Backup' },
 ]
 
 function App() {
@@ -117,6 +130,12 @@ function App() {
           <Route path="/insights" element={<Insights />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
           <Route path="/webhooks" element={<WebhooksPage />} />
+          <Route path="/env-vars" element={<EnvVarsPage />} />
+          <Route path="/plugins" element={<PluginsPage />} />
+          <Route path="/mcp" element={<McpServersPage />} />
+          <Route path="/auth-pairing" element={<AuthPairingPage />} />
+          <Route path="/profiles" element={<ProfilesPage />} />
+          <Route path="/backup" element={<BackupRestorePage />} />
         </Routes>
       </main>
     </div>

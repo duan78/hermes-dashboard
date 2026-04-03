@@ -158,4 +158,44 @@ export const api = {
   listWebhooks: () => request('/webhooks/list'),
   createWebhook: (url, events = []) => request('/webhooks/create', { method: 'POST', body: JSON.stringify({ url, events }) }),
   deleteWebhook: (url) => request('/webhooks/delete', { method: 'DELETE', body: JSON.stringify({ url }) }),
+
+  // Env Variables
+  listEnvVars: () => request('/env-vars/list'),
+  setEnvVar: (key, value) => request('/env-vars/set', { method: 'PUT', body: JSON.stringify({ key, value }) }),
+  deleteEnvVar: (key) => request('/env-vars/delete', { method: 'DELETE', body: JSON.stringify({ key }) }),
+  requiredEnvVars: () => request('/env-vars/required'),
+
+  // Plugins
+  listPlugins: () => request('/plugins/list'),
+  installPlugin: (url) => request('/plugins/install', { method: 'POST', body: JSON.stringify({ url }) }),
+  removePlugin: (name) => request('/plugins/remove', { method: 'POST', body: JSON.stringify({ name }) }),
+  enablePlugin: (name) => request('/plugins/enable', { method: 'POST', body: JSON.stringify({ name }) }),
+  disablePlugin: (name) => request('/plugins/disable', { method: 'POST', body: JSON.stringify({ name }) }),
+  updatePlugin: (name) => request('/plugins/update', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  // MCP Servers
+  listMcpServers: () => request('/mcp/list'),
+  addMcpServer: (name, type, command, url, args) => request('/mcp/add', { method: 'POST', body: JSON.stringify({ name, type, command, url, args }) }),
+  removeMcpServer: (name) => request('/mcp/remove', { method: 'DELETE', body: JSON.stringify({ name }) }),
+  testMcpServer: (name) => request('/mcp/test', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  // Auth & Pairing
+  listPairing: () => request('/auth-pairing/list'),
+  approvePairing: (code) => request('/auth-pairing/approve', { method: 'POST', body: JSON.stringify({ code }) }),
+  revokePairing: (user) => request('/auth-pairing/revoke', { method: 'POST', body: JSON.stringify({ user }) }),
+  clearPendingPairing: () => request('/auth-pairing/clear-pending', { method: 'POST' }),
+
+  // Profiles
+  listProfiles: () => request('/profiles/list'),
+  createProfile: (name) => request('/profiles/create', { method: 'POST', body: JSON.stringify({ name }) }),
+  useProfile: (name) => request('/profiles/use', { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteProfile: (name) => request('/profiles/delete', { method: 'DELETE', body: JSON.stringify({ name }) }),
+  renameProfile: (name, newName) => request('/profiles/rename', { method: 'POST', body: JSON.stringify({ name, new_name: newName }) }),
+  exportProfile: (name) => request('/profiles/export', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  // Backup & Restore
+  createBackup: (includeEnv, includeSkills) => request('/backup/create', { method: 'POST', body: JSON.stringify({ include_env: includeEnv, include_skills: includeSkills }) }),
+  listBackups: () => request('/backup/list'),
+  restoreBackup: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
+  deleteBackup: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
 };

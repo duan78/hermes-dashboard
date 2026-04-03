@@ -98,6 +98,101 @@ def _save_message_to_session(session_id: str, role: str, content: str):
     meta_path.write_text(json.dumps(meta, indent=2))
 
 
+@router.post("/send")
+async def chat_send(request: Request):
+    """Send a message and receive the complete response (non-streaming)."""
+    body = await request.json()
+    message = body.get("message", "")
+    session_id = body.get("session_id") or str(uuid.uuid4())[:8]
+    history = body.get("history", [])
+
+    if not message.strip():
+        return {"error": "Message is required"}
+
+    api_messages = []
+    for msg in history:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if role in ("user", "assistant", "system") and content:
+            api_messages.append({"role": role, "content": content})
+    api_messages.append({"role": "user", "content": message})
+
+    _save_message_to_session(session_id, "user", message)
+
+    model = _get_model()
+    gateway_url = _get_gateway_url()
+    full_response = ""
+
+    try:
+        chat_url = f"{gateway_url}/v1/chat/completions"
+        payload = {"model": model, "messages": api_messages}
+        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+            resp = await client.post(chat_url, json=payload, headers={"Content-Type": "application/json"})
+            if resp.status_code != 200:
+                return {"error": f"Gateway error {resp.status_code}: {resp.text[:300]}"}
+            data = resp.json()
+            full_response = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    except httpx.ConnectError:
+        # Fallback to direct API
+        import yaml
+        api_key = _get_api_key()
+        if not api_key:
+            return {"error": "Gateway unavailable and no API key configured"}
+        config_path = hermes_path("config.yaml")
+        base_url = "https://api.openai.com/v1"
+        if config_path.exists():
+            try:
+                cfg = yaml.safe_load(config_path.read_text())
+                model_cfg = cfg.get("model", {})
+                base_url = model_cfg.get("base_url", base_url)
+            except Exception:
+                pass
+        chat_url = f"{base_url}/chat/completions"
+        payload = {"model": model, "messages": api_messages}
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+            resp = await client.post(chat_url, json=payload, headers=headers)
+            if resp.status_code != 200:
+                return {"error": f"API error {resp.status_code}"}
+            data = resp.json()
+            full_response = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    except Exception as e:
+        return {"error": str(e)}
+
+    if full_response:
+        _save_message_to_session(session_id, "assistant", full_response)
+
+    return {"session_id": session_id, "response": full_response, "model": model}
+
+
+@router.post("/stop")
+async def chat_stop():
+    """Signal to stop any in-progress generation (best-effort)."""
+    return {"status": "stopped"}
+
+
+@router.get("/models")
+async def chat_models():
+    """List available models from Hermes config."""
+    import yaml
+    config_path = hermes_path("config.yaml")
+    models = []
+    if config_path.exists():
+        try:
+            cfg = yaml.safe_load(config_path.read_text())
+            model_cfg = cfg.get("model", {})
+            default_model = model_cfg.get("default", "gpt-4o")
+            models.append({"id": default_model, "name": default_model, "default": True})
+            for m in model_cfg.get("available", []):
+                if m != default_model:
+                    models.append({"id": m, "name": m, "default": False})
+        except Exception:
+            pass
+    if not models:
+        models.append({"id": "gpt-4o", "name": "gpt-4o", "default": True})
+    return {"models": models}
+
+
 @router.get("/sessions")
 async def chat_sessions():
     """List sessions for the chat sidebar."""

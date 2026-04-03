@@ -1,0 +1,127 @@
+.plugin-install-form {
+  display: flex;
+  gap: 10px;
+  padding: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.plugin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+.plugin-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: border-color 0.15s;
+}
+
+.plugin-card.enabled {
+  border-color: rgba(16,185,129,0.3);
+}
+
+.plugin-card.disabled {
+  border-color: var(--border);
+  opacity: 0.8;
+}
+
+.plugin-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.plugin-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.plugin-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.plugin-version {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(59,130,246,0.15);
+  color: var(--info);
+}
+
+.plugin-source {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(107,114,128,0.15);
+  color: var(--text-muted);
+}
+
+.plugin-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.plugin-status-badge.active {
+  background: rgba(16,185,129,0.15);
+  color: var(--success);
+}
+
+.plugin-status-badge.inactive {
+  background: rgba(107,114,128,0.15);
+  color: var(--text-muted);
+}
+
+.plugin-path {
+  margin-bottom: 12px;
+}
+
+.plugin-path code {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  padding: 2px 8px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+.plugin-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-plugin-enable {
+  background: rgba(16,185,129,0.15) !important;
+  border-color: rgba(16,185,129,0.3) !important;
+  color: var(--success) !important;
+}
+
+.btn-plugin-enable:hover {
+  background: rgba(16,185,129,0.25) !important;
+}
+
+.btn-plugin-disable {
+  background: rgba(245,158,11,0.15) !important;
+  border-color: rgba(245,158,11,0.3) !important;
+  color: var(--warning) !important;
+}
+
+.btn-plugin-disable:hover {
+  background: rgba(245,158,11,0.25) !important;
+}
