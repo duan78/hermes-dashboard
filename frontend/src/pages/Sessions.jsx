@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X } from 'lucide-react'
+import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2 } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
 function SessionDetail({ sessionId, onBack }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     api.getSession(sessionId)
@@ -14,6 +15,24 @@ function SessionDetail({ sessionId, onBack }) {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [sessionId])
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const data = await api.exportSession(sessionId)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `session-${sessionId}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Export failed:', e)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   if (loading) return <div className="spinner" />
   if (!session) return <div className="error-box">Session not found</div>
@@ -26,6 +45,12 @@ function SessionDetail({ sessionId, onBack }) {
         <button className="btn btn-sm" onClick={onBack}><ArrowLeft size={14} /> Back</button>
         Session: {sessionId}
         <Tooltip text="Detailed view of a single conversation session. Shows the AI model used, the originating platform, and all messages exchanged." />
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button className="btn btn-sm" onClick={handleExport} disabled={exporting}>
+            {exporting ? <Loader2 size={13} className="spin" /> : <Download size={13} />}
+            {' '}Export
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-3" style={{ marginBottom: 20 }}>
@@ -109,6 +134,9 @@ export default function Sessions() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState(null)
   const [searching, setSearching] = useState(false)
+  const [pruning, setPruning] = useState(false)
+  const [showPrune, setShowPrune] = useState(false)
+  const [pruneDays, setPruneDays] = useState(30)
   const debounceRef = useRef(null)
 
   const load = async () => {
@@ -154,6 +182,20 @@ export default function Sessions() {
     setSearchResults(null)
   }
 
+  const handlePrune = async () => {
+    if (!confirm(`Prune all sessions older than ${pruneDays} days? This cannot be undone.`)) return
+    setPruning(true)
+    try {
+      await api.pruneSessions(pruneDays)
+      load()
+      setShowPrune(false)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setPruning(false)
+    }
+  }
+
   if (id) return <SessionDetail sessionId={id} onBack={() => navigate('/sessions')} />
 
   const deleteSession = async (sid) => {
@@ -170,9 +212,37 @@ export default function Sessions() {
         <MessageSquare size={28} />
         Sessions
         <Tooltip text="All conversation sessions across every platform. Each session is a separate conversation with the AI agent. Click a session to view its full message history." />
-        <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
-          <RefreshCw size={14} /> Refresh
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          {showPrune && (
+            <>
+              <input
+                type="number"
+                className="form-input"
+                style={{ width: 80, padding: '4px 8px', fontSize: 13 }}
+                value={pruneDays}
+                onChange={e => setPruneDays(Number(e.target.value))}
+                min={1}
+                placeholder="days"
+              />
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days</span>
+              <button className="btn btn-sm btn-danger" onClick={handlePrune} disabled={pruning}>
+                {pruning ? <Loader2 size={12} className="spin" /> : <Trash2 size={12} />}
+                {' '}Prune
+              </button>
+              <button className="btn btn-sm" onClick={() => setShowPrune(false)}>
+                <X size={12} />
+              </button>
+            </>
+          )}
+          {!showPrune && (
+            <button className="btn btn-sm btn-danger" onClick={() => setShowPrune(true)}>
+              <Scissors size={14} /> Prune
+            </button>
+          )}
+          <button className="btn btn-sm" onClick={load}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-box">{error}</div>}
