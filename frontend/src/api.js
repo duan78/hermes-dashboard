@@ -28,6 +28,7 @@ export const api = {
   saveStructuredConfig: (config) => request('/config/structured', { method: 'PUT', body: JSON.stringify(config) }),
   getConfigSections: () => request('/config/sections'),
   setConfigValue: (key, value) => request('/config/set', { method: 'POST', body: JSON.stringify({ key, value }) }),
+  updateConfigValue: (key, value) => request('/config/update', { method: 'POST', body: JSON.stringify({ key, value }) }),
 
   // Sessions
   listSessions: () => request('/sessions'),
@@ -46,6 +47,12 @@ export const api = {
   listMemoryFiles: () => request('/memory/files'),
   getMemoryFile: (name) => request(`/memory/files/${name}`),
   saveMemoryFile: (name, content) => request(`/memory/files/${name}`, { method: 'PUT', body: JSON.stringify({ content }) }),
+  // Memory CRUD (new)
+  listAllFiles: () => request('/memory/all'),
+  readFile: (path) => request(`/memory/read?path=${encodeURIComponent(path)}`),
+  saveFile: (path, content) => request('/memory/save', { method: 'POST', body: JSON.stringify({ path, content }) }),
+  createFile: (name) => request('/memory/create', { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteFile: (path) => request('/memory/delete', { method: 'DELETE', body: JSON.stringify({ path }) }),
 
   // Tools
   listTools: () => request('/tools'),
@@ -96,4 +103,9 @@ export const api = {
   readFile: (path) => request(`/files/read?path=${encodeURIComponent(path)}`),
   writeFile: (path, content) => request('/files/write', { method: 'PUT', body: JSON.stringify({ path, content }) }),
   deleteFile: (path) => request(`/files?path=${encodeURIComponent(path)}`, { method: 'DELETE' }),
+
+  // API Keys
+  getApiKeys: () => request('/api-keys'),
+  setApiKey: (key, value) => request('/api-keys/set', { method: 'POST', body: JSON.stringify({ key, value }) }),
+  deleteApiKey: (key) => request('/api-keys/delete', { method: 'POST', body: JSON.stringify({ key }) }),
 };

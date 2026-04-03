@@ -1,0 +1,359 @@
+/* Memory & SOUL page layout */
+.memory-layout {
+  display: flex;
+  gap: 16px;
+  min-height: 600px;
+}
+
+/* ── Sidebar ── */
+.memory-sidebar {
+  width: 280px;
+  min-width: 280px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.memory-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.memory-create-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.memory-create-row .form-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.memory-file-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.memory-file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid transparent;
+}
+
+.memory-file-item:hover {
+  background: var(--bg-hover);
+}
+
+.memory-file-item.active {
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+  padding-left: 11px;
+}
+
+.memory-file-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.memory-file-item.active .memory-file-icon {
+  color: var(--accent);
+}
+
+.memory-file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.memory-file-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memory-file-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.memory-delete-btn {
+  opacity: 0;
+  transition: opacity 0.1s;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.memory-file-item:hover .memory-delete-btn {
+  opacity: 1;
+}
+
+.memory-delete-btn.disabled {
+  opacity: 0 !important;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* ── Content area ── */
+.memory-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.memory-file-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+}
+
+.memory-file-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--accent);
+}
+
+.memory-file-header-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.memory-file-header-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.memory-file-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.memory-soul-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  gap: 4px;
+}
+
+/* ── SOUL warning ── */
+.memory-soul-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  color: var(--warning);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.memory-soul-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Unsaved bar ── */
+.memory-unsaved-bar {
+  padding: 6px 16px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--info);
+  text-align: center;
+}
+
+/* ── Editor ── */
+.memory-editor {
+  flex: 1;
+  min-height: 450px;
+  resize: none;
+}
+
+/* ── Viewer ── */
+.memory-viewer {
+  flex: 1;
+  min-height: 450px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.memory-empty-content {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Empty state ── */
+.memory-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px;
+}
+
+.memory-empty-state svg {
+  opacity: 0.3;
+  margin-bottom: 8px;
+}
+
+.memory-empty-state p {
+  font-size: 15px;
+}
+
+.memory-empty-hint {
+  font-size: 13px !important;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+/* ── Confirm dialog ── */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  animation: fade-in 0.15s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.confirm-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+}
+
+.confirm-icon {
+  color: var(--warning);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.confirm-msg {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ── Toast notification ── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toast-in 0.3s ease;
+}
+
+.toast-success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--success);
+}
+
+.toast-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--error);
+}
+
+.toast-info {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: var(--info);
+}
+
+@keyframes toast-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .memory-layout {
+    flex-direction: column;
+  }
+
+  .memory-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 300px;
+  }
+
+  .memory-delete-btn {
+    opacity: 0.5;
+  }
+}
