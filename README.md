@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/screenshots/overview.png" alt="Hermes Dashboard Overview" width="800">
-</p>
-
 <h1 align="center">Hermes Dashboard</h1>
 
 <p align="center">
@@ -27,9 +23,6 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/overview.png" alt="Overview page" width="400">
-  <img src="docs/screenshots/chat.png" alt="Chat page" width="400">
-  <img src="docs/screenshots/insights.png" alt="Insights page" width="400">
 </p>
 
 ## Features

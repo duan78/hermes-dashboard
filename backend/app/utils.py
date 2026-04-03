@@ -41,7 +41,8 @@ def hermes_path(*parts: str) -> Path:
 
 async def run_hermes(*args: str, timeout: int = 30) -> str:
     """Run a hermes CLI command and return stdout."""
-    cmd = ["hermes"] + list(args)
+    hermes_bin = "/root/.local/bin/hermes"
+    cmd = [hermes_bin] + list(args)
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
