@@ -32,10 +32,12 @@ import McpServersPage from './pages/McpServers'
 import AuthPairingPage from './pages/AuthPairing'
 import ProfilesPage from './pages/Profiles'
 import BackupRestorePage from './pages/BackupRestore'
+import ClaudeCodePage from './pages/ClaudeCode'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
   { to: '/gateway', icon: Activity, label: 'Gateway' },
+  { to: '/claude-code', icon: Bot, label: 'Claude Code' },
   { to: '/chat', icon: MessageCircle, label: 'Chat' },
   { to: '/config', icon: Settings, label: 'Configuration' },
   { to: '/sessions', icon: MessageSquare, label: 'Sessions' },
@@ -136,6 +138,7 @@ function App() {
           <Route path="/auth-pairing" element={<AuthPairingPage />} />
           <Route path="/profiles" element={<ProfilesPage />} />
           <Route path="/backup" element={<BackupRestorePage />} />
+          <Route path="/claude-code" element={<ClaudeCodePage />} />
         </Routes>
       </main>
     </div>

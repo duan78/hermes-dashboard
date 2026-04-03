@@ -37,6 +37,7 @@ from .routers import (
     auth_pairing,
     profiles,
     backup,
+    claude_code,
 )
 
 app = FastAPI(
@@ -105,6 +106,7 @@ app.include_router(mcp.router)
 app.include_router(auth_pairing.router)
 app.include_router(profiles.router)
 app.include_router(backup.router)
+app.include_router(claude_code.router)
 
 
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──

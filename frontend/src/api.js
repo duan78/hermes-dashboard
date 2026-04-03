@@ -198,4 +198,20 @@ export const api = {
   listBackups: () => request('/backup/list'),
   restoreBackup: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   deleteBackup: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
+
+  // Claude Code Monitor
+  activeClaudeSessions: () => request('/claude-code/active'),
+  claudeCodeHistory: (limit = 30, project = '') => {
+    const params = new URLSearchParams({ limit })
+    if (project) params.set('project', project)
+    return request(`/claude-code/history?${params}`)
+  },
+  claudeCodeStats: () => request('/claude-code/stats'),
+  claudeCodeProjects: () => request('/claude-code/projects'),
+  claudeCodeOutput: (session, lines = 50) => request(`/claude-code/output?session=${encodeURIComponent(session)}&lines=${lines}`),
+  stopClaudeSession: (session) => request('/claude-code/stop', { method: 'POST', body: JSON.stringify({ session }) }),
+  sendClaudeSession: (session, message) => request('/claude-code/send', { method: 'POST', body: JSON.stringify({ session, message }) }),
+  killClaudeSession: (session) => request('/claude-code/session', { method: 'DELETE', body: JSON.stringify({ session }) }),
+  createClaudeSession: (name, workdir) => request('/claude-code/new', { method: 'POST', body: JSON.stringify({ name, workdir }) }),
+  sessionMessages: (sessionId, limit = 30) => request(`/claude-code/session/${encodeURIComponent(sessionId)}/messages?limit=${limit}`),
 };
