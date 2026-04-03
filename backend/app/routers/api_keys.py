@@ -1,0 +1,487 @@
+import os
+import re
+import stat
+import tempfile
+from pathlib import Path
+from fastapi import APIRouter, HTTPException, Body
+from ..config import HERMES_HOME
+
+router = APIRouter(prefix="/api/api-keys", tags=["api-keys"])
+
+
+# ── Key definitions grouped by category ──
+
+API_KEY_DEFINITIONS = [
+    # ── Provider keys ──
+    {
+        "key": "OPENAI_API_KEY",
+        "label": "OpenAI API Key",
+        "category": "Provider",
+        "subcategory": "OpenAI",
+        "description": "API key for OpenAI GPT models (GPT-4o, GPT-4, etc.)",
+        "url": "https://platform.openai.com/api-keys",
+        "is_password": True,
+    },
+    {
+        "key": "OPENAI_BASE_URL",
+        "label": "OpenAI Base URL",
+        "category": "Provider",
+        "subcategory": "OpenAI",
+        "description": "Custom base URL for OpenAI-compatible API endpoints",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "ANTHROPIC_API_KEY",
+        "label": "Anthropic API Key",
+        "category": "Provider",
+        "subcategory": "Anthropic",
+        "description": "API key for Anthropic Claude models",
+        "url": "https://console.anthropic.com/settings/keys",
+        "is_password": True,
+    },
+    {
+        "key": "GLM_API_KEY",
+        "label": "Z.AI API Key (GLM)",
+        "category": "Provider",
+        "subcategory": "Z.AI",
+        "description": "API key for Z.AI / GLM models",
+        "url": "",
+        "is_password": True,
+    },
+    {
+        "key": "ZAI_API_KEY",
+        "label": "Z.AI API Key (Alt)",
+        "category": "Provider",
+        "subcategory": "Z.AI",
+        "description": "Alternative Z.AI API key",
+        "url": "",
+        "is_password": True,
+    },
+    {
+        "key": "OPENROUTER_API_KEY",
+        "label": "OpenRouter API Key",
+        "category": "Provider",
+        "subcategory": "OpenRouter",
+        "description": "API key for OpenRouter — unified access to 100+ LLM providers",
+        "url": "https://openrouter.ai/keys",
+        "is_password": True,
+    },
+    {
+        "key": "NOUS_BASE_URL",
+        "label": "Nous Research Base URL",
+        "category": "Provider",
+        "subcategory": "Nous",
+        "description": "Base URL for Nous Research API endpoint",
+        "url": "",
+        "is_password": False,
+    },
+
+    # ── Tool keys ──
+    {
+        "key": "FIRECRAWL_API_KEY",
+        "label": "Firecrawl API Key",
+        "category": "Tools",
+        "subcategory": "Web",
+        "description": "API key for Firecrawl — web scraping, search, and crawl service",
+        "url": "https://firecrawl.dev",
+        "is_password": True,
+    },
+    {
+        "key": "FIRECRAWL_API_URL",
+        "label": "Firecrawl API URL",
+        "category": "Tools",
+        "subcategory": "Web",
+        "description": "Custom URL for self-hosted Firecrawl instance",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "EXA_API_KEY",
+        "label": "Exa API Key",
+        "category": "Tools",
+        "subcategory": "Web",
+        "description": "API key for Exa — AI-native search and content retrieval",
+        "url": "https://exa.ai",
+        "is_password": True,
+    },
+    {
+        "key": "PARALLEL_API_KEY",
+        "label": "Parallel API Key",
+        "category": "Tools",
+        "subcategory": "Web",
+        "description": "API key for Parallel — AI-native search and extraction",
+        "url": "https://parallel.ai",
+        "is_password": True,
+    },
+    {
+        "key": "TAVILY_API_KEY",
+        "label": "Tavily API Key",
+        "category": "Tools",
+        "subcategory": "Web",
+        "description": "API key for Tavily — AI search, extract, and crawl",
+        "url": "https://app.tavily.com/home",
+        "is_password": True,
+    },
+    {
+        "key": "FAL_KEY",
+        "label": "FAL.ai API Key",
+        "category": "Tools",
+        "subcategory": "Image Gen",
+        "description": "API key for FAL.ai — FLUX and other image generation models",
+        "url": "https://fal.ai/dashboard/keys",
+        "is_password": True,
+    },
+    {
+        "key": "BROWSERBASE_API_KEY",
+        "label": "Browserbase API Key",
+        "category": "Tools",
+        "subcategory": "Browser",
+        "description": "API key for Browserbase — cloud browser with stealth and proxies",
+        "url": "https://browserbase.com",
+        "is_password": True,
+    },
+    {
+        "key": "BROWSERBASE_PROJECT_ID",
+        "label": "Browserbase Project ID",
+        "category": "Tools",
+        "subcategory": "Browser",
+        "description": "Project ID for your Browserbase instance",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "BROWSER_USE_API_KEY",
+        "label": "Browser Use API Key",
+        "category": "Tools",
+        "subcategory": "Browser",
+        "description": "API key for Browser Use — cloud browser with remote execution",
+        "url": "https://browser-use.com",
+        "is_password": True,
+    },
+    {
+        "key": "CAMOFOX_URL",
+        "label": "Camofox Server URL",
+        "category": "Tools",
+        "subcategory": "Browser",
+        "description": "URL for local Camofox anti-detection browser (Firefox/Camoufox)",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "ELEVENLABS_API_KEY",
+        "label": "ElevenLabs API Key",
+        "category": "Tools",
+        "subcategory": "TTS",
+        "description": "API key for ElevenLabs — premium natural-sounding text-to-speech",
+        "url": "https://elevenlabs.io/app/settings/api-keys",
+        "is_password": True,
+    },
+    {
+        "key": "VOICE_TOOLS_OPENAI_KEY",
+        "label": "OpenAI TTS Key",
+        "category": "Tools",
+        "subcategory": "TTS",
+        "description": "OpenAI API key used for TTS voice generation",
+        "url": "https://platform.openai.com/api-keys",
+        "is_password": True,
+    },
+    {
+        "key": "HASS_TOKEN",
+        "label": "Home Assistant Token",
+        "category": "Tools",
+        "subcategory": "Home Assistant",
+        "description": "Long-lived access token for Home Assistant REST API",
+        "url": "",
+        "is_password": True,
+    },
+    {
+        "key": "HASS_URL",
+        "label": "Home Assistant URL",
+        "category": "Tools",
+        "subcategory": "Home Assistant",
+        "description": "URL of your Home Assistant instance",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "TINKER_API_KEY",
+        "label": "Tinker API Key",
+        "category": "Tools",
+        "subcategory": "RL Training",
+        "description": "API key for Tinker / Atropos RL training platform",
+        "url": "https://tinker-console.thinkingmachines.ai/keys",
+        "is_password": True,
+    },
+    {
+        "key": "WANDB_API_KEY",
+        "label": "WandB API Key",
+        "category": "Tools",
+        "subcategory": "WandB",
+        "description": "API key for Weights & Biases experiment tracking",
+        "url": "https://wandb.ai/authorize",
+        "is_password": True,
+    },
+
+    # ── Platform keys ──
+    {
+        "key": "TELEGRAM_BOT_TOKEN",
+        "label": "Telegram Bot Token",
+        "category": "Platforms",
+        "subcategory": "Telegram",
+        "description": "Bot token from @BotFather for Telegram integration",
+        "url": "https://t.me/BotFather",
+        "is_password": True,
+    },
+    {
+        "key": "DISCORD_BOT_TOKEN",
+        "label": "Discord Bot Token",
+        "category": "Platforms",
+        "subcategory": "Discord",
+        "description": "Bot token for Discord integration",
+        "url": "https://discord.com/developers/applications",
+        "is_password": True,
+    },
+    {
+        "key": "DISCORD_HOME_CHANNEL",
+        "label": "Discord Home Channel",
+        "category": "Platforms",
+        "subcategory": "Discord",
+        "description": "Default channel ID for Discord bot messages",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "SLACK_BOT_TOKEN",
+        "label": "Slack Bot Token",
+        "category": "Platforms",
+        "subcategory": "Slack",
+        "description": "Bot token (xoxb-) for Slack integration",
+        "url": "https://api.slack.com/apps",
+        "is_password": True,
+    },
+    {
+        "key": "SLACK_APP_TOKEN",
+        "label": "Slack App Token",
+        "category": "Platforms",
+        "subcategory": "Slack",
+        "description": "App-level token (xapp-) for Slack Socket Mode",
+        "url": "https://api.slack.com/apps",
+        "is_password": True,
+    },
+    {
+        "key": "WHATSAPP_MODE",
+        "label": "WhatsApp Mode",
+        "category": "Platforms",
+        "subcategory": "WhatsApp",
+        "description": "WhatsApp connection mode configuration",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "WHATSAPP_ENABLED",
+        "label": "WhatsApp Enabled",
+        "category": "Platforms",
+        "subcategory": "WhatsApp",
+        "description": "Enable/disable WhatsApp integration",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "SIGNAL_ACCOUNT",
+        "label": "Signal Account",
+        "category": "Platforms",
+        "subcategory": "Signal",
+        "description": "Signal account phone number for integration",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "SIGNAL_HTTP_URL",
+        "label": "Signal HTTP URL",
+        "category": "Platforms",
+        "subcategory": "Signal",
+        "description": "URL of signal-cli REST API instance",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "MATRIX_PASSWORD",
+        "label": "Matrix Password",
+        "category": "Platforms",
+        "subcategory": "Matrix",
+        "description": "Password for Matrix bot account",
+        "url": "",
+        "is_password": True,
+    },
+    {
+        "key": "MATRIX_ENCRYPTION",
+        "label": "Matrix Encryption",
+        "category": "Platforms",
+        "subcategory": "Matrix",
+        "description": "Encryption key/passphrase for Matrix E2EE",
+        "url": "",
+        "is_password": True,
+    },
+    {
+        "key": "MATRIX_HOME_ROOM",
+        "label": "Matrix Home Room",
+        "category": "Platforms",
+        "subcategory": "Matrix",
+        "description": "Default room ID for Matrix bot messages",
+        "url": "",
+        "is_password": False,
+    },
+]
+
+
+def _get_env_value(key: str) -> str:
+    """Get env value from os.environ or ~/.hermes/.env."""
+    val = os.environ.get(key, "")
+    if val:
+        return val
+    env_path = HERMES_HOME / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(errors="replace").splitlines():
+            line = line.strip()
+            if line.startswith(f"{key}="):
+                return line[len(key) + 1:].strip().strip("'\"")
+    return ""
+
+
+def _save_env_value(key: str, value: str):
+    """Save a key=value pair to ~/.hermes/.env."""
+    env_path = HERMES_HOME / ".env"
+    _ENV_NAME_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+    if not _ENV_NAME_RE.match(key):
+        raise ValueError(f"Invalid env var name: {key!r}")
+    value = value.replace("\n", "").replace("\r", "")
+    lines = []
+    if env_path.exists():
+        lines = env_path.read_text(errors="replace").splitlines(keepends=True)
+    found = False
+    for i, line in enumerate(lines):
+        if line.strip().startswith(f"{key}="):
+            lines[i] = f"{key}={value}\n"
+            found = True
+            break
+    if not found:
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.append(f"{key}={value}\n")
+    fd, tmp_path = tempfile.mkstemp(dir=str(env_path.parent), suffix='.tmp', prefix='.env_')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.writelines(lines)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, env_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+    try:
+        os.chmod(env_path, stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        pass
+    os.environ[key] = value
+
+
+def _delete_env_value(key: str):
+    """Remove a key from ~/.hermes/.env."""
+    env_path = HERMES_HOME / ".env"
+    if not env_path.exists():
+        return
+    lines = env_path.read_text(errors="replace").splitlines(keepends=True)
+    new_lines = [line for line in lines if not line.strip().startswith(f"{key}=")]
+    if len(new_lines) == len(lines):
+        return  # key not found
+    fd, tmp_path = tempfile.mkstemp(dir=str(env_path.parent), suffix='.tmp', prefix='.env_')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.writelines(new_lines)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, env_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+    try:
+        os.chmod(env_path, stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        pass
+    os.environ.pop(key, None)
+
+
+@router.get("")
+async def get_api_keys():
+    """Return all API key definitions with their current status."""
+    result = {"categories": {}, "keys": []}
+    for defn in API_KEY_DEFINITIONS:
+        val = _get_env_value(defn["key"])
+        is_set = bool(val)
+        masked = ""
+        if is_set:
+            if len(val) > 8:
+                masked = val[:4] + "****"
+            else:
+                masked = "****"
+        key_info = {
+            "key": defn["key"],
+            "label": defn["label"],
+            "category": defn["category"],
+            "subcategory": defn["subcategory"],
+            "description": defn["description"],
+            "url": defn["url"],
+            "is_password": defn["is_password"],
+            "is_set": is_set,
+            "value_preview": masked,
+        }
+        result["keys"].append(key_info)
+        cat = defn["category"]
+        if cat not in result["categories"]:
+            result["categories"][cat] = {}
+        sub = defn["subcategory"]
+        if sub not in result["categories"][cat]:
+            result["categories"][cat][sub] = []
+        result["categories"][cat][sub].append(key_info)
+    return result
+
+
+@router.post("/set")
+async def set_api_key(body: dict = Body(...)):
+    """Set an API key in ~/.hermes/.env."""
+    key = body.get("key")
+    value = body.get("value", "")
+    if not key:
+        raise HTTPException(400, "Missing 'key'")
+    # Validate against known keys
+    known_keys = {d["key"] for d in API_KEY_DEFINITIONS}
+    if key not in known_keys:
+        raise HTTPException(400, f"Unknown key: {key}")
+    try:
+        _save_env_value(key, value)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to save: {e}")
+    return {"status": "ok", "key": key}
+
+
+@router.post("/delete")
+async def delete_api_key(body: dict = Body(...)):
+    """Remove an API key from ~/.hermes/.env."""
+    key = body.get("key")
+    if not key:
+        raise HTTPException(400, "Missing 'key'")
+    known_keys = {d["key"] for d in API_KEY_DEFINITIONS}
+    if key not in known_keys:
+        raise HTTPException(400, f"Unknown key: {key}")
+    try:
+        _delete_env_value(key)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to delete: {e}")
+    return {"status": "ok", "key": key}

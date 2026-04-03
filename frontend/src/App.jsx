@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
-  Clock, Brain, Cpu, Radio, BarChart3, Menu, X
+  Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import Overview from './pages/Overview'
@@ -14,6 +14,7 @@ import CronJobs from './pages/CronJobs'
 import MemorySoul from './pages/MemorySoul'
 import Models from './pages/Models'
 import Platforms from './pages/Platforms'
+import ApiKeys from './pages/ApiKeys'
 import Insights from './pages/Insights'
 import Chat from './pages/Chat'
 import Files from './pages/Files'
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { to: '/memory', icon: Brain, label: 'Memory & SOUL' },
   { to: '/models', icon: Cpu, label: 'Models' },
   { to: '/platforms', icon: Radio, label: 'Platforms' },
+  { to: '/api-keys', icon: Key, label: 'API Keys' },
   { to: '/insights', icon: BarChart3, label: 'Insights' },
 ]
 
@@ -91,6 +93,7 @@ function App() {
           <Route path="/memory" element={<MemorySoul />} />
           <Route path="/models" element={<Models />} />
           <Route path="/platforms" element={<Platforms />} />
+          <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/insights" element={<Insights />} />
         </Routes>
       </main>

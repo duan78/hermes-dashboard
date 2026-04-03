@@ -108,3 +108,43 @@ async def save_structured_config(body: dict = Body(...)):
     yaml_str = yaml.dump(merged, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
     return {"status": "saved"}
+
+
+@router.post("/update")
+async def update_config_value(body: dict = Body(...)):
+    """Update a single config value using dot-notation key path.
+
+    Example body: {"key": "agent.max_turns", "value": 120}
+    Supports nested keys like 'tts.edge.voice', 'browser.camofox.managed_persistence'.
+    """
+    key = body.get("key")
+    value = body.get("value")
+    if not key:
+        raise HTTPException(400, "Missing 'key' field")
+
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+
+    original = yaml.safe_load(config_path.read_text()) or {}
+
+    # Navigate to the parent dict and set the value
+    parts = key.split(".")
+    if len(parts) < 2:
+        raise HTTPException(400, "Key must be a dot-notation path (e.g. 'agent.max_turns')")
+
+    target = original
+    for part in parts[:-1]:
+        if part not in target or not isinstance(target[part], dict):
+            target[part] = {}
+        target = target[part]
+
+    # Preserve masked secrets
+    if _is_masked(value):
+        raise HTTPException(400, "Cannot set a masked secret value")
+
+    target[parts[-1]] = value
+
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved", "key": key}

@@ -26,6 +26,7 @@ from .routers import (
     chat,
     files,
     terminal,
+    api_keys,
 )
 
 app = FastAPI(
@@ -83,6 +84,7 @@ app.include_router(insights.router)
 app.include_router(chat.router)
 app.include_router(files.router)
 app.include_router(terminal.router)
+app.include_router(api_keys.router)
 
 
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──
