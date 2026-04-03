@@ -592,3 +592,85 @@ pre {
 .log-line-warn { color: var(--warning); }
 .log-line-muted { color: var(--text-muted); }
 .log-line-ok { color: var(--success); }
+
+/* ── Tool Config Panel ── */
+
+.tool-config-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 300;
+}
+
+.tool-config-panel {
+  width: 520px;
+  max-width: 90vw;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slide-in-right 0.2s ease;
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.tool-config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tool-config-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.tool-provider-option {
+  display: block;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tool-provider-option:hover {
+  background: var(--bg-hover);
+}
+
+.tool-provider-option.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.tool-env-vars {
+  margin-top: 12px;
+  padding-left: 28px;
+}
+
+.tool-env-field {
+  margin-bottom: 12px;
+}
+
+.tool-name-clickable {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.tool-name-clickable:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}

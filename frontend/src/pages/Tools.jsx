@@ -1,7 +1,251 @@
 import { useState, useEffect } from 'react'
-import { Wrench, RefreshCw, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+
+// ── Tool Config Panel (Modal/Drawer) ──
+
+function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
+  const [saving, setSaving] = useState({})
+  const [values, setValues] = useState({})
+  const [showValues, setShowValues] = useState({})
+  const [selectedProvider, setSelectedProvider] = useState(null)
+  const [saveMsg, setSaveMsg] = useState({})
+
+  useEffect(() => {
+    // Initialize values and detect active provider
+    if (toolInfo.has_providers) {
+      const activeIdx = toolInfo.providers.findIndex(p => p.is_active)
+      if (activeIdx >= 0) setSelectedProvider(activeIdx)
+      else if (toolInfo.providers.length > 0) setSelectedProvider(0)
+    }
+  }, [toolInfo])
+
+  const handleSaveEnv = async (key, configKey, configValue) => {
+    const val = values[key]
+    if (val === undefined) return
+    setSaving(prev => ({ ...prev, [key]: true }))
+    setSaveMsg(prev => ({ ...prev, [key]: null }))
+    try {
+      await api.setToolEnv(key, val, configKey, configValue)
+      setSaveMsg(prev => ({ ...prev, [key]: 'Saved!' }))
+      setSaving(prev => ({ ...prev, [key]: false }))
+      onSaved()
+      setTimeout(() => setSaveMsg(prev => ({ ...prev, [key]: null })), 3000)
+    } catch (e) {
+      setSaveMsg(prev => ({ ...prev, [key]: `Error: ${e.message}` }))
+      setSaving(prev => ({ ...prev, [key]: false }))
+    }
+  }
+
+  const handleKeyDown = (e, key, configKey, configValue) => {
+    if (e.key === 'Enter') handleSaveEnv(key, configKey, configValue)
+  }
+
+  const toggleShowValue = (key) => {
+    setShowValues(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  if (!toolInfo) return null
+
+  return (
+    <div className="tool-config-overlay" onClick={onClose}>
+      <div className="tool-config-panel" onClick={e => e.stopPropagation()}>
+        <div className="tool-config-header">
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Settings size={20} style={{ color: 'var(--accent)' }} />
+              {toolInfo.name || toolKey}
+            </h2>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{toolKey}</span>
+          </div>
+          <button className="btn btn-sm" onClick={onClose}><X size={14} /></button>
+        </div>
+
+        <div className="tool-config-body">
+          {toolInfo.has_providers ? (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Provider
+                </div>
+                {toolInfo.providers.map((prov, idx) => (
+                  <label key={idx} className={`tool-provider-option ${selectedProvider === idx ? 'active' : ''}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <input
+                        type="radio"
+                        name="provider"
+                        checked={selectedProvider === idx}
+                        onChange={() => setSelectedProvider(idx)}
+                        style={{ accentColor: 'var(--accent)' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>{prov.name}</span>
+                          {prov.is_active && (
+                            <span className="badge badge-success" style={{ fontSize: 10 }}>Active</span>
+                          )}
+                          {prov.configured && !prov.is_active && (
+                            <span className="badge badge-info" style={{ fontSize: 10 }}>Configured</span>
+                          )}
+                        </div>
+                        {prov.tag && (
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{prov.tag}</div>
+                        )}
+                      </div>
+                    </div>
+                    {selectedProvider === idx && prov.env_vars && prov.env_vars.length > 0 && (
+                      <div className="tool-env-vars">
+                        {prov.env_vars.map(ev => (
+                          <div key={ev.key} className="tool-env-field">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                {ev.label || ev.key}
+                              </label>
+                              {ev.url && (
+                                <a href={ev.url} target="_blank" rel="noopener" style={{ color: 'var(--accent)', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                  <ExternalLink size={10} /> Get key
+                                </a>
+                              )}
+                              <span style={{ marginLeft: 'auto' }}>
+                                {ev.is_set ? (
+                                  <span className="badge badge-success" style={{ fontSize: 10 }}><Check size={10} /> Set</span>
+                                ) : (
+                                  <span className="badge badge-error" style={{ fontSize: 10 }}>Missing</span>
+                                )}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <div style={{ position: 'relative', flex: 1 }}>
+                                <input
+                                  className="form-input"
+                                  type={showValues[ev.key] ? 'text' : 'password'}
+                                  placeholder={ev.is_set ? (ev.value_preview || '****') : `Enter ${ev.label || ev.key}`}
+                                  value={values[ev.key] !== undefined ? values[ev.key] : ''}
+                                  onChange={e => setValues(prev => ({ ...prev, [ev.key]: e.target.value }))}
+                                  onKeyDown={e => handleKeyDown(e, ev.key, prov.config_key, prov.config_value)}
+                                  style={{ fontSize: 13, padding: '6px 36px 6px 10px' }}
+                                />
+                                <button
+                                  onClick={() => toggleShowValue(ev.key)}
+                                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}
+                                >
+                                  {showValues[ev.key] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                              </div>
+                              <button
+                                className="btn btn-sm btn-primary"
+                                onClick={() => handleSaveEnv(ev.key, prov.config_key, prov.config_value)}
+                                disabled={saving[ev.key] || !values[ev.key]}
+                              >
+                                {saving[ev.key] ? <Loader2 size={12} className="spin" /> : 'Save'}
+                              </button>
+                            </div>
+                            {saveMsg[ev.key] && (
+                              <div style={{ fontSize: 11, marginTop: 4, color: saveMsg[ev.key].startsWith('Error') ? 'var(--error)' : 'var(--success)' }}>
+                                {saveMsg[ev.key]}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedProvider === idx && prov.env_vars && prov.env_vars.length === 0 && (
+                      <div className="tool-env-vars">
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 8 }}>
+                          No API key required for this provider.
+                          {prov.config_key && (
+                            <button
+                              className="btn btn-sm btn-primary"
+                              style={{ marginLeft: 8 }}
+                              onClick={() => handleSaveEnv('__noop__', '', prov.config_key, prov.config_value)}
+                              disabled={saving['__noop__']}
+                            >
+                              {saving['__noop__'] ? <Loader2 size={12} className="spin" /> : 'Set as Active'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                API Keys
+              </div>
+              {toolInfo.configured ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: 'var(--success)', fontSize: 13 }}>
+                  <Check size={14} /> All required keys are configured
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: 'var(--warning)', fontSize: 13 }}>
+                  Some required keys are missing
+                </div>
+              )}
+              {toolInfo.env_vars && toolInfo.env_vars.map(ev => (
+                <div key={ev.key} className="tool-env-field">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      {ev.label || ev.key}
+                    </label>
+                    {ev.url && (
+                      <a href={ev.url} target="_blank" rel="noopener" style={{ color: 'var(--accent)', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                        <ExternalLink size={10} /> Get key
+                      </a>
+                    )}
+                    <span style={{ marginLeft: 'auto' }}>
+                      {ev.is_set ? (
+                        <span className="badge badge-success" style={{ fontSize: 10 }}><Check size={10} /> Set</span>
+                      ) : (
+                        <span className="badge badge-error" style={{ fontSize: 10 }}>Missing</span>
+                      )}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input
+                        className="form-input"
+                        type={showValues[ev.key] ? 'text' : 'password'}
+                        placeholder={ev.is_set ? (ev.value_preview || '****') : `Enter ${ev.label || ev.key}`}
+                        value={values[ev.key] !== undefined ? values[ev.key] : ''}
+                        onChange={e => setValues(prev => ({ ...prev, [ev.key]: e.target.value }))}
+                        onKeyDown={e => handleKeyDown(e, ev.key)}
+                        style={{ fontSize: 13, padding: '6px 36px 6px 10px' }}
+                      />
+                      <button
+                        onClick={() => toggleShowValue(ev.key)}
+                        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}
+                      >
+                        {showValues[ev.key] ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => handleSaveEnv(ev.key)}
+                      disabled={saving[ev.key] || !values[ev.key]}
+                    >
+                      {saving[ev.key] ? <Loader2 size={12} className="spin" /> : 'Save'}
+                    </button>
+                  </div>
+                  {saveMsg[ev.key] && (
+                    <div style={{ fontSize: 11, marginTop: 4, color: saveMsg[ev.key].startsWith('Error') ? 'var(--error)' : 'var(--success)' }}>
+                      {saveMsg[ev.key]}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Tools Page ──
 
 export default function Tools() {
   const [output, setOutput] = useState('')
@@ -10,6 +254,9 @@ export default function Tools() {
   const [platformFilter, setPlatformFilter] = useState('')
   const [collapsedPlatforms, setCollapsedPlatforms] = useState({})
   const [togglingTools, setTogglingTools] = useState({})
+  const [toolConfig, setToolConfig] = useState(null)
+  const [configLoading, setConfigLoading] = useState(false)
+  const [selectedTool, setSelectedTool] = useState(null)
 
   const load = async () => {
     try {
@@ -24,7 +271,19 @@ export default function Tools() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  const loadConfig = async () => {
+    setConfigLoading(true)
+    try {
+      const data = await api.getToolConfig()
+      setToolConfig(data)
+    } catch (e) {
+      // Config endpoint may not be available yet
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  useEffect(() => { load(); loadConfig() }, [])
 
   // Parse the tools output
   const lines = output.split('\n')
@@ -83,13 +342,21 @@ export default function Tools() {
     }
   }
 
+  const openToolConfig = (toolName) => {
+    if (toolConfig && toolConfig[toolName]) {
+      setSelectedTool({ key: toolName, info: toolConfig[toolName] })
+    }
+  }
+
+  const hasConfig = (toolName) => toolConfig && toolConfig[toolName]
+
   return (
     <div>
       <div className="page-title">
         <Wrench size={28} />
         Tools
         <Tooltip text="All available tools the AI agent can use to interact with the world: execute code, browse the web, read/write files, manage memory, and more. Tools can be enabled or disabled per platform." />
-        <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
+        <button className="btn btn-sm" onClick={() => { load(); loadConfig() }} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
@@ -151,12 +418,14 @@ export default function Tools() {
                       </th>
                       <th>Name <Tooltip text="The tool's identifier used in function calls. This is the exact name the AI references when invoking a tool." /></th>
                       <th>Description <Tooltip text="What the tool does and when the agent uses it. This description is provided to the AI model so it knows when to call each tool." /></th>
+                      <th style={{ width: 60 }}>Config</th>
                     </tr>
                   </thead>
                   <tbody>
                     {tools.map((tool) => {
                       const toggleKey = `${platform}:${tool.name}`
                       const isToggling = !!togglingTools[toggleKey]
+                      const configurable = hasConfig(tool.name)
                       return (
                         <tr key={tool.name}>
                           <td>
@@ -181,8 +450,28 @@ export default function Tools() {
                               )}
                             </button>
                           </td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{tool.name}</td>
+                          <td>
+                            <span
+                              style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, cursor: configurable ? 'pointer' : 'default' }}
+                              className={configurable ? 'tool-name-clickable' : ''}
+                              onClick={() => configurable && openToolConfig(tool.name)}
+                              title={configurable ? 'Click to configure this tool' : ''}
+                            >
+                              {tool.name}
+                            </span>
+                          </td>
                           <td>{tool.description}</td>
+                          <td>
+                            {configurable && (
+                              <button
+                                className="btn btn-sm"
+                                onClick={() => openToolConfig(tool.name)}
+                                title="Configure tool settings and API keys"
+                              >
+                                <Settings size={13} />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       )
                     })}
@@ -198,6 +487,16 @@ export default function Tools() {
         <div className="card">
           <pre>{output}</pre>
         </div>
+      )}
+
+      {/* Tool Config Panel */}
+      {selectedTool && (
+        <ToolConfigPanel
+          toolKey={selectedTool.key}
+          toolInfo={selectedTool.info}
+          onClose={() => setSelectedTool(null)}
+          onSaved={loadConfig}
+        />
       )}
     </div>
   )

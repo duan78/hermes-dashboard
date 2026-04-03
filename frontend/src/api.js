@@ -52,6 +52,8 @@ export const api = {
   listToolsPlatform: (platform) => request(`/tools/${platform}`),
   enableTool: (tool, platform = 'cli') => request('/tools/enable', { method: 'POST', body: JSON.stringify({ tool, platform }) }),
   disableTool: (tool, platform = 'cli') => request('/tools/disable', { method: 'POST', body: JSON.stringify({ tool, platform }) }),
+  getToolConfig: () => request('/tools/config'),
+  setToolEnv: (key, value, configKey, configValue) => request('/tools/config/set-env', { method: 'POST', body: JSON.stringify({ key, value, config_key: configKey, config_value: configValue }) }),
 
   // Skills
   listSkills: () => request('/skills'),
