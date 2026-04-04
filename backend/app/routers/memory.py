@@ -5,6 +5,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException, Body
+from ..config import HERMES_HOME
 from ..utils import hermes_path
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
@@ -20,7 +21,7 @@ def _get_hermes_memory():
     if _hermes_memory_error is not None:
         return None
     try:
-        sys.path.insert(0, "/root/hermes-memory")
+        sys.path.insert(0, str(HERMES_HOME / "hermes-memory"))
         from hermes_memory import HermesMemory
         _hermes_memory = HermesMemory()
         return _hermes_memory
