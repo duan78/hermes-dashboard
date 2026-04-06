@@ -3,7 +3,7 @@ import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
-  Shield, Network, UserCheck, Users, HardDrive, Bot
+  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { api } from './api'
@@ -33,6 +33,7 @@ import AuthPairingPage from './pages/AuthPairing'
 import ProfilesPage from './pages/Profiles'
 import BackupRestorePage from './pages/BackupRestore'
 import ClaudeCodePage from './pages/ClaudeCode'
+import MoaConfig from './pages/MoaConfig'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -51,6 +52,7 @@ const NAV_ITEMS = [
   { to: '/models', icon: Cpu, label: 'Models' },
   { to: '/platforms', icon: Radio, label: 'Platforms' },
   { to: '/api-keys', icon: Key, label: 'API Keys' },
+  { to: '/moa', icon: Layers, label: 'MOA', feature: 'moa' },
   { to: '/fine-tune', icon: Mic, label: 'Fine-Tune', feature: 'fineTune' },
   { to: '/insights', icon: BarChart3, label: 'Insights' },
   { to: '/diagnostics', icon: Stethoscope, label: 'Diagnostics' },
@@ -75,6 +77,13 @@ function App() {
   useEffect(() => {
     api.fineTuneAvailable().then(data => {
       if (data.available) setFeatures(prev => ({ ...prev, fineTune: true }))
+    }).catch(() => {})
+    // Check if MOA toolset is enabled
+    api.getConfigSections().then(sections => {
+      const toolsets = sections?.toolsets || []
+      if (toolsets.includes('moa')) {
+        setFeatures(prev => ({ ...prev, moa: true }))
+      }
     }).catch(() => {})
   }, [])
 
@@ -139,6 +148,7 @@ function App() {
           <Route path="/profiles" element={<ProfilesPage />} />
           <Route path="/backup" element={<BackupRestorePage />} />
           <Route path="/claude-code" element={<ClaudeCodePage />} />
+          <Route path="/moa" element={<MoaConfig />} />
         </Routes>
       </main>
     </div>

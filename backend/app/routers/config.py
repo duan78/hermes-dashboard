@@ -1,4 +1,5 @@
 import copy
+import os
 import re
 
 import yaml
@@ -148,3 +149,180 @@ async def update_config_value(body: dict = Body(...)):
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
     return {"status": "saved", "key": key}
+
+
+# ── MOA Configuration ──
+
+@router.get("/moa")
+async def get_moa_config():
+    """Get the MOA (Mixture of Agents) configuration section."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    moa = raw.get("moa", {})
+    if not moa:
+        # Return defaults when no moa section exists
+        moa = {
+            "reference_models": [
+                "qwen/qwen3-coder:free",
+                "nousresearch/hermes-3-llama-3.1-405b:free",
+                "openai/gpt-oss-120b:free",
+                "z-ai/glm-4.5-air:free",
+            ],
+            "aggregator_model": "z-ai/glm-5",
+            "aggregator_provider": "openrouter",
+            "reference_temperature": 0.6,
+            "aggregator_temperature": 0.4,
+            "min_successful_references": 1,
+        }
+    return moa
+
+
+@router.put("/moa")
+async def save_moa_config(body: dict = Body(...)):
+    """Save the MOA configuration section."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+
+    original = yaml.safe_load(config_path.read_text()) or {}
+
+    # Validate reference_models is a list
+    ref_models = body.get("reference_models")
+    if ref_models is not None:
+        if not isinstance(ref_models, list):
+            raise HTTPException(400, "reference_models must be a list")
+        if len(ref_models) == 0:
+            raise HTTPException(400, "reference_models must not be empty")
+
+    # Validate temperatures
+    for key in ("reference_temperature", "aggregator_temperature"):
+        val = body.get(key)
+        if val is not None:
+            try:
+                body[key] = float(val)
+            except (ValueError, TypeError):
+                raise HTTPException(400, f"{key} must be a number")
+            if not (0.0 <= body[key] <= 2.0):
+                raise HTTPException(400, f"{key} must be between 0.0 and 2.0")
+
+    # Validate min_successful_references
+    msr = body.get("min_successful_references")
+    if msr is not None:
+        try:
+            body["min_successful_references"] = int(msr)
+        except (ValueError, TypeError):
+            raise HTTPException(400, "min_successful_references must be an integer")
+
+    # Validate aggregator_provider
+    provider = body.get("aggregator_provider")
+    if provider is not None and provider not in ("openrouter", "custom"):
+        raise HTTPException(400, "aggregator_provider must be 'openrouter' or 'custom'")
+
+    # Merge into existing config
+    if "moa" not in original or not isinstance(original.get("moa"), dict):
+        original["moa"] = {}
+    original["moa"].update(body)
+
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved"}
+
+
+# ── MOA Providers ──
+
+@router.get("/moa/providers")
+async def get_moa_providers():
+    """List all configured MOA providers with their status."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    providers = raw.get("moa_providers", {})
+
+    result = {}
+    for pid, pcfg in providers.items():
+        api_key_env = pcfg.get("api_key_env", "")
+        api_key_set = bool(os.getenv(api_key_env))
+        result[pid] = {
+            **pcfg,
+            "api_key_set": api_key_set,
+            "api_key_env": api_key_env,
+        }
+    return result
+
+
+@router.put("/moa/providers")
+async def save_moa_providers(body: dict = Body(...)):
+    """Save MOA providers configuration."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+
+    original = yaml.safe_load(config_path.read_text()) or {}
+
+    # Validate body is a dict of providers
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Providers must be a dict mapping provider_id -> config")
+
+    for pid, pcfg in body.items():
+        if not isinstance(pcfg, dict):
+            raise HTTPException(400, f"Provider '{pid}' config must be a dict")
+        if "base_url" not in pcfg:
+            raise HTTPException(400, f"Provider '{pid}' must have a 'base_url'")
+        if "api_key_env" not in pcfg:
+            raise HTTPException(400, f"Provider '{pid}' must have an 'api_key_env'")
+
+    original["moa_providers"] = body
+
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved"}
+
+
+@router.post("/moa/providers/test")
+async def test_moa_provider(body: dict = Body(...)):
+    """Test connection to a specific MOA provider."""
+    provider_id = body.get("provider_id")
+    if not provider_id:
+        raise HTTPException(400, "Missing 'provider_id'")
+
+    # Load provider config from config.yaml
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    providers = raw.get("moa_providers", {})
+    provider_cfg = providers.get(provider_id)
+    if not provider_cfg:
+        raise HTTPException(404, f"Provider '{provider_id}' not found")
+
+    api_key_env = provider_cfg.get("api_key_env", "")
+    api_key = os.getenv(api_key_env)
+    if not api_key:
+        return {"status": "error", "error": f"Environment variable '{api_key_env}' is not set"}
+
+    base_url = provider_cfg.get("base_url", "").rstrip("/")
+    model = (provider_cfg.get("models") or [None])[0]
+    if not model:
+        return {"status": "error", "error": f"No models configured for provider '{provider_id}'"}
+
+    import time
+    try:
+        import httpx
+        t0 = time.monotonic()
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 1},
+            )
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            if resp.status_code == 200:
+                return {"status": "ok", "latency_ms": latency_ms, "model": model}
+            else:
+                return {"status": "error", "error": f"HTTP {resp.status_code}: {resp.text[:200]}", "latency_ms": latency_ms}
+    except Exception as exc:
+        latency_ms = int((time.monotonic() - t0) * 1000) if 't0' in dir() else 0
+        return {"status": "error", "error": str(exc), "latency_ms": latency_ms}

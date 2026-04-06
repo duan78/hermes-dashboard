@@ -1,5 +1,7 @@
 import asyncio
 import sys
+import os
+import yaml
 from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -391,3 +393,297 @@ async def vector_usage():
         }
     except Exception as e:
         raise HTTPException(500, f"Usage error: {e}")
+
+
+# ── Honcho Memory ──
+_honcho_client = None
+_honcho_available = None
+_honcho_error = None
+
+
+def _get_honcho_api_key():
+    """Read HONCHO_API_KEY from ~/.hermes/.env."""
+    env_path = hermes_path(".env")
+    if not env_path.exists():
+        return None
+    try:
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("HONCHO_API_KEY="):
+                return line.split("=", 1)[1].strip()
+    except Exception:
+        pass
+    return None
+
+
+def _get_honcho_provider():
+    """Read memory.provider from ~/.hermes/config.yaml."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        return None
+    try:
+        cfg = yaml.safe_load(config_path.read_text())
+        if isinstance(cfg, dict):
+            memory = cfg.get("memory", {})
+            if isinstance(memory, dict):
+                return memory.get("provider")
+    except Exception:
+        pass
+    return None
+
+
+def _get_honcho_workspace_id():
+    """Read honcho.workspace_id from ~/.hermes/config.yaml."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        return "hermes"
+    try:
+        cfg = yaml.safe_load(config_path.read_text())
+        if isinstance(cfg, dict):
+            honcho = cfg.get("honcho", {})
+            if isinstance(honcho, dict):
+                wid = honcho.get("workspace_id", "").strip()
+                if wid:
+                    return wid
+    except Exception:
+        pass
+    return "hermes"
+
+
+def _get_honcho_client():
+    global _honcho_client, _honcho_available, _honcho_error
+    if _honcho_available is not None:
+        return _honcho_client if _honcho_available else None
+    if _honcho_error is not None:
+        return None
+    try:
+        from honcho import Honcho
+        api_key = _get_honcho_api_key()
+        if not api_key:
+            _honcho_available = False
+            _honcho_error = "HONCHO_API_KEY not found in ~/.hermes/.env"
+            return None
+        workspace_id = _get_honcho_workspace_id()
+        _honcho_client = Honcho(api_key=api_key, workspace_id=workspace_id, timeout=10)
+        # Test connectivity (best effort — don't block if API is slow)
+        try:
+            _honcho_client.get_configuration()
+            _honcho_available = True
+        except Exception as e:
+            _honcho_available = False
+            _honcho_error = str(e)
+            _honcho_client = None
+        return _honcho_client if _honcho_available else None
+    except Exception as e:
+        _honcho_available = False
+        _honcho_error = str(e)
+        return None
+
+
+async def _get_honcho_client_async():
+    """Async wrapper for _get_honcho_client with timeout protection."""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_get_honcho_client),
+            timeout=12
+        )
+    except asyncio.TimeoutError:
+        global _honcho_available, _honcho_error
+        _honcho_available = False
+        _honcho_error = "Connection timed out"
+        return None
+
+
+def _honcho_unavailable():
+    raise HTTPException(503, f"Honcho unavailable: {_honcho_error or 'not configured'}")
+
+
+def _serialize_message(msg):
+    """Serialize a Honcho Message object to dict."""
+    d = {
+        "id": getattr(msg, "id", None),
+        "content": getattr(msg, "content", ""),
+        "peer_id": getattr(msg, "peer_id", None),
+        "session_id": getattr(msg, "session_id", None),
+        "workspace_id": getattr(msg, "workspace_id", None),
+        "metadata": getattr(msg, "metadata", {}),
+        "token_count": getattr(msg, "token_count", 0),
+    }
+    created = getattr(msg, "created_at", None)
+    if created:
+        if isinstance(created, datetime):
+            d["created_at"] = created.isoformat()
+        else:
+            d["created_at"] = str(created)
+    return d
+
+
+def _serialize_session(s):
+    """Serialize a Honcho Session object to dict."""
+    d = {
+        "id": getattr(s, "id", None),
+        "is_active": getattr(s, "is_active", None),
+    }
+    created = getattr(s, "created_at", None)
+    if created:
+        if isinstance(created, datetime):
+            d["created_at"] = created.isoformat()
+        else:
+            d["created_at"] = str(created)
+    return d
+
+
+@router.get("/honcho/status")
+async def honcho_status():
+    """Check if Honcho memory is configured and functional."""
+    provider = _get_honcho_provider()
+    api_key = _get_honcho_api_key()
+    config_ok = provider == "honcho"
+    key_ok = bool(api_key)
+
+    if not config_ok or not key_ok:
+        return {
+            "available": False,
+            "configured": config_ok,
+            "api_key_set": key_ok,
+            "error": "Not configured as memory provider" if not config_ok else "API key missing",
+        }
+
+    # Try to connect with a timeout
+    client = await _get_honcho_client_async()
+    if client:
+        return {"available": True, "configured": True, "api_key_set": True}
+    return {
+        "available": False,
+        "configured": True,
+        "api_key_set": True,
+        "error": _honcho_error or "Connection failed",
+    }
+
+
+@router.get("/honcho/stats")
+async def honcho_stats():
+    """Get Honcho memory statistics."""
+    client = _get_honcho_client()
+    if not client:
+        _honcho_unavailable()
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(
+                asyncio.to_thread(lambda: client.sessions(page=1, size=1)),
+                asyncio.to_thread(lambda: client.peers(page=1, size=1)),
+                asyncio.to_thread(client.get_metadata),
+                asyncio.to_thread(client.get_configuration),
+            ),
+            timeout=15,
+        )
+        sessions_page, peers_page, metadata, config = results
+        return {
+            "total_sessions": sessions_page.total,
+            "total_peers": peers_page.total,
+            "metadata": metadata or {},
+            "configuration": str(config),
+        }
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Honcho API timed out")
+    except Exception as e:
+        raise HTTPException(500, f"Honcho stats error: {e}")
+
+
+@router.get("/honcho/profile")
+async def honcho_profile():
+    """Get Honcho user profile (peers + configuration)."""
+    client = _get_honcho_client()
+    if not client:
+        _honcho_unavailable()
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(
+                asyncio.to_thread(lambda: client.peers(page=1, size=50)),
+                asyncio.to_thread(client.get_configuration),
+                asyncio.to_thread(client.get_metadata),
+            ),
+            timeout=15,
+        )
+        peers_page, config, metadata = results
+
+        peers_data = []
+        for p in peers_page.items:
+            peer_info = {
+                "id": getattr(p, "id", None),
+                "created_at": str(getattr(p, "created_at", "")),
+            }
+            try:
+                card = await asyncio.wait_for(asyncio.to_thread(p.get_card), timeout=5)
+                peer_info["card"] = card
+            except Exception:
+                peer_info["card"] = None
+            peers_data.append(peer_info)
+
+        return {
+            "peers": peers_data,
+            "total_peers": peers_page.total,
+            "configuration": str(config),
+            "metadata": metadata or {},
+        }
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Honcho API timed out")
+    except Exception as e:
+        raise HTTPException(500, f"Honcho profile error: {e}")
+
+
+@router.get("/honcho/memories")
+async def honcho_memories(limit: int = 50):
+    """List recent Honcho sessions (as memory context)."""
+    client = _get_honcho_client()
+    if not client:
+        _honcho_unavailable()
+    try:
+        sessions_page = await asyncio.wait_for(
+            asyncio.to_thread(
+                lambda: client.sessions(page=1, size=min(limit, 100), reverse=True)
+            ),
+            timeout=15,
+        )
+        sessions_data = []
+        for s in sessions_page.items:
+            s_dict = _serialize_session(s)
+            # Try to get summaries for each session
+            try:
+                summaries = await asyncio.wait_for(asyncio.to_thread(s.summaries), timeout=5)
+                s_dict["summary"] = {
+                    "short": getattr(summaries, "short_summary", None),
+                    "long": getattr(summaries, "long_summary", None),
+                }
+            except Exception:
+                s_dict["summary"] = None
+            sessions_data.append(s_dict)
+
+        return {"memories": sessions_data, "total": sessions_page.total}
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Honcho API timed out")
+    except Exception as e:
+        raise HTTPException(500, f"Honcho memories error: {e}")
+
+
+@router.get("/honcho/search")
+async def honcho_search(q: str = "", top_k: int = 10):
+    """Semantic search in Honcho memory."""
+    if not q:
+        raise HTTPException(400, "Query parameter 'q' is required")
+    client = _get_honcho_client()
+    if not client:
+        _honcho_unavailable()
+    try:
+        results = await asyncio.wait_for(
+            asyncio.to_thread(
+                lambda: client.search(query=q, limit=min(top_k, 100))
+            ),
+            timeout=15,
+        )
+        serialized = [_serialize_message(m) for m in results]
+        return {"results": serialized, "count": len(serialized)}
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Honcho API timed out")
+    except Exception as e:
+        raise HTTPException(500, f"Honcho search error: {e}")

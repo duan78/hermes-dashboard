@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Brain, Save, RefreshCw, FileText, FilePlus, Trash2, Edit3, X, Folder, AlertTriangle, Check,
-  Search, Database, Plus, Zap, BarChart3, Calendar, Hash
+  Search, Database, Plus, Zap, BarChart3, Calendar, Hash, User, Cpu
 } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
@@ -318,10 +318,348 @@ function VectorMemoryTab({ showToast }) {
   )
 }
 
+// ── Honcho Memory Tab ──
+function HonchoTab({ showToast }) {
+  const [stats, setStats] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [memories, setMemories] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState(null)
+  const [searching, setSearching] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [activeSection, setActiveSection] = useState('overview')
+
+  const loadStats = useCallback(async () => {
+    try {
+      const [s, p] = await Promise.all([
+        api.honchoStats(),
+        api.honchoProfile(),
+      ])
+      setStats(s)
+      setProfile(p)
+    } catch (e) {
+      console.error('Honcho stats error:', e)
+      showToast(e.message, 'error')
+    }
+  }, [showToast])
+
+  const loadMemories = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await api.honchoMemories(50)
+      setMemories(data.memories || [])
+    } catch (e) {
+      console.error('Honcho memories error:', e)
+      setMemories([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadStats() }, [loadStats])
+  useEffect(() => { loadMemories() }, [loadMemories])
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return
+    try {
+      setSearching(true)
+      setSearchResults(null)
+      const data = await api.honchoSearch(searchQuery, 10)
+      setSearchResults(data.results || [])
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const handleClearSearch = () => {
+    setSearchQuery('')
+    setSearchResults(null)
+  }
+
+  const displayItems = searchResults || memories
+
+  if (loading && !stats) return <div className="spinner" />
+
+  return (
+    <div>
+      {/* Stats bar */}
+      {stats && (
+        <div className="vector-stats-bar">
+          <div className="vector-stat-card">
+            <div className="vector-stat-label">
+              <Database size={13} /> Sessions
+            </div>
+            <div className="vector-stat-value">
+              <span className="vector-status-indicator">
+                <span className={`vector-status-dot ${stats.total_sessions > 0 ? 'active' : 'inactive'}`} />
+              </span>
+              {stats.total_sessions}
+            </div>
+          </div>
+          <div className="vector-stat-card">
+            <div className="vector-stat-label">
+              <User size={13} /> Peers
+            </div>
+            <div className="vector-stat-value">
+              {stats.total_peers}
+            </div>
+          </div>
+          <div className="vector-stat-card">
+            <div className="vector-stat-label">
+              <Cpu size={13} /> Configuration
+            </div>
+            <div className="vector-stat-value" style={{ fontSize: 12 }}>
+              {stats.configuration ? stats.configuration.slice(0, 60) + (stats.configuration.length > 60 ? '...' : '') : '—'}
+            </div>
+          </div>
+          <div className="vector-stat-card">
+            <div className="vector-stat-label">
+              <BarChart3 size={13} /> Workspace
+            </div>
+            <div className="vector-stat-value" style={{ fontSize: 12 }}>
+              {stats.metadata && Object.keys(stats.metadata).length > 0
+                ? Object.entries(stats.metadata).slice(0, 3).map(([k, v]) => (
+                    <span key={k} style={{ marginRight: 8 }}>
+                      <span className="vector-source-badge source-manual">{k}: {typeof v === 'string' ? v.slice(0, 20) : v}</span>
+                    </span>
+                  ))
+                : '—'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section navigation */}
+      <div className="memory-tabs" style={{ marginBottom: 16 }}>
+        <button
+          className={`memory-tab ${activeSection === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveSection('overview')}
+          style={{ fontSize: 12 }}
+        >
+          <User size={13} /> Profile
+        </button>
+        <button
+          className={`memory-tab ${activeSection === 'memories' ? 'active' : ''}`}
+          onClick={() => setActiveSection('memories')}
+          style={{ fontSize: 12 }}
+        >
+          <Database size={13} /> Sessions ({stats?.total_sessions || 0})
+        </button>
+        <button
+          className={`memory-tab ${activeSection === 'search' ? 'active' : ''}`}
+          onClick={() => setActiveSection('search')}
+          style={{ fontSize: 12 }}
+        >
+          <Search size={13} /> Search
+        </button>
+      </div>
+
+      {/* Profile section */}
+      {activeSection === 'overview' && profile && (
+        <div className="vector-memory-list">
+          <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
+              <Cpu size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+              Workspace Configuration
+            </h3>
+            <pre style={{
+              fontSize: 12,
+              background: 'var(--bg-secondary)',
+              padding: 12,
+              borderRadius: 8,
+              overflow: 'auto',
+              maxHeight: 200,
+              color: 'var(--text-primary)',
+            }}>
+              {profile.configuration || 'No configuration'}
+            </pre>
+          </div>
+
+          {profile.metadata && Object.keys(profile.metadata).length > 0 && (
+            <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+              <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
+                <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                Metadata
+              </h3>
+              <pre style={{
+                fontSize: 12,
+                background: 'var(--bg-secondary)',
+                padding: 12,
+                borderRadius: 8,
+                overflow: 'auto',
+                maxHeight: 200,
+                color: 'var(--text-primary)',
+              }}>
+                {JSON.stringify(profile.metadata, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          <div style={{ padding: '12px 0' }}>
+            <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
+              <User size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+              Peers ({profile.total_peers})
+            </h3>
+            {profile.peers.map(peer => (
+              <div key={peer.id} className="vector-memory-item" style={{ marginBottom: 8 }}>
+                <div className="vector-memory-header">
+                  <div className="vector-memory-meta">
+                    <span className="vector-source-badge source-conversation">
+                      {peer.id}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Calendar size={11} /> {formatDate(peer.created_at)}
+                    </span>
+                  </div>
+                </div>
+                {peer.card && peer.card.length > 0 && (
+                  <div className="vector-memory-text">
+                    {peer.card.map((line, i) => (
+                      <div key={i} style={{ fontSize: 12, marginBottom: 2 }}>• {line}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {profile.peers.length === 0 && (
+              <div className="vector-empty-state">
+                <User size={32} />
+                <p>No peers configured yet</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Memories / Sessions section */}
+      {activeSection === 'memories' && (
+        <div>
+          <div className="vector-search-bar">
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Recent sessions (newest first)
+            </span>
+            <button className="btn btn-sm" onClick={() => { loadStats(); loadMemories() }} style={{ marginLeft: 'auto' }}>
+              <RefreshCw size={14} />
+            </button>
+          </div>
+          <div className="vector-memory-list">
+            {memories.map(m => (
+              <div key={m.id} className="vector-memory-item">
+                <div className="vector-memory-header">
+                  <div className="vector-memory-meta">
+                    <span className="vector-source-badge source-auto_capture">
+                      {m.is_active ? 'Active' : 'Archived'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Calendar size={11} /> {formatDate(m.created_at)}
+                    </span>
+                  </div>
+                </div>
+                {m.summary && m.summary.short && (
+                  <div className="vector-memory-text">
+                    {m.summary.short}
+                  </div>
+                )}
+                {m.summary && m.summary.long && m.summary.long !== m.summary.short && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+                    {m.summary.long.length > 300 ? m.summary.long.slice(0, 300) + '...' : m.summary.long}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  ID: {m.id}
+                </div>
+              </div>
+            ))}
+            {memories.length === 0 && (
+              <div className="vector-empty-state">
+                <Database size={48} />
+                <p>No sessions found</p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  Sessions are created automatically during conversations.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Search section */}
+      {activeSection === 'search' && (
+        <div>
+          <div className="vector-search-bar">
+            <input
+              className="form-input"
+              placeholder="Semantic search in Honcho memory..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            />
+            <button className="btn btn-primary" onClick={handleSearch} disabled={searching}>
+              <Search size={14} /> {searching ? 'Searching...' : 'Search'}
+            </button>
+            {searchResults && (
+              <button className="btn" onClick={handleClearSearch}>
+                <X size={14} /> Clear
+              </button>
+            )}
+          </div>
+          <div className="vector-memory-list">
+            {searchResults && searchResults.map(m => (
+              <div key={m.id} className="vector-memory-item">
+                <div className="vector-memory-header">
+                  <div className="vector-memory-meta">
+                    <span className="vector-source-badge source-manual">
+                      {m.peer_id || 'unknown'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Calendar size={11} /> {formatDate(m.created_at)}
+                    </span>
+                    {m.token_count > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        <Hash size={11} /> {m.token_count} tokens
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="vector-memory-text">
+                  {m.content && m.content.length > 300 ? m.content.slice(0, 300) + '...' : (m.content || '—')}
+                </div>
+                {m.session_id && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Session: {m.session_id.slice(0, 16)}...
+                  </div>
+                )}
+              </div>
+            ))}
+            {searchResults && searchResults.length === 0 && (
+              <div className="vector-empty-state">
+                <Search size={48} />
+                <p>No results found for this query</p>
+              </div>
+            )}
+            {!searchResults && (
+              <div className="vector-empty-state">
+                <Search size={48} />
+                <p>Search across all Honcho memories</p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  Enter a query to semantically search through session messages.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Page ──
 export default function MemorySoul() {
   const [activeTab, setActiveTab] = useState('files')
   const [vectorAvailable, setVectorAvailable] = useState(false)
+  const [honchoAvailable, setHonchoAvailable] = useState(false)
   const [files, setFiles] = useState([])
   const [selected, setSelected] = useState(null)
   const [content, setContent] = useState('')
@@ -360,6 +698,12 @@ export default function MemorySoul() {
     api.vectorMemoryAvailable().then(data => {
       setVectorAvailable(data.available === true)
     }).catch(() => setVectorAvailable(false))
+  }, [])
+
+  useEffect(() => {
+    api.honchoStatus().then(data => {
+      setHonchoAvailable(data.available === true)
+    }).catch(() => setHonchoAvailable(false))
   }, [])
 
   useEffect(() => {
@@ -477,11 +821,21 @@ export default function MemorySoul() {
             <Database size={15} /> Vector Memory
           </button>
         )}
+        {honchoAvailable && (
+          <button
+            className={`memory-tab ${activeTab === 'honcho' ? 'active' : ''}`}
+            onClick={() => setActiveTab('honcho')}
+          >
+            <Cpu size={15} /> Honcho
+          </button>
+        )}
       </div>
 
       {/* Tab content */}
       {activeTab === 'vector' ? (
         <VectorMemoryTab showToast={showToast} />
+      ) : activeTab === 'honcho' ? (
+        <HonchoTab showToast={showToast} />
       ) : (
         <div className="memory-layout">
           {/* File sidebar */}

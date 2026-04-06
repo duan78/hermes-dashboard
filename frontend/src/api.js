@@ -67,6 +67,13 @@ export const api = {
   vectorMemoryDelete: (memoryId) => request('/memory/vector/delete', { method: 'DELETE', body: JSON.stringify({ memory_id: memoryId }) }),
   vectorMemoryUsage: () => request('/memory/vector/usage'),
 
+  // Honcho Memory
+  honchoStatus: () => request('/memory/honcho/status'),
+  honchoStats: () => request('/memory/honcho/stats'),
+  honchoProfile: () => request('/memory/honcho/profile'),
+  honchoMemories: (limit = 50) => request(`/memory/honcho/memories?limit=${limit}`),
+  honchoSearch: (query, topK = 10) => request(`/memory/honcho/search?q=${encodeURIComponent(query)}&top_k=${topK}`),
+
   // Tools
   listTools: () => request('/tools'),
   listToolsPlatform: (platform) => request(`/tools/${platform}`),
@@ -198,6 +205,13 @@ export const api = {
   listBackups: () => request('/backup/list'),
   restoreBackup: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   deleteBackup: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
+
+  // MOA (Mixture of Agents)
+  getMoaConfig: () => request('/config/moa'),
+  saveMoaConfig: (config) => request('/config/moa', { method: 'PUT', body: JSON.stringify(config) }),
+  getMoaProviders: () => request('/config/moa/providers'),
+  saveMoaProviders: (data) => request('/config/moa/providers', { method: 'PUT', body: JSON.stringify(data) }),
+  testMoaProvider: (providerId) => request('/config/moa/providers/test', { method: 'POST', body: JSON.stringify({ provider_id: providerId }) }),
 
   // Claude Code Monitor
   activeClaudeSessions: () => request('/claude-code/active'),
