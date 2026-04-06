@@ -541,6 +541,10 @@ npm run dev    # http://localhost:5173, proxies /api to backend
 |----------|---------|-------------|
 | `HERMES_DASHBOARD_TOKEN` | _(none)_ | Bearer token for API authentication. If not set, all access is open |
 | `HERMES_HOME` | `~/.hermes` | Path to the Hermes Agent configuration directory |
+| `HERMES_BIN` | `/root/.local/bin/hermes` | Path to the Hermes CLI binary |
+| `HERMES_PYTHON` | `/root/.hermes/hermes-agent/venv/bin/python` | Path to the Hermes Agent virtualenv python |
+| `HERMES_AGENT_DIR` | `/root/.hermes/hermes-agent` | Path to the Hermes Agent directory |
+| `HERMES_MEMORY_PATH` | `/root/hermes-memory` | Path to the hermes-memory module |
 
 ## Project Structure
 

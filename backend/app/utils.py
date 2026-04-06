@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .config import HERMES_HOME
+from .config import HERMES_HOME, HERMES_BIN
 
 # Patterns for detecting secrets in values
 SECRET_PATTERNS = [
@@ -41,7 +41,7 @@ def hermes_path(*parts: str) -> Path:
 
 async def run_hermes(*args: str, timeout: int = 30) -> str:
     """Run a hermes CLI command and return stdout."""
-    hermes_bin = "/root/.local/bin/hermes"
+    hermes_bin = HERMES_BIN
     cmd = [hermes_bin] + list(args)
     proc = await asyncio.create_subprocess_exec(
         *cmd,

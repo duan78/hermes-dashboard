@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter
-from ..config import HERMES_HOME
+from ..config import HERMES_PYTHON, HERMES_AGENT_DIR
 from ..utils import run_hermes, hermes_path
 
 router = APIRouter(prefix="/api/overview", tags=["overview"])
@@ -183,8 +183,7 @@ async def system_metrics():
     }
 
 
-HERMES_PYTHON = "/root/.hermes/hermes-agent/venv/bin/python"
-HERMES_AGENT_DIR = Path("/root/.hermes/hermes-agent")
+
 
 
 @router.get("/version")
