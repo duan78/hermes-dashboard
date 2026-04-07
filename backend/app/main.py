@@ -1,14 +1,17 @@
 import asyncio
+import collections
+import logging
 import os
 import struct
+import time
 import fcntl
 import termios
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from .auth import AuthMiddleware
 from .config import HOST, PORT, HERMES_HOME
@@ -40,6 +43,8 @@ from .routers import (
     claude_code,
 )
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title="Hermes Dashboard",
     description="Web dashboard for Hermes Agent administration",
@@ -58,10 +63,88 @@ app.add_middleware(
 # Auth
 app.add_middleware(AuthMiddleware)
 
-# Security headers
+# ── Rate limiting (in-memory sliding window) ──
+_rate_windows: dict[str, collections.deque] = collections.defaultdict(collections.deque)
+DEFAULT_LIMIT = 60
+DEFAULT_WINDOW = 60  # seconds
+
+SENSITIVE_LIMITS = {
+    "/api/chat": 20,
+    "/api/auth": 10,
+    "/api/files/write": 15,
+}
+
+MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def _check_rate_limit(ip: str, path: str) -> tuple[bool, int, int]:
+    """Return (allowed, remaining, retry_after)."""
+    window = DEFAULT_WINDOW
+    limit = DEFAULT_LIMIT
+
+    for prefix, lim in SENSITIVE_LIMITS.items():
+        if path.startswith(prefix):
+            limit = lim
+            break
+
+    key = f"{ip}:{path}"
+    now = time.time()
+    bucket = _rate_windows[key]
+
+    # Prune old entries
+    while bucket and bucket[0] <= now - window:
+        bucket.popleft()
+
+    if len(bucket) >= limit:
+        retry_after = int(bucket[0] + window - now) + 1
+        return False, 0, retry_after
+
+    bucket.append(now)
+    return True, limit - len(bucket), 0
+
+
+# ── Body size + rate limiting + security headers middleware ──
 @app.middleware("http")
-async def add_security_headers(request, call_next):
+async def security_middleware(request: Request, call_next):
+    # Skip WebSocket and static file requests for body size check
+    if request.scope.get("type") == "websocket":
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        return response
+
+    # Body size limit (skip GET/HEAD/DELETE/OPTIONS)
+    if request.method in ("POST", "PUT", "PATCH"):
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > MAX_BODY_SIZE:
+                    return JSONResponse(
+                        status_code=413,
+                        content={"detail": "Request body too large (max 10 MB)"},
+                    )
+            except ValueError:
+                pass
+
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    path = request.url.path
+
+    # Skip health, static assets, and favicon
+    if path not in ("/api/health", "/favicon.ico") and not path.startswith("/assets"):
+        allowed, remaining, retry_after = _check_rate_limit(client_ip, path)
+        if not allowed:
+            response = JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded"},
+            )
+            response.headers["Retry-After"] = str(retry_after)
+            response.headers["X-RateLimit-Remaining"] = "0"
+            return response
+
     response = await call_next(request)
+
+    # Security headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -78,7 +161,7 @@ async def add_security_headers(request, call_next):
 # Health check
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "hermes_home": str(HERMES_HOME)}
+    return {"status": "ok"}
 
 
 # Register routers
@@ -112,7 +195,7 @@ app.include_router(claude_code.router)
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──
 
 @app.websocket("/ws/terminal")
-async def terminal_ws(websocket: WebSocket):
+async def terminal_ws(websocket):
     """WebSocket endpoint that spawns an interactive PTY shell."""
     await websocket.accept()
 
@@ -188,8 +271,6 @@ async def terminal_ws(websocket: WebSocket):
                         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
                     except Exception:
                         pass
-        except WebSocketDisconnect:
-            pass
         except Exception:
             pass
 

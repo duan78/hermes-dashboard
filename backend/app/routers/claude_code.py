@@ -1,24 +1,67 @@
 import asyncio
 import json
+import logging
 import os
 import re
 import shutil
-import subprocess
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Body
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/claude-code", tags=["claude-code"])
 
 CLAUUDE_DIR = Path.home() / ".claude"
 PROJECTS_DIR = CLAUUDE_DIR / "projects"
 
+# ── Input validation ──
+SESSION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
-def _run(cmd: list, timeout: int = 10) -> str:
+# Allowed base directories for workdir (only safe locations)
+_ALLOWED_BASE_DIRS = [
+    Path("/root"),
+    Path("/home"),
+]
+
+MAX_MSG_LEN = 10_000  # limit message length sent to tmux
+
+
+def _validate_session_name(name: str) -> str:
+    """Validate a tmux session name against injection."""
+    if not name or not SESSION_NAME_RE.match(name):
+        raise HTTPException(400, f"Invalid session name: must match {SESSION_NAME_RE.pattern}")
+    return name
+
+
+def _validate_workdir(workdir: str) -> str:
+    """Validate workdir is under an allowed base directory."""
+    if not workdir:
+        return ""
+    resolved = Path(workdir).resolve()
+    for base in _ALLOWED_BASE_DIRS:
+        try:
+            resolved.relative_to(base.resolve())
+            return str(resolved)
+        except ValueError:
+            continue
+    raise HTTPException(400, f"Workdir must be under {', '.join(str(d) for d in _ALLOWED_BASE_DIRS)}")
+
+
+async def _run(cmd: list, timeout: int = 10) -> str:
+    """Run a command using asyncio (non-blocking)."""
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return r.stdout.strip()
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        return stdout.decode(errors="replace").strip()
+    except asyncio.TimeoutError:
+        proc.kill()
+        return ""
     except Exception:
         return ""
 
@@ -56,13 +99,13 @@ def _detect_status(output: str) -> str:
 @router.get("/active")
 async def active_sessions():
     """List active Claude Code tmux sessions."""
-    result = _run(["tmux", "list-sessions", "-F", "#{session_name}"])
+    result = await _run(["tmux", "list-sessions", "-F", "#{session_name}"])
     sessions = []
     active_tmux = [s for s in result.split("\n") if s.startswith("claude-")]
 
     for name in active_tmux:
         # Get output
-        output = _run(["tmux", "capture-pane", "-t", name, "-p"])
+        output = await _run(["tmux", "capture-pane", "-t", name, "-p"])
         status = _detect_status(output)
 
         # Get process info
@@ -71,7 +114,7 @@ async def active_sessions():
         mem_mb = 0.0
         workdir = ""
 
-        ps_result = _run(["ps", "aux"])
+        ps_result = await _run(["ps", "aux"])
         for line in ps_result.split("\n"):
             if "/root/.local/bin/claude" in line and "grep" not in line:
                 parts = line.split()
@@ -160,7 +203,8 @@ async def session_output(session: str = "", lines: int = 50):
     """Capture current tmux session output."""
     if not session:
         raise HTTPException(400, "session required")
-    output = _run(["tmux", "capture-pane", "-t", session, "-p"])
+    _validate_session_name(session)
+    output = await _run(["tmux", "capture-pane", "-t", session, "-p"])
     return {"session": session, "output": output}
 
 
@@ -170,7 +214,9 @@ async def stop_session(body: dict = Body(...)):
     session = body.get("session", "")
     if not session:
         raise HTTPException(400, "session required")
-    subprocess.run(["tmux", "send-keys", "-t", session, "C-c"], capture_output=True)
+    _validate_session_name(session)
+    await _run(["tmux", "send-keys", "-t", session, "C-c"])
+    logger.info("Stopped Claude Code session: %s", session)
     return {"status": "stopped", "session": session}
 
 
@@ -181,8 +227,12 @@ async def send_to_session(body: dict = Body(...)):
     message = body.get("message", "")
     if not session or not message:
         raise HTTPException(400, "session and message required")
-    subprocess.run(["tmux", "send-keys", "-t", session, "-l", "--", message], capture_output=True)
-    subprocess.run(["tmux", "send-keys", "-t", session, "Enter"], capture_output=True)
+    _validate_session_name(session)
+    if len(message) > MAX_MSG_LEN:
+        raise HTTPException(400, f"Message too long (max {MAX_MSG_LEN} chars)")
+    await _run(["tmux", "send-keys", "-t", session, "-l", "--", message])
+    await _run(["tmux", "send-keys", "-t", session, "Enter"])
+    logger.info("Sent message to Claude Code session: %s", session)
     return {"status": "sent", "session": session}
 
 
@@ -192,14 +242,18 @@ async def new_session(body: dict = Body(...)):
     name = body.get("name", "claude-session")
     if not name.startswith("claude-"):
         name = f"claude-{name}"
+    _validate_session_name(name)
     workdir = body.get("workdir", "")
-
-    subprocess.run(["tmux", "new-session", "-d", "-s", name], capture_output=True)
     if workdir:
-        subprocess.run(["tmux", "send-keys", "-t", name, "-l", "--", f"cd {workdir}"], capture_output=True)
-        subprocess.run(["tmux", "send-keys", "-t", name, "Enter"], capture_output=True)
-    subprocess.run(["tmux", "send-keys", "-t", name, "-l", "--", "/root/.local/bin/claude"], capture_output=True)
-    subprocess.run(["tmux", "send-keys", "-t", name, "Enter"], capture_output=True)
+        workdir = _validate_workdir(workdir)
+
+    await _run(["tmux", "new-session", "-d", "-s", name])
+    if workdir:
+        await _run(["tmux", "send-keys", "-t", name, "-l", "--", f"cd {workdir}"])
+        await _run(["tmux", "send-keys", "-t", name, "Enter"])
+    await _run(["tmux", "send-keys", "-t", name, "-l", "--", "/root/.local/bin/claude"])
+    await _run(["tmux", "send-keys", "-t", name, "Enter"])
+    logger.info("Created new Claude Code session: %s (workdir=%s)", name, workdir)
     return {"status": "created", "session": name}
 
 
@@ -209,7 +263,9 @@ async def kill_session(body: dict = Body(...)):
     session = body.get("session", "")
     if not session:
         raise HTTPException(400, "session required")
-    subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
+    _validate_session_name(session)
+    await _run(["tmux", "kill-session", "-t", session])
+    logger.info("Killed Claude Code session: %s", session)
     return {"status": "killed", "session": session}
 
 
@@ -270,7 +326,7 @@ async def session_messages(session_id: str, limit: int = 30):
 async def claude_stats():
     """Get Claude Code statistics."""
     # Active sessions
-    result = _run(["tmux", "list-sessions", "-F", "#{session_name}"])
+    result = await _run(["tmux", "list-sessions", "-F", "#{session_name}"])
     active = len([s for s in result.split("\n") if s.startswith("claude-")])
 
     # Past sessions
