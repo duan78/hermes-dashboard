@@ -5,13 +5,9 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 HERMES_HOME = Path(os.getenv("HERMES_HOME", os.path.expanduser("~/.hermes")))
-DASHBOARD_TOKEN=os.getenv("DASHBOARD_TOKEN", "")
-
-if not DASHBOARD_TOKEN:
-    import secrets
-    DASHBOARD_TOKEN = secrets.token_urlsafe(32)
-    import logging
-    logging.getLogger("hermes-dashboard").warning(f"Auto-generated DASHBOARD_TOKEN: {DASHBOARD_TOKEN}")
+DASHBOARD_TOKEN = os.getenv("DASHBOARD_TOKEN", "")
+# Strip whitespace — empty or whitespace-only means no backend auth (Nginx handles it)
+DASHBOARD_TOKEN = DASHBOARD_TOKEN.strip()
 
 HERMES_BIN = os.getenv("HERMES_BIN", "/root/.local/bin/hermes")
 HERMES_PYTHON = os.getenv("HERMES_PYTHON", "/root/.hermes/hermes-agent/venv/bin/python")

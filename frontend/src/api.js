@@ -6,7 +6,7 @@ async function ensureToken() {
   const existing = localStorage.getItem('dashboard_token');
   if (existing) return existing;
   if (_tokenPromise) return _tokenPromise;
-  _tokenPromise = fetch(`${API_BASE}/auth/token`)
+  _tokenPromise = fetch(`${API_BASE}/auth/token`, { credentials: 'same-origin' })
     .then(r => r.ok ? r.json() : null)
     .then(data => {
       if (data && data.token) {
