@@ -1,26 +1,52 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2, BarChart3, Calendar } from 'lucide-react'
-import { api } from '../api'
+import { useSessions, useSession, useSearchSessions, useDeleteSession, usePruneSessions, useExportSession } from '../hooks/useApi'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
+
+const SOURCE_COLORS = {
+  Telegram: '#2AABEE',
+  Discord: '#5865F2',
+  Slack: '#4A154B',
+  WhatsApp: '#25D366',
+  CLI: '#10B981',
+  local: '#6B7280',
+}
+
+function SourceBadge({ platform }) {
+  const color = SOURCE_COLORS[platform] || 'var(--accent)'
+  return (
+    <span className="badge badge-info" style={{ background: `${color}22`, borderColor: color, color }}>
+      {platform}
+    </span>
+  )
+}
+
+function TokenUsageBar({ tokens, label, color }) {
+  if (!tokens || tokens === 0) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+      <span style={{ width: 80, color: 'var(--text-muted)' }}>{label}</span>
+      <div style={{ flex: 1, background: 'var(--bg-tertiary)', borderRadius: 3, height: 6, overflow: 'hidden' }}>
+        <div style={{ background: color, height: '100%', borderRadius: 3, width: '100%' }} />
+      </div>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', minWidth: 60, textAlign: 'right' }}>
+        {tokens.toLocaleString()}
+      </span>
+    </div>
+  )
+}
 
 function SessionDetail({ sessionId, onBack }) {
-  const [session, setSession] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data: session, isLoading, refetch } = useSession(sessionId)
   const [exporting, setExporting] = useState(false)
-
-  useEffect(() => {
-    api.getSession(sessionId)
-      .then(setSession)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [sessionId])
 
   const handleExport = async () => {
     setExporting(true)
     try {
-      const data = await api.exportSession(sessionId)
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const data = await refetch()
+      const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -34,10 +60,11 @@ function SessionDetail({ sessionId, onBack }) {
     }
   }
 
-  if (loading) return <div className="spinner" />
+  if (isLoading) return <div className="spinner" />
   if (!session) return <div className="error-box">Session not found</div>
 
   const messages = session.messages || []
+  const usage = session.usage || session.token_usage || {}
 
   return (
     <div>
@@ -66,7 +93,9 @@ function SessionDetail({ sessionId, onBack }) {
             Platform
             <Tooltip text="Where this conversation originated: CLI (terminal), Telegram, Discord, WhatsApp, or other connected platforms." />
           </div>
-          <div className="stat-value" style={{ fontSize: 16 }}>{session.platform || 'N/A'}</div>
+          <div className="stat-value" style={{ fontSize: 16 }}>
+            <SourceBadge platform={session.platform || 'N/A'} />
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">
@@ -76,6 +105,22 @@ function SessionDetail({ sessionId, onBack }) {
           <div className="stat-value">{messages.length}</div>
         </div>
       </div>
+
+      {/* Token Usage Bars */}
+      {(usage.input || usage.output || usage.cache_read || usage.cache_write || usage.reasoning) && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-header">
+            <span className="card-title">Token Usage</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' }}>
+            <TokenUsageBar tokens={usage.input} label="Input" color="#3b82f6" />
+            <TokenUsageBar tokens={usage.output} label="Output" color="#10b981" />
+            <TokenUsageBar tokens={usage.cache_read} label="Cache Read" color="#8b5cf6" />
+            <TokenUsageBar tokens={usage.cache_write} label="Cache Write" color="#f59e0b" />
+            <TokenUsageBar tokens={usage.reasoning} label="Reasoning" color="#ef4444" />
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header">
@@ -128,87 +173,62 @@ function HighlightText({ text, query }) {
 export default function Sessions() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [sessions, setSessions] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { data: sessions = [], isLoading, error: sessionsError, refetch } = useSessions()
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState(null)
-  const [searching, setSearching] = useState(false)
-  const [pruning, setPruning] = useState(false)
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const { data: searchResults, isLoading: searching } = useSearchSessions(debouncedQuery)
+  const deleteMutation = useDeleteSession()
+  const pruneMutation = usePruneSessions()
   const [showPrune, setShowPrune] = useState(false)
   const [pruneDays, setPruneDays] = useState(30)
+  const [confirmModal, setConfirmModal] = useState(null)
   const debounceRef = useRef(null)
-
-  const load = async () => {
-    try {
-      setLoading(true)
-      const data = await api.listSessions()
-      setSessions(data)
-      setError(null)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
-
-  const doSearch = useCallback(async (q) => {
-    if (!q.trim()) {
-      setSearchResults(null)
-      return
-    }
-    try {
-      setSearching(true)
-      const results = await api.searchSessions(q)
-      setSearchResults(results)
-    } catch (e) {
-      console.error('Search failed:', e)
-    } finally {
-      setSearching(false)
-    }
-  }, [])
 
   const onSearchChange = (e) => {
     const val = e.target.value
     setSearchQuery(val)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => doSearch(val), 300)
+    debounceRef.current = setTimeout(() => setDebouncedQuery(val), 300)
   }
 
   const clearSearch = () => {
     setSearchQuery('')
-    setSearchResults(null)
+    setDebouncedQuery('')
   }
 
-  const handlePrune = async () => {
-    if (!confirm(`Prune all sessions older than ${pruneDays} days? This cannot be undone.`)) return
-    setPruning(true)
-    try {
-      await api.pruneSessions(pruneDays)
-      load()
-      setShowPrune(false)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setPruning(false)
-    }
+  const handlePrune = () => {
+    setConfirmModal({
+      message: `Prune all sessions older than ${pruneDays} days? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          await pruneMutation.mutateAsync(pruneDays)
+          refetch()
+          setShowPrune(false)
+        } catch (e) {
+          console.error('Prune failed:', e)
+        }
+      }
+    })
   }
 
   if (id) return <SessionDetail sessionId={id} onBack={() => navigate('/sessions')} />
 
-  const deleteSession = async (sid) => {
-    if (!confirm('Delete this session?')) return
-    try { await api.deleteSession(sid); load() }
-    catch (e) { setError(e.message) }
+  const deleteSession = (sid) => {
+    setConfirmModal({
+      message: 'Delete this session?',
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try { await deleteMutation.mutateAsync(sid) }
+        catch (e) { console.error(e) }
+      }
+    })
   }
 
-  const displaySessions = searchResults !== null ? searchResults : sessions
+  const displaySessions = debouncedQuery ? (searchResults || []) : sessions
 
   // Compute stats
   const totalSessions = sessions.length
-  const totalMessages = sessions.reduce((sum, s) => sum + (s.messages_count || 0), 0)
   const platformCounts = sessions.reduce((acc, s) => {
     const p = s.platform || 'unknown'
     acc[p] = (acc[p] || 0) + 1
@@ -251,13 +271,14 @@ export default function Sessions() {
                 onChange={e => setPruneDays(Number(e.target.value))}
                 min={1}
                 placeholder="days"
+                aria-label="Prune age in days"
               />
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days</span>
-              <button className="btn btn-sm btn-danger" onClick={handlePrune} disabled={pruning}>
-                {pruning ? <Loader2 size={12} className="spin" /> : <Trash2 size={12} />}
+              <button className="btn btn-sm btn-danger" onClick={handlePrune} disabled={pruneMutation.isPending}>
+                {pruneMutation.isPending ? <Loader2 size={12} className="spin" /> : <Trash2 size={12} />}
                 {' '}Prune
               </button>
-              <button className="btn btn-sm" onClick={() => setShowPrune(false)}>
+              <button className="btn btn-sm" onClick={() => setShowPrune(false)} aria-label="Cancel prune">
                 <X size={12} />
               </button>
             </>
@@ -267,13 +288,13 @@ export default function Sessions() {
               <Scissors size={14} /> Prune
             </button>
           )}
-          <button className="btn btn-sm" onClick={load}>
+          <button className="btn btn-sm" onClick={() => refetch()}>
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
       </div>
 
-      {error && <div className="error-box">{error}</div>}
+      {sessionsError && <div className="error-box">{sessionsError.message}</div>}
 
       {/* Stats */}
       <div className="grid grid-4" style={{ marginBottom: 16 }}>
@@ -299,7 +320,7 @@ export default function Sessions() {
           </div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
             {Object.entries(platformCounts).map(([p, c]) => (
-              <span key={p} className="badge badge-info" style={{ fontSize: 10 }}>{p}: {c}</span>
+              <SourceBadge key={p} platform={p} />
             ))}
           </div>
         </div>
@@ -339,9 +360,10 @@ export default function Sessions() {
             placeholder="Search sessions..."
             value={searchQuery}
             onChange={onSearchChange}
+            aria-label="Search sessions"
           />
           {searchQuery && (
-            <button className="search-clear-btn" onClick={clearSearch}>
+            <button className="search-clear-btn" onClick={clearSearch} aria-label="Clear search">
               <X size={14} />
             </button>
           )}
@@ -357,7 +379,7 @@ export default function Sessions() {
               <th>Model <Tooltip text="AI model used for this session's conversations." /></th>
               <th>Platform <Tooltip text="Communication channel where the conversation took place (CLI, Telegram, Discord, WhatsApp, etc.)." /></th>
               <th>Messages <Tooltip text="Total number of messages (user + assistant + tool results) exchanged in this session." /></th>
-              {searchResults !== null && <th>Match</th>}
+              {debouncedQuery && <th>Match</th>}
               <th>Actions</th>
             </tr>
           </thead>
@@ -375,9 +397,9 @@ export default function Sessions() {
                   )}
                 </td>
                 <td>{s.model}</td>
-                <td><span className="badge badge-info">{s.platform}</span></td>
+                <td><SourceBadge platform={s.platform} /></td>
                 <td>{s.messages_count}</td>
-                {searchResults !== null && (
+                {debouncedQuery && (
                   <td>
                     {s.snippet ? (
                       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -395,7 +417,7 @@ export default function Sessions() {
                     <button className="btn btn-sm" onClick={() => navigate(`/sessions/${s.id}`)}>
                       <MessageSquare size={12} /> View
                     </button>
-                    <button className="btn btn-sm btn-danger" onClick={() => deleteSession(s.id)}>
+                    <button className="btn btn-sm btn-danger" onClick={() => deleteSession(s.id)} aria-label="Delete session">
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -403,13 +425,14 @@ export default function Sessions() {
               </tr>
             ))}
             {displaySessions.length === 0 && (
-              <tr><td colSpan={searchResults !== null ? 6 : 5} className="empty-state">
-                {searchResults !== null ? 'No matching sessions found' : 'No sessions found'}
+              <tr><td colSpan={debouncedQuery ? 6 : 5} className="empty-state">
+                {debouncedQuery ? 'No matching sessions found' : 'No sessions found'}
               </td></tr>
             )}
           </tbody>
         </table>
       </div>
+      {confirmModal && <ConfirmModal title="Confirm" message={confirmModal.message} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(null)} confirmLabel="Delete" />}
     </div>
   )
 }
