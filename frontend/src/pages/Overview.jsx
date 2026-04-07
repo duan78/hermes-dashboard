@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { LayoutDashboard, Activity, Cpu, MessageSquare, Radio, RefreshCw, Package, ChevronDown, Loader2, RotateCcw } from 'lucide-react'
-import { api } from '../api'
+import { useOverview, useLogs, useSystemMetrics, useHermesVersion, useHermesChangelog, useHermesUpdate } from '../hooks/useApi'
 import Tooltip from '../components/Tooltip'
 import './overview.css'
 
@@ -35,98 +35,51 @@ function getCpuColor(pct) {
 }
 
 export default function Overview() {
-  const [data, setData] = useState(null)
-  const [logs, setLogs] = useState([])
-  const [sysMetrics, setSysMetrics] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  // Hermes Agent version/update state
-  const [versionInfo, setVersionInfo] = useState(null)
-  const [changelog, setChangelog] = useState(null)
   const [showChangelog, setShowChangelog] = useState(false)
-  const [updating, setUpdating] = useState(false)
   const [updateFeedback, setUpdateFeedback] = useState(null)
   const [confirmUpdate, setConfirmUpdate] = useState(false)
-  const [versionLoading, setVersionLoading] = useState(false)
   const [lastCheck, setLastCheck] = useState(null)
 
-  const load = async () => {
-    try {
-      setLoading(true)
-      const [overview, logData, sys, versionData] = await Promise.all([
-        api.getOverview(),
-        api.getLogs(50),
-        api.getSystemMetrics().catch(() => null),
-        api.hermesVersion().catch(() => null),
-      ])
-      setData(overview)
-      setLogs(logData.logs || [])
-      setSysMetrics(sys)
-      setVersionInfo(versionData)
-      setError(null)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+  const { data, loading: overviewLoading, error: overviewError, refetch: refetchOverview } = useOverview()
+  const { data: logData } = useLogs(50)
+  const { data: sysMetrics } = useSystemMetrics()
+  const { data: versionInfo, refetch: refetchVersion } = useHermesVersion()
+  const { data: changelog, refetch: refetchChangelog } = useHermesChangelog()
+  const updateMutation = useHermesUpdate()
+
+  const logs = logData?.logs || []
+
+  const refresh = () => {
+    refetchOverview()
   }
 
-  useEffect(() => { load() }, [])
-
-  // Auto-refresh system metrics every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const sys = await api.getSystemMetrics()
-        setSysMetrics(sys)
-      } catch {}
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [])
-
   const checkForUpdates = async () => {
-    setVersionLoading(true)
-    try {
-      const data = await api.hermesVersion()
-      setVersionInfo(data)
-      setLastCheck(new Date().toISOString())
-    } catch (e) {
-      console.error('Version check failed:', e)
-    } finally {
-      setVersionLoading(false)
-    }
+    const result = await refetchVersion()
+    if (result.data) setLastCheck(new Date().toISOString())
   }
 
   const doUpdate = async () => {
     setConfirmUpdate(false)
-    setUpdating(true)
     setUpdateFeedback(null)
     try {
-      const data = await api.hermesUpdate()
-      if (data.success) {
+      const res = await updateMutation.mutateAsync()
+      if (res.success) {
         setUpdateFeedback({ type: 'success', message: 'Update successful! Restart the gateway to apply changes.' })
-        const v = await api.hermesVersion()
-        setVersionInfo(v)
+        await refetchVersion()
       } else {
-        setUpdateFeedback({ type: 'error', message: data.error || data.output || 'Update failed' })
+        setUpdateFeedback({ type: 'error', message: res.error || res.output || 'Update failed' })
       }
     } catch (e) {
       setUpdateFeedback({ type: 'error', message: e.message })
-    } finally {
-      setUpdating(false)
     }
   }
 
-  const loadChangelog = async () => {
-    try {
-      const data = await api.hermesChangelog()
-      setChangelog(data)
-    } catch {}
+  const loadChangelog = () => {
+    refetchChangelog()
   }
 
-  if (loading) return <div className="spinner" />
-  if (error) return <div className="error-box">{error}</div>
+  if (overviewLoading) return <div className="spinner" />
+  if (overviewError) return <div className="error-box">{overviewError}</div>
   if (!data) return null
 
   const gw = data.gateway || {}
@@ -137,7 +90,7 @@ export default function Overview() {
         <LayoutDashboard size={28} />
         Overview
         <Tooltip text="High-level status of your Hermes Agent: gateway health, active model, session count, installed skills, connected platforms, and system metrics." />
-        <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
+        <button className="btn btn-sm" onClick={refresh} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
@@ -260,8 +213,8 @@ export default function Overview() {
                   Last checked: {new Date(lastCheck).toLocaleTimeString()}
                 </span>
               )}
-              <button className="btn btn-sm" onClick={checkForUpdates} disabled={versionLoading} style={{ fontSize: 11 }}>
-                {versionLoading ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />}
+              <button className="btn btn-sm" onClick={checkForUpdates} disabled={refetchVersion.isLoading} style={{ fontSize: 11 }}>
+                <RefreshCw size={12} />
                 {' '}Check Updates
               </button>
             </div>
@@ -296,7 +249,7 @@ export default function Overview() {
                       className="btn btn-sm"
                       style={{ background: 'rgba(245,158,11,0.1)', borderColor: 'var(--warning)', color: '#d4a574' }}
                       onClick={() => setConfirmUpdate(true)}
-                      disabled={updating}
+                      disabled={updateMutation.isPending}
                     >
                       <RotateCcw size={12} />
                       {' '}Update Now
@@ -341,11 +294,11 @@ export default function Overview() {
 
       {/* Update confirmation modal */}
       {confirmUpdate && (
-        <div className="modal-overlay" onClick={() => setConfirmUpdate(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setConfirmUpdate(false)} role="dialog" aria-modal="true">
+          <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.key === 'Escape' && setConfirmUpdate(false)}>
             <div className="modal-header">
               <h3>Confirm Hermes Agent Update</h3>
-              <button className="btn btn-sm" onClick={() => setConfirmUpdate(false)} style={{ padding: '2px 8px' }}>X</button>
+              <button className="btn btn-sm" onClick={() => setConfirmUpdate(false)} style={{ padding: '2px 8px' }} aria-label="Close">X</button>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5, margin: '12px 0' }}>
               This will pull the latest changes from Git and reinstall Hermes dependencies.
@@ -356,8 +309,8 @@ export default function Overview() {
             </p>
             <div className="modal-actions">
               <button className="btn" onClick={() => setConfirmUpdate(false)}>Cancel</button>
-              <button className="btn btn-danger" onClick={doUpdate} disabled={updating}>
-                {updating ? <Loader2 size={14} className="spin" /> : <RotateCcw size={14} />}
+              <button className="btn btn-danger" onClick={doUpdate} disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? <Loader2 size={14} className="spin" /> : <RotateCcw size={14} />}
                 {' '}Update Now
               </button>
             </div>
