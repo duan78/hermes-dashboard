@@ -26,7 +26,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not DASHBOARD_TOKEN:
             return await call_next(request)
 
-        auth_header = request.headers.get("authorization", "")
+        # Allow /api/auth/token — Nginx basic auth is the gate, this returns the bearer token
+        if request.url.path == "/api/auth/token":
+            return await call_next(request)
+
+        auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]  # Strip "Bearer "
             if verify_token(token):

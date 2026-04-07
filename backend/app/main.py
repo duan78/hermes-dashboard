@@ -221,6 +221,12 @@ async def body_size_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+# Auth token endpoint — returns bearer token (protected by Nginx basic auth)
+@app.get("/api/auth/token")
+async def get_auth_token():
+    return {"token": DASHBOARD_TOKEN}
+
+
 # Register routers
 app.include_router(overview.router)
 app.include_router(config.router)

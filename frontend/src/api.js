@@ -1,12 +1,38 @@
 const API_BASE = '/api';
 
+// Fetch bearer token from backend (protected by Nginx basic auth) if not already stored
+let _tokenPromise = null;
+async function ensureToken() {
+  const existing = localStorage.getItem('dashboard_token');
+  if (existing) return existing;
+  if (_tokenPromise) return _tokenPromise;
+  _tokenPromise = fetch(`${API_BASE}/auth/token`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (data && data.token) {
+        localStorage.setItem('dashboard_token', data.token);
+        return data.token;
+      }
+      return '';
+    })
+    .catch(() => '');
+  return _tokenPromise;
+}
+
 async function request(path, options = {}) {
-  const token = localStorage.getItem('hermes_token') || '';
+  const token = localStorage.getItem('dashboard_token') || '';
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (res.status === 401) {
+    // Try to fetch a fresh token and retry once
+    const freshToken = await ensureToken();
+    if (freshToken) {
+      headers['Authorization'] = `Bearer ${freshToken}`;
+      const retry = await fetch(`${API_BASE}${path}`, { ...options, headers });
+      if (retry.ok) return retry.json();
+    }
     window.dispatchEvent(new CustomEvent('auth-required'));
     throw new Error('Unauthorized');
   }
@@ -16,6 +42,9 @@ async function request(path, options = {}) {
   }
   return res.json();
 }
+
+// Auto-fetch token on load
+ensureToken();
 
 export const api = {
   // Overview
