@@ -237,6 +237,20 @@ async def save_moa_config(body: dict = Body(...)):
 
 # ── MOA Providers ──
 
+def _get_env_value_from_file(key: str) -> str:
+    """Get env value from os.environ or ~/.hermes/.env file."""
+    val = os.environ.get(key, "")
+    if val:
+        return val
+    env_path = HERMES_HOME / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(errors="replace").splitlines():
+            line = line.strip()
+            if line.startswith(f"{key}="):
+                return line[len(key) + 1:].strip().strip("'\"")
+    return ""
+
+
 @router.get("/moa/providers")
 async def get_moa_providers():
     """List all configured MOA providers with their status."""
@@ -249,7 +263,7 @@ async def get_moa_providers():
     result = {}
     for pid, pcfg in providers.items():
         api_key_env = pcfg.get("api_key_env", "")
-        api_key_set = bool(os.getenv(api_key_env))
+        api_key_set = bool(_get_env_value_from_file(api_key_env))
         result[pid] = {
             **pcfg,
             "api_key_set": api_key_set,
@@ -304,7 +318,7 @@ async def test_moa_provider(body: dict = Body(...)):
         raise HTTPException(404, f"Provider '{provider_id}' not found")
 
     api_key_env = provider_cfg.get("api_key_env", "")
-    api_key = os.getenv(api_key_env)
+    api_key = _get_env_value_from_file(api_key_env)
     if not api_key:
         return {"status": "error", "error": f"Environment variable '{api_key_env}' is not set"}
 

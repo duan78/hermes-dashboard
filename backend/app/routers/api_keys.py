@@ -76,6 +76,141 @@ API_KEY_DEFINITIONS = [
         "url": "",
         "is_password": False,
     },
+    {
+        "key": "NVIDIA_API_KEY",
+        "label": "NVIDIA API Key",
+        "category": "Provider",
+        "subcategory": "NVIDIA",
+        "description": "API key for NVIDIA NIM — access to Llama, Mistral, and other NVIDIA-hosted models. Free tier available.",
+        "url": "https://build.nvidia.com/",
+        "is_password": True,
+    },
+    {
+        "key": "NVIDIA_BASE_URL",
+        "label": "NVIDIA Base URL",
+        "category": "Provider",
+        "subcategory": "NVIDIA",
+        "description": "Custom base URL for NVIDIA NIM API endpoint",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "CEREBRAS_API_KEY",
+        "label": "Cerebras API Key",
+        "category": "Provider",
+        "subcategory": "Cerebras",
+        "description": "API key for Cerebras — ultra-fast inference on Llama models. Free tier available.",
+        "url": "https://cloud.cerebras.ai/",
+        "is_password": True,
+    },
+    {
+        "key": "CEREBRAS_BASE_URL",
+        "label": "Cerebras Base URL",
+        "category": "Provider",
+        "subcategory": "Cerebras",
+        "description": "Custom base URL for Cerebras API endpoint",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "GOOGLE_API_KEY",
+        "label": "Google Gemini API Key",
+        "category": "Provider",
+        "subcategory": "Google",
+        "description": "API key for Google Gemini models (Gemini Pro, Ultra, Flash). Free tier with rate limits.",
+        "url": "https://aistudio.google.com/app/apikey",
+        "is_password": True,
+    },
+    {
+        "key": "GOOGLE_BASE_URL",
+        "label": "Google Base URL",
+        "category": "Provider",
+        "subcategory": "Google",
+        "description": "Custom base URL for Google Gemini API endpoint",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "MISTRAL_API_KEY",
+        "label": "Mistral API Key",
+        "category": "Provider",
+        "subcategory": "Mistral",
+        "description": "API key for Mistral AI — Mistral, Mixtral, and Codestral models. Free tier available.",
+        "url": "https://console.mistral.ai/api-keys/",
+        "is_password": True,
+    },
+    {
+        "key": "MISTRAL_BASE_URL",
+        "label": "Mistral Base URL",
+        "category": "Provider",
+        "subcategory": "Mistral",
+        "description": "Custom base URL for Mistral API endpoint",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "GROQ_API_KEY",
+        "label": "Groq API Key",
+        "category": "Provider",
+        "subcategory": "Groq",
+        "description": "API key for Groq — extremely fast LPU inference on Llama and Mixtral. Free tier available.",
+        "url": "https://console.groq.com/keys",
+        "is_password": True,
+    },
+    {
+        "key": "GROQ_BASE_URL",
+        "label": "Groq Base URL",
+        "category": "Provider",
+        "subcategory": "Groq",
+        "description": "Custom base URL for Groq API endpoint",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "DEEPSEEK_API_KEY",
+        "label": "DeepSeek API Key",
+        "category": "Provider",
+        "subcategory": "DeepSeek",
+        "description": "API key for DeepSeek — DeepSeek-V3 and DeepSeek-Coder models. Low-cost pricing.",
+        "url": "https://platform.deepseek.com/api_keys",
+        "is_password": True,
+    },
+    {
+        "key": "DEEPSEEK_BASE_URL",
+        "label": "DeepSeek Base URL",
+        "category": "Provider",
+        "subcategory": "DeepSeek",
+        "description": "Custom base URL for DeepSeek API endpoint",
+        "url": "",
+        "is_password": False,
+    },
+    {
+        "key": "COHERE_API_KEY",
+        "label": "Cohere API Key",
+        "category": "Provider",
+        "subcategory": "Cohere",
+        "description": "API key for Cohere — Command, Embed, and Rerank models. Free tier available.",
+        "url": "https://dashboard.cohere.com/api-keys",
+        "is_password": True,
+    },
+    {
+        "key": "TOGETHER_API_KEY",
+        "label": "Together AI API Key",
+        "category": "Provider",
+        "subcategory": "Together AI",
+        "description": "API key for Together AI — open-source model hosting (Llama, FLUX, etc.). Free trial credits.",
+        "url": "https://api.together.xyz/settings/api-keys",
+        "is_password": True,
+    },
+    {
+        "key": "TOGETHER_BASE_URL",
+        "label": "Together AI Base URL",
+        "category": "Provider",
+        "subcategory": "Together AI",
+        "description": "Custom base URL for Together AI API endpoint",
+        "url": "",
+        "is_password": False,
+    },
 
     # ── Tool keys ──
     {
@@ -422,6 +557,8 @@ def _delete_env_value(key: str):
 async def get_api_keys():
     """Return all API key definitions with their current status."""
     result = {"categories": {}, "keys": []}
+    known_keys = {d["key"] for d in API_KEY_DEFINITIONS}
+    _CUSTOM_KEY_RE = re.compile(r'^[A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_URL|_API)$')
     for defn in API_KEY_DEFINITIONS:
         val = _get_env_value(defn["key"])
         is_set = bool(val)
@@ -450,6 +587,48 @@ async def get_api_keys():
         if sub not in result["categories"][cat]:
             result["categories"][cat][sub] = []
         result["categories"][cat][sub].append(key_info)
+
+    # Discover custom keys from .env file that are not in known definitions
+    env_path = HERMES_HOME / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(errors="replace").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            ck = line.split("=", 1)[0].strip()
+            if ck in known_keys:
+                continue
+            if not _CUSTOM_KEY_RE.match(ck):
+                continue
+            val = _get_env_value(ck)
+            is_set = bool(val)
+            masked = ""
+            if is_set:
+                if len(val) > 8:
+                    masked = val[:4] + "****"
+                else:
+                    masked = "****"
+            is_password = ck.endswith(("_KEY", "_TOKEN", "_SECRET", "_API"))
+            key_info = {
+                "key": ck,
+                "label": ck.replace("_", " ").title(),
+                "category": "Custom",
+                "subcategory": "Custom",
+                "description": "Custom environment variable",
+                "url": "",
+                "is_password": is_password,
+                "is_set": is_set,
+                "value_preview": masked,
+            }
+            result["keys"].append(key_info)
+            if "Custom" not in result["categories"]:
+                result["categories"]["Custom"] = {}
+            if "Custom" not in result["categories"]["Custom"]:
+                result["categories"]["Custom"]["Custom"] = []
+            result["categories"]["Custom"]["Custom"].append(key_info)
+
     return result
 
 
@@ -460,9 +639,10 @@ async def set_api_key(body: dict = Body(...)):
     value = body.get("value", "")
     if not key:
         raise HTTPException(400, "Missing 'key'")
-    # Validate against known keys
+    # Validate against known keys or custom key pattern
     known_keys = {d["key"] for d in API_KEY_DEFINITIONS}
-    if key not in known_keys:
+    _CUSTOM_KEY_RE = re.compile(r'^[A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_URL|_API)$')
+    if key not in known_keys and not _CUSTOM_KEY_RE.match(key):
         raise HTTPException(400, f"Unknown key: {key}")
     try:
         _save_env_value(key, value)
@@ -478,7 +658,8 @@ async def delete_api_key(body: dict = Body(...)):
     if not key:
         raise HTTPException(400, "Missing 'key'")
     known_keys = {d["key"] for d in API_KEY_DEFINITIONS}
-    if key not in known_keys:
+    _CUSTOM_KEY_RE = re.compile(r'^[A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_URL|_API)$')
+    if key not in known_keys and not _CUSTOM_KEY_RE.match(key):
         raise HTTPException(400, f"Unknown key: {key}")
     try:
         _delete_env_value(key)
