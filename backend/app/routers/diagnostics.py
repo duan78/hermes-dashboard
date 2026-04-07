@@ -95,8 +95,14 @@ async def quick_diagnostics():
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    out, _ = await proc.communicate()
-    gw_active = out.decode().strip() == "active"
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+    except asyncio.TimeoutError:
+        proc.kill()
+        gw_active = False
+        out = b""
+    else:
+        gw_active = out.decode().strip() == "active"
     checks.append({
         "name": "Gateway Running",
         "status": "pass" if gw_active else "fail",

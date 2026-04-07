@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 import shutil
+import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -103,9 +104,16 @@ async def get_recent_logs(lines: int = 100):
         return {"logs": [], "error": "No log file found"}
 
     try:
-        text = log_path.read_text(errors="replace")
-        all_lines = text.strip().split("\n")
-        return {"logs": all_lines[-lines:]}
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: subprocess.run(
+                ["tail", "-n", str(lines), str(log_path)],
+                capture_output=True, text=True, timeout=5,
+            ),
+        )
+        log_lines = result.stdout.strip().split("\n")
+        return {"logs": log_lines}
     except Exception as e:
         return {"logs": [], "error": str(e)}
 

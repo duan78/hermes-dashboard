@@ -119,7 +119,9 @@ async def restore_backup(request: Request):
                 # Security check
                 if member.name.startswith("/") or ".." in member.name:
                     continue
-                target = HERMES_HOME / member.name
+                target = (HERMES_HOME / member.name).resolve()
+                if not str(target).startswith(str(HERMES_HOME.resolve())):
+                    continue
                 if member.isdir():
                     target.mkdir(parents=True, exist_ok=True)
                 elif member.isfile():

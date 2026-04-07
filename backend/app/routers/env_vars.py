@@ -53,7 +53,6 @@ def _parse_env() -> list:
         result.append({
             "key": key,
             "value": _mask_value(value) if is_sensitive else value,
-            "raw_value": value,
             "is_sensitive": is_sensitive,
             "has_value": bool(value),
         })
@@ -74,6 +73,11 @@ async def set_env_var(request: Request):
     value = body.get("value", "")
     if not key:
         return {"error": "Key is required"}
+
+    # Validate key against allowlist
+    ALLOWED_ENV_KEYS = {d.get("key") for d in REQUIRED_VARS if d.get("key")} | {"HERMES_HOME", "HERMES_BIN", "HERMES_PYTHON", "HERMES_AGENT_DIR", "HERMES_MEMORY_PATH", "DASHBOARD_TOKEN"}
+    if key not in ALLOWED_ENV_KEYS:
+        return {"error": f"Unknown environment variable: {key}"}
 
     # Read existing lines
     lines = []

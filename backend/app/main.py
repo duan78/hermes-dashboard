@@ -14,6 +14,7 @@ logger = logging.getLogger("hermes-dashboard")
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -53,6 +54,9 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# GZip compression — reduces transfer size ~70% for responses > 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # CORS for frontend dev
 app.add_middleware(
     CORSMiddleware,
@@ -79,13 +83,16 @@ async def add_security_headers(request, call_next):
         "img-src 'self' data:; "
         "connect-src 'self' http://127.0.0.1:*;"
     )
+    # Cache-Control for static assets (1 year, immutable — filenames contain hashes)
+    if request.url.path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response
 
 
 # Health check
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "hermes_home": str(HERMES_HOME)}
+    return {"status": "ok"}
 
 
 # Register routers
