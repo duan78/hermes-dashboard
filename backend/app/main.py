@@ -41,6 +41,7 @@ from .routers import (
     profiles,
     backup,
     claude_code,
+    wiki,
 )
 
 logger = logging.getLogger(__name__)
@@ -190,6 +191,7 @@ app.include_router(auth_pairing.router)
 app.include_router(profiles.router)
 app.include_router(backup.router)
 app.include_router(claude_code.router)
+app.include_router(wiki.router)
 
 
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──

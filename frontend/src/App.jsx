@@ -3,7 +3,7 @@ import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
-  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers
+  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { api } from './api'
@@ -37,6 +37,7 @@ const AuthPairingPage = lazy(() => import('./pages/AuthPairing'))
 const ProfilesPage = lazy(() => import('./pages/Profiles'))
 const BackupRestorePage = lazy(() => import('./pages/BackupRestore'))
 const ClaudeCodePage = lazy(() => import('./pages/ClaudeCode'))
+const WikiPage = lazy(() => import('./pages/Wiki'))
 const MoaConfig = lazy(() => import('./pages/MoaConfig'))
 
 const NAV_ITEMS = [
@@ -53,6 +54,7 @@ const NAV_ITEMS = [
   { to: '/skills-hub', icon: Puzzle, label: 'Skills Hub' },
   { to: '/cron', icon: Clock, label: 'Cron Jobs' },
   { to: '/memory', icon: Brain, label: 'Memory & SOUL' },
+  { to: '/wiki', icon: FileText, label: 'Wiki' },
   { to: '/models', icon: Cpu, label: 'Models' },
   { to: '/platforms', icon: Radio, label: 'Platforms' },
   { to: '/api-keys', icon: Key, label: 'API Keys' },
@@ -169,6 +171,7 @@ function App() {
             <Route path="/profiles" element={<ProfilesPage />} />
             <Route path="/backup" element={<BackupRestorePage />} />
             <Route path="/claude-code" element={<ClaudeCodePage />} />
+            <Route path="/wiki" element={<WikiPage />} />
             <Route path="/moa" element={<MoaConfig />} />
           </Routes>
         </Suspense>
