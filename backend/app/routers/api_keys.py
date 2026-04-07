@@ -1,9 +1,11 @@
 import os
 import re
 import stat
+import time
 import tempfile
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Body
+import httpx
 from ..config import HERMES_HOME
 
 router = APIRouter(prefix="/api/api-keys", tags=["api-keys"])
@@ -666,3 +668,255 @@ async def delete_api_key(body: dict = Body(...)):
     except Exception as e:
         raise HTTPException(500, f"Failed to delete: {e}")
     return {"status": "ok", "key": key}
+
+
+# ── Provider test configuration ──
+
+PROVIDER_TEST_CONFIG = {
+    "OPENAI_API_KEY": {
+        "base_url_env": "OPENAI_BASE_URL",
+        "default_base_url": "https://api.openai.com/v1",
+        "model": "gpt-4o-mini",
+    },
+    "ANTHROPIC_API_KEY": {
+        "base_url_env": None,
+        "default_base_url": "https://api.anthropic.com/v1",
+        "model": "claude-3-haiku-20240307",
+        "anthropic": True,
+    },
+    "GLM_API_KEY": {
+        "base_url_env": None,
+        "default_base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "model": "glm-4-flash",
+    },
+    "ZAI_API_KEY": {
+        "base_url_env": None,
+        "default_base_url": "https://api.z-ai.io/v1",
+        "model": "glm-5-turbo",
+    },
+    "OPENROUTER_API_KEY": {
+        "base_url_env": None,
+        "default_base_url": "https://openrouter.ai/api/v1",
+        "model": "meta-llama/llama-3.1-8b-instruct:free",
+    },
+    "NVIDIA_API_KEY": {
+        "base_url_env": "NVIDIA_BASE_URL",
+        "default_base_url": "https://integrate.api.nvidia.com/v1",
+        "model": "meta/llama-3.1-8b-instruct",
+    },
+    "CEREBRAS_API_KEY": {
+        "base_url_env": "CEREBRAS_BASE_URL",
+        "default_base_url": "https://api.cerebras.ai/v1",
+        "model": "llama3.1-8b",
+    },
+    "GOOGLE_API_KEY": {
+        "base_url_env": "GOOGLE_BASE_URL",
+        "default_base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "model": "gemini-2.0-flash",
+    },
+    "MISTRAL_API_KEY": {
+        "base_url_env": "MISTRAL_BASE_URL",
+        "default_base_url": "https://api.mistral.ai/v1",
+        "model": "mistral-small-latest",
+    },
+    "GROQ_API_KEY": {
+        "base_url_env": "GROQ_BASE_URL",
+        "default_base_url": "https://api.groq.com/openai/v1",
+        "model": "llama-3.1-8b-instant",
+    },
+    "DEEPSEEK_API_KEY": {
+        "base_url_env": "DEEPSEEK_BASE_URL",
+        "default_base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+    },
+    "COHERE_API_KEY": {
+        "base_url_env": None,
+        "default_base_url": "https://api.cohere.com/v2",
+        "model": "command-r",
+        "cohere": True,
+    },
+    "TOGETHER_API_KEY": {
+        "base_url_env": "TOGETHER_BASE_URL",
+        "default_base_url": "https://api.together.xyz/v1",
+        "model": "meta-llama/Llama-3-8b-chat-hf",
+    },
+    "ELEVENLABS_API_KEY": {
+        "base_url_env": None,
+        "default_base_url": "https://api.elevenlabs.io",
+        "model": None,
+        "elevenlabs": True,
+    },
+    "HASS_TOKEN": {
+        "base_url_env": "HASS_URL",
+        "default_base_url": None,
+        "model": None,
+        "homeassistant": True,
+    },
+}
+
+
+@router.post("/test")
+async def test_api_key(body: dict = Body(...)):
+    """Test if an API key works by making a minimal API call."""
+    key_name = body.get("key", "")
+    if not key_name:
+        raise HTTPException(400, "Missing 'key'")
+
+    api_key = _get_env_value(key_name)
+    if not api_key:
+        return {"status": "error", "error": f"Key {key_name} is not set"}
+
+    config = PROVIDER_TEST_CONFIG.get(key_name)
+
+    # For unknown keys, try a generic OpenAI-compatible approach
+    if not config:
+        base_url_key = key_name.replace("_KEY", "_BASE_URL").replace("_TOKEN", "_BASE_URL").replace("_SECRET", "_BASE_URL")
+        base_url = _get_env_value(base_url_key)
+        if not base_url:
+            return {"status": "error", "error": "No test available for this key"}
+        config = {
+            "base_url_env": base_url_key,
+            "default_base_url": None,
+            "model": "gpt-3.5-turbo",
+        }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            start = time.time()
+
+            # ── Anthropic ──
+            if config.get("anthropic"):
+                base_url = config["default_base_url"]
+                if config.get("base_url_env"):
+                    custom = _get_env_value(config["base_url_env"])
+                    if custom:
+                        base_url = custom
+                resp = await client.post(
+                    f"{base_url}/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": config["model"],
+                        "max_tokens": 1,
+                        "messages": [{"role": "user", "content": "hi"}],
+                    },
+                )
+                latency = int((time.time() - start) * 1000)
+                if resp.status_code == 200:
+                    return {"status": "ok", "latency_ms": latency, "model": config["model"]}
+                else:
+                    try:
+                        err = resp.json()
+                        msg = err.get("error", {}).get("message", resp.text[:200])
+                    except Exception:
+                        msg = resp.text[:200]
+                    return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
+
+            # ── Cohere ──
+            elif config.get("cohere"):
+                base_url = config["default_base_url"]
+                if config.get("base_url_env"):
+                    custom = _get_env_value(config["base_url_env"])
+                    if custom:
+                        base_url = custom
+                resp = await client.post(
+                    f"{base_url}/chat",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": config["model"],
+                        "message": "hi",
+                        "max_tokens": 1,
+                    },
+                )
+                latency = int((time.time() - start) * 1000)
+                if resp.status_code == 200:
+                    return {"status": "ok", "latency_ms": latency, "model": config["model"]}
+                else:
+                    try:
+                        err = resp.json()
+                        msg = err.get("message", resp.text[:200])
+                    except Exception:
+                        msg = resp.text[:200]
+                    return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
+
+            # ── ElevenLabs ──
+            elif config.get("elevenlabs"):
+                base_url = config["default_base_url"]
+                resp = await client.get(
+                    f"{base_url}/v1/user",
+                    headers={"xi-api-key": api_key},
+                )
+                latency = int((time.time() - start) * 1000)
+                if resp.status_code == 200:
+                    return {"status": "ok", "latency_ms": latency, "model": "elevenlabs"}
+                else:
+                    try:
+                        err = resp.json()
+                        msg = err.get("detail", {}).get("message", resp.text[:200])
+                    except Exception:
+                        msg = resp.text[:200]
+                    return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
+
+            # ── Home Assistant ──
+            elif config.get("homeassistant"):
+                base_url = _get_env_value("HASS_URL")
+                if not base_url:
+                    return {"status": "error", "error": "HASS_URL is not configured"}
+                base_url = base_url.rstrip("/")
+                resp = await client.get(
+                    f"{base_url}/api/",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                latency = int((time.time() - start) * 1000)
+                if resp.status_code == 200:
+                    return {"status": "ok", "latency_ms": latency, "model": "homeassistant"}
+                else:
+                    try:
+                        err = resp.json()
+                        msg = err.get("message", resp.text[:200])
+                    except Exception:
+                        msg = resp.text[:200]
+                    return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
+
+            # ── OpenAI-compatible (default) ──
+            else:
+                base_url = config.get("default_base_url", "")
+                if config.get("base_url_env"):
+                    custom = _get_env_value(config["base_url_env"])
+                    if custom:
+                        base_url = custom
+                if not base_url:
+                    return {"status": "error", "error": "No base URL configured for this provider"}
+                resp = await client.post(
+                    f"{base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": config.get("model", "gpt-3.5-turbo"),
+                        "max_tokens": 1,
+                        "messages": [{"role": "user", "content": "hi"}],
+                    },
+                )
+                latency = int((time.time() - start) * 1000)
+                if resp.status_code == 200:
+                    return {"status": "ok", "latency_ms": latency, "model": config.get("model", "unknown")}
+                else:
+                    try:
+                        err = resp.json()
+                        msg = err.get("error", {}).get("message", resp.text[:200])
+                    except Exception:
+                        msg = resp.text[:200]
+                    return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
+
+    except httpx.TimeoutException:
+        return {"status": "error", "error": "Connection timed out (15s)"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)[:300]}

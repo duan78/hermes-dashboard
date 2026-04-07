@@ -134,6 +134,7 @@ export const api = {
   getApiKeys: () => request('/api-keys'),
   setApiKey: (key, value) => request('/api-keys/set', { method: 'POST', body: JSON.stringify({ key, value }) }),
   deleteApiKey: (key) => request('/api-keys/delete', { method: 'POST', body: JSON.stringify({ key }) }),
+  testApiKey: (key) => request('/api-keys/test', { method: 'POST', body: JSON.stringify({ key }) }),
 
   // Fine-Tune
   fineTuneAvailable: () => request('/fine-tune/available'),

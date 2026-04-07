@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Key, Eye, EyeOff, Trash2, Edit3, Save, Search, ExternalLink, RefreshCw, Shield, Cpu, Radio, CheckCircle, XCircle } from 'lucide-react'
+import { Key, Eye, EyeOff, Trash2, Edit3, Save, Search, ExternalLink, RefreshCw, Shield, Cpu, Radio, CheckCircle, XCircle, Zap } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
@@ -8,6 +8,14 @@ const CATEGORY_META = {
   Tools: { icon: Shield, color: '#10b981', description: 'Tool and integration API keys' },
   Platforms: { icon: Radio, color: '#f59e0b', description: 'Messaging platform bot tokens and config' },
 }
+
+// Keys that have a test configuration in the backend
+const TESTABLE_KEYS = new Set([
+  'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GLM_API_KEY', 'ZAI_API_KEY',
+  'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'CEREBRAS_API_KEY', 'GOOGLE_API_KEY',
+  'MISTRAL_API_KEY', 'GROQ_API_KEY', 'DEEPSEEK_API_KEY', 'COHERE_API_KEY',
+  'TOGETHER_API_KEY', 'ELEVENLABS_API_KEY', 'HASS_TOKEN',
+])
 
 export default function ApiKeys() {
   const [data, setData] = useState(null)
@@ -21,6 +29,31 @@ export default function ApiKeys() {
   const [deleting, setDeleting] = useState({})
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [toast, setToast] = useState(null)
+  const [testing, setTesting] = useState({})
+  const [testResults, setTestResults] = useState({})
+
+  const handleTest = async (key) => {
+    setTesting(prev => ({ ...prev, [key]: true }))
+    setTestResults(prev => { const n = { ...prev }; delete n[key]; return n })
+    try {
+      const result = await api.testApiKey(key)
+      setTestResults(prev => ({ ...prev, [key]: result }))
+      // Auto-clear after 10 seconds
+      setTimeout(() => {
+        setTestResults(prev => { const n = { ...prev }; delete n[key]; return n })
+      }, 10000)
+    } catch (e) {
+      setTestResults(prev => ({
+        ...prev,
+        [key]: { status: 'error', error: e.message },
+      }))
+      setTimeout(() => {
+        setTestResults(prev => { const n = { ...prev }; delete n[key]; return n })
+      }, 10000)
+    } finally {
+      setTesting(prev => ({ ...prev, [key]: false }))
+    }
+  }
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type })
@@ -227,6 +260,9 @@ export default function ApiKeys() {
                       saving={saving[keyInfo.key]}
                       deleting={deleting[keyInfo.key]}
                       confirmDelete={confirmDelete === keyInfo.key}
+                      testing={testing[keyInfo.key]}
+                      testResult={testResults[keyInfo.key]}
+                      canTest={TESTABLE_KEYS.has(keyInfo.key) || keyInfo.key.endsWith('_KEY') || keyInfo.key.endsWith('_TOKEN')}
                       onToggleReveal={() => toggleReveal(keyInfo.key)}
                       onStartEdit={() => startEdit(keyInfo)}
                       onCancelEdit={() => cancelEdit(keyInfo.key)}
@@ -236,6 +272,7 @@ export default function ApiKeys() {
                       onDelete={() => handleDelete(keyInfo.key)}
                       onConfirmDelete={() => setConfirmDelete(keyInfo.key)}
                       onCancelDelete={() => setConfirmDelete(null)}
+                      onTest={() => handleTest(keyInfo.key)}
                     />
                   ))}
                 </div>
@@ -273,8 +310,9 @@ export default function ApiKeys() {
 
 function KeyRow({
   info, revealed, editing, editValue, newValue, saving, deleting, confirmDelete,
+  testing, testResult, canTest,
   onToggleReveal, onStartEdit, onCancelEdit, onEditChange, onNewChange,
-  onSave, onDelete, onConfirmDelete, onCancelDelete,
+  onSave, onDelete, onConfirmDelete, onCancelDelete, onTest,
 }) {
   const isEditing = editing || !info.is_set
 
@@ -358,7 +396,36 @@ function KeyRow({
       </div>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 4, flexShrink: 0, alignItems: 'center' }}>
+        {/* Test result badge */}
+        {testResult && (
+          testResult.status === 'ok' ? (
+            <span className="badge badge-success" style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+              <CheckCircle size={12} /> OK {testResult.latency_ms}ms
+            </span>
+          ) : (
+            <Tooltip text={testResult.error || 'Unknown error'}>
+              <span className="badge badge-error" style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', cursor: 'help', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <XCircle size={12} /> {(testResult.error || 'Error').slice(0, 50)}
+              </span>
+            </Tooltip>
+          )
+        )}
+
+        {/* Test button */}
+        {canTest && (
+          <button
+            className="btn btn-sm"
+            onClick={onTest}
+            disabled={testing}
+            title="Test connection"
+            style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#8b5cf6' }}
+          >
+            {testing ? <RefreshCw size={14} className="spin" /> : <Zap size={14} />}
+            {testing ? '' : 'Test'}
+          </button>
+        )}
+
         {info.is_set && !editing ? (
           <>
             <button className="btn btn-sm" onClick={onStartEdit} title="Edit">
