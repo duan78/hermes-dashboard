@@ -1,4 +1,5 @@
 import copy
+import logging
 import os
 import re
 
@@ -7,6 +8,8 @@ from fastapi import APIRouter, HTTPException, Body
 from pathlib import Path
 from ..utils import hermes_path, mask_secrets, run_hermes
 from ..config import HERMES_HOME
+
+logger = logging.getLogger(__name__)
 
 _MASK_RE = re.compile(r"^\*{4}$|^.{4}\*{4}.{4}$")
 
@@ -26,6 +29,7 @@ async def get_config():
 @router.put("")
 async def save_config(body: dict = Body(...)):
     """Save config.yaml from raw YAML string."""
+    logger.info("Saving config.yaml")
     yaml_str = body.get("yaml", "")
     if not yaml_str:
         raise HTTPException(400, "Missing 'yaml' field")
@@ -99,6 +103,7 @@ def _deep_merge(original, incoming):
 @router.put("/structured")
 async def save_structured_config(body: dict = Body(...)):
     """Save config from structured JSON, preserving unchanged secrets."""
+    logger.info("Saving structured config")
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         raise HTTPException(404, "config.yaml not found")

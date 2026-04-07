@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sys
 import os
 import yaml
@@ -9,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, HTTPException, Body
 from ..config import HERMES_HOME, HERMES_MEMORY_PATH
 from ..utils import hermes_path
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
 
@@ -83,6 +86,7 @@ async def get_soul():
 async def save_soul(body: dict = Body(...)):
     """Save SOUL.md."""
     content = body.get("content", "")
+    logger.info("Saving SOUL.md (%d chars)", len(content))
     path = hermes_path("SOUL.md")
     path.write_text(content)
     return {"status": "saved"}

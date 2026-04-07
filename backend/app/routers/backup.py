@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 import tarfile
 import time
@@ -9,6 +10,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from ..config import HERMES_HOME
 from ..utils import hermes_path
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/backup", tags=["backup"])
 
@@ -74,7 +77,9 @@ async def create_backup(request: Request):
     include_env = body.get("include_env", True)
     include_skills = body.get("include_skills", True)
     try:
-        return _create_archive(include_env=include_env, include_skills=include_skills)
+        result = _create_archive(include_env=include_env, include_skills=include_skills)
+        logger.info("Backup created: %s", result.get("filename", "unknown"))
+        return result
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -128,6 +133,7 @@ async def restore_backup(request: Request):
                     if f:
                         target.write_bytes(f.read())
                         restored.append(member.name)
+        logger.info("Backup restored: %s (%d files)", filename, len(restored))
         return {"success": True, "restored_files": restored, "output": f"Restored {len(restored)} files"}
     except Exception as e:
         return {"success": False, "error": str(e)}

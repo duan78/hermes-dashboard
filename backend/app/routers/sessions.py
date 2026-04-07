@@ -1,9 +1,12 @@
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from ..utils import hermes_path, run_hermes
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -203,6 +206,7 @@ async def get_session(session_id: str):
 @router.delete("/{session_id}")
 async def delete_session(session_id: str):
     """Delete a session."""
+    logger.info("Deleting session: %s", session_id)
     try:
         output = await run_hermes("sessions", "delete", session_id, "--yes", timeout=15)
         return {"status": "deleted", "output": output}
@@ -213,6 +217,7 @@ async def delete_session(session_id: str):
 @router.post("/prune")
 async def prune_sessions(days: int = Query(default=30)):
     """Prune old sessions."""
+    logger.info("Pruning sessions older than %d days", days)
     try:
         output = await run_hermes("sessions", "prune", "--days", str(days), "--yes", timeout=15)
         return {"status": "pruned", "output": output}

@@ -1,5 +1,7 @@
 import json
+import logging
 import os
+import time
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -10,17 +12,39 @@ from fastapi.responses import StreamingResponse
 from ..config import HERMES_HOME
 from ..utils import hermes_path
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 # Gateway URL: env var > config.yaml > default
 GATEWAY_URL = os.getenv("HERMES_GATEWAY_URL", "")
 
+# ── Config caching (30s TTL) ──
+_config_cache: dict[str, tuple[float, object]] = {}
+_CONFIG_TTL = 30  # seconds
+
+
+def _cached(key: str, loader):
+    """Return cached value or call loader(), caching result for TTL."""
+    now = time.monotonic()
+    if key in _config_cache:
+        ts, val = _config_cache[key]
+        if now - ts < _CONFIG_TTL:
+            return val
+    val = loader()
+    _config_cache[key] = (now, val)
+    return val
+
 
 def _get_gateway_url() -> str:
-    """Resolve the Hermes gateway base URL."""
+    """Resolve the Hermes gateway base URL (cached 30s)."""
     if GATEWAY_URL:
         return GATEWAY_URL.rstrip("/")
-    # Try reading from config.yaml
+    return _cached("gateway_url", _load_gateway_url)
+
+
+def _load_gateway_url() -> str:
+    """Actually load gateway URL from config.yaml."""
     import yaml
     config_path = hermes_path("config.yaml")
     if config_path.exists():
@@ -32,12 +56,16 @@ def _get_gateway_url() -> str:
                 return url.rstrip("/")
         except Exception:
             pass
-    # Default
     return "http://localhost:8000"
 
 
 def _get_api_key() -> str:
-    """Read API key from config for direct LLM calls if gateway is unavailable."""
+    """Read API key from config for direct LLM calls if gateway is unavailable (cached 30s)."""
+    return _cached("api_key", _load_api_key)
+
+
+def _load_api_key() -> str:
+    """Actually load API key from config.yaml."""
     import yaml
     config_path = hermes_path("config.yaml")
     if config_path.exists():
@@ -51,7 +79,12 @@ def _get_api_key() -> str:
 
 
 def _get_model() -> str:
-    """Read model name from config."""
+    """Read model name from config (cached 30s)."""
+    return _cached("model", _load_model)
+
+
+def _load_model() -> str:
+    """Actually load model name from config.yaml."""
     import yaml
     config_path = hermes_path("config.yaml")
     if config_path.exists():
@@ -109,6 +142,7 @@ async def chat_send(request: Request):
     if not message.strip():
         return {"error": "Message is required"}
 
+    logger.info("Chat send: session=%s", session_id)
     api_messages = []
     for msg in history:
         role = msg.get("role", "user")
@@ -244,6 +278,7 @@ async def chat_stream(request: Request):
     if not message.strip():
         return {"error": "Message is required"}
 
+    logger.info("Chat stream: session=%s", session_id)
     # Build messages array for the API call
     api_messages = []
     for msg in history:

@@ -1,3 +1,4 @@
+import logging
 import os
 import stat
 from datetime import datetime, timezone
@@ -6,6 +7,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from ..config import HERMES_HOME
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -149,6 +152,8 @@ async def write_file(body: dict):
     if not rel_path:
         raise HTTPException(400, "path is required")
 
+    logger.info("Writing file: %s", rel_path)
+
     target = _resolve_path(rel_path)
 
     # Prevent writing to directories or creating files outside HERMES_HOME
@@ -174,6 +179,7 @@ async def write_file(body: dict):
 @router.delete("")
 async def delete_file(path: str = Query(..., description="Relative file path to delete")):
     """Delete a file (not a directory)."""
+    logger.info("Deleting file: %s", path)
     target = _resolve_path(path)
     if not target.exists():
         raise HTTPException(404, f"File not found: {path}")
