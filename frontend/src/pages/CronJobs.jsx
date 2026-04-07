@@ -1,7 +1,162 @@
-import { useState, useEffect } from 'react'
-import { Clock, Plus, Pause, Play, Trash2, PlayCircle, RefreshCw } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { Clock, Plus, Pause, Play, Trash2, PlayCircle, RefreshCw, Server, Activity, Terminal } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+
+async function fetchSystemCrons() {
+  const token = localStorage.getItem('hermes_token') || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch('/api/cron/system', { headers });
+  if (!res.ok) throw new Error('Failed to load system data');
+  return res.json();
+}
+
+const STATUS_COLORS = {
+  active: '#22c55e',
+  inactive: '#ef4444',
+  failed: '#ef4444',
+  activating: '#f59e0b',
+  'not-found': '#6b7280',
+}
+
+function StatusDot({ status }) {
+  const color = STATUS_COLORS[status] || '#6b7280';
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span style={{
+        width: 8, height: 8, borderRadius: '50%', backgroundColor: color,
+        display: 'inline-block', flexShrink: 0,
+        boxShadow: color !== '#6b7280' ? `0 0 6px ${color}80` : 'none',
+      }} />
+      <span style={{ textTransform: 'capitalize', fontSize: 13 }}>{status}</span>
+    </span>
+  );
+}
+
+function SystemSection({ data, loading, onRefresh }) {
+  return (
+    <div style={{
+      border: '1px solid var(--border, rgba(255,255,255,0.08))',
+      borderRadius: 12, overflow: 'hidden', marginBottom: 24,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px',
+        background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.06))',
+        borderBottom: '1px solid var(--border, rgba(255,255,255,0.08))',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Server size={18} style={{ color: 'var(--accent, #8b5cf6)' }} />
+          <span style={{ fontWeight: 700, fontSize: 15 }}>System Automation</span>
+          <Tooltip text="System-level services, timers, and crontab entries that keep Hermes and related processes running." />
+        </div>
+        <button className="btn btn-sm" onClick={onRefresh} disabled={loading}>
+          <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          Refresh
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <div className="spinner" style={{ margin: '0 auto 12px' }} />
+          Loading system data...
+        </div>
+      ) : data ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {/* Systemd Services */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border, rgba(255,255,255,0.06))' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Activity size={15} style={{ color: '#3b82f6' }} />
+              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-secondary, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Systemd Services
+              </span>
+            </div>
+            {data.systemd_services.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No services found</p>
+            ) : (
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 120px', gap: '4px 16px',
+                fontSize: 13, fontFamily: 'var(--font-mono, monospace)',
+              }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', paddingBottom: 4 }}>Service</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', paddingBottom: 4 }}>Status</div>
+                {data.systemd_services.map((svc) => (
+                  <React.Fragment key={svc.name}>
+                    <div style={{ padding: '4px 0' }}>{svc.name}</div>
+                    <div style={{ padding: '4px 0' }}><StatusDot status={svc.status} /></div>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Systemd Timers */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border, rgba(255,255,255,0.06))' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Clock size={15} style={{ color: '#f59e0b' }} />
+              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-secondary, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Systemd Timers
+              </span>
+            </div>
+            {data.systemd_timers.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No Hermes-related timers found</p>
+            ) : (
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 16px',
+                fontSize: 13, fontFamily: 'var(--font-mono, monospace)',
+              }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', paddingBottom: 4 }}>Timer</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', paddingBottom: 4 }}>Next Run</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', paddingBottom: 4 }}>Last Run</div>
+                {data.systemd_timers.map((timer) => (
+                  <React.Fragment key={timer.name}>
+                    <div style={{ padding: '4px 0' }}>{timer.name}</div>
+                    <div style={{ padding: '4px 0' }}>{timer.next_run}</div>
+                    <div style={{ padding: '4px 0' }}>{timer.last_run}</div>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Crontab */}
+          <div style={{ padding: '16px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Terminal size={15} style={{ color: '#22c55e' }} />
+              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-secondary, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Crontab Entries
+              </span>
+            </div>
+            {data.crontab.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No crontab entries found</p>
+            ) : (
+              <div style={{
+                display: 'grid', gridTemplateColumns: '100px 120px 1fr', gap: '4px 16px',
+                fontSize: 13, fontFamily: 'var(--font-mono, monospace)',
+              }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', paddingBottom: 4 }}>Schedule</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', paddingBottom: 4 }}>Script</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', paddingBottom: 4 }}>Command</div>
+                {data.crontab.map((entry, i) => (
+                  <React.Fragment key={i}>
+                    <div style={{ padding: '4px 0' }}>{entry.schedule}</div>
+                    <div style={{ padding: '4px 0', fontWeight: 600 }}>{entry.name}</div>
+                    <div style={{ padding: '4px 0', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      title={entry.command}>
+                      {entry.command}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  );
+}
 
 export default function CronJobs() {
   const [jobs, setJobs] = useState([])
@@ -9,6 +164,10 @@ export default function CronJobs() {
   const [error, setError] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
   const [newJob, setNewJob] = useState({ schedule: '', prompt: '', name: '' })
+
+  // System automation state
+  const [systemData, setSystemData] = useState(null)
+  const [systemLoading, setSystemLoading] = useState(true)
 
   const load = async () => {
     try {
@@ -23,7 +182,19 @@ export default function CronJobs() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  const loadSystem = useCallback(async () => {
+    try {
+      setSystemLoading(true)
+      const data = await fetchSystemCrons()
+      setSystemData(data)
+    } catch (e) {
+      setSystemData(null)
+    } finally {
+      setSystemLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load(); loadSystem() }, [loadSystem])
 
   const create = async () => {
     try {
@@ -62,7 +233,7 @@ export default function CronJobs() {
         <Clock size={28} />
         Cron Jobs
         <Tooltip text="Scheduled tasks that run automatically at defined times. Each cron job sends a prompt to the AI agent, which executes it like a normal conversation. Useful for recurring reports, health checks, data processing, and automated workflows." />
-        <button className="btn btn-sm" onClick={load} style={{ marginLeft: 'auto' }}>
+        <button className="btn btn-sm" onClick={() => { load(); loadSystem() }} style={{ marginLeft: 'auto' }}>
           <RefreshCw size={14} /> Refresh
         </button>
         <button className="btn btn-primary" onClick={() => setShowCreate(!showCreate)} style={{ marginLeft: 8 }}>
@@ -71,6 +242,9 @@ export default function CronJobs() {
       </div>
 
       {error && <div className="error-box">{error}</div>}
+
+      {/* System Automation Section */}
+      <SystemSection data={systemData} loading={systemLoading} onRefresh={loadSystem} />
 
       {showCreate && (
         <div className="card">

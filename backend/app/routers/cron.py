@@ -1,5 +1,6 @@
 import json
 import logging
+import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Body
@@ -8,6 +9,69 @@ from ..utils import run_hermes, hermes_path
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cron", tags=["cron"])
+
+
+@router.get("/system")
+async def list_system_crons():
+    """List system-level cron jobs and systemd timers."""
+    result = {
+        "crontab": [],
+        "systemd_timers": [],
+        "systemd_services": [],
+    }
+
+    # 1. Parse crontab for entries
+    try:
+        crontab = subprocess.check_output(["crontab", "-l"], text=True, timeout=5)
+        for line in crontab.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(maxsplit=6)
+            if len(parts) >= 6:
+                schedule = " ".join(parts[:5])
+                command = parts[5] if len(parts) > 5 else ""
+                name = command.split("/")[-1].replace(".sh", "").replace(".py", "")
+                result["crontab"].append({
+                    "schedule": schedule,
+                    "command": command,
+                    "name": name,
+                })
+    except Exception:
+        pass
+
+    # 2. List Hermes-related systemd timers
+    try:
+        timers_output = subprocess.check_output(
+            ["systemctl", "list-timers", "--all", "--no-pager"],
+            text=True, timeout=5
+        )
+        hermes_keywords = ["hermes", "claude", "watchdog"]
+        for line in timers_output.splitlines():
+            if any(h in line.lower() for h in hermes_keywords):
+                parts = line.split()
+                if len(parts) >= 7:
+                    timer_name = parts[-1]
+                    result["systemd_timers"].append({
+                        "name": timer_name,
+                        "next_run": parts[0] + " " + parts[1] if len(parts) > 1 else "",
+                        "last_run": parts[3] + " " + parts[4] if len(parts) > 4 else "",
+                    })
+    except Exception:
+        pass
+
+    # 3. Check key Hermes services status
+    services = ["hermes-watchdog", "hermes-dashboard", "hermes-gateway"]
+    for svc in services:
+        try:
+            status = subprocess.check_output(
+                ["systemctl", "is-active", svc], text=True, timeout=5
+            ).strip()
+            result["systemd_services"].append({"name": svc, "status": status})
+        except Exception:
+            result["systemd_services"].append({"name": svc, "status": "not-found"})
+
+    return result
 
 
 @router.get("")
