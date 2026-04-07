@@ -1,4 +1,5 @@
 import copy
+import logging
 import os
 import re
 
@@ -7,6 +8,8 @@ from fastapi import APIRouter, HTTPException, Body
 from pathlib import Path
 from ..utils import hermes_path, mask_secrets, run_hermes
 from ..config import HERMES_HOME
+
+logger = logging.getLogger(__name__)
 
 _MASK_RE = re.compile(r"^\*{4}$|^.{4}\*{4}.{4}$")
 
@@ -60,6 +63,7 @@ async def save_config(body: dict = Body(...)):
     config_path = hermes_path("config.yaml")
     config_path.write_text(yaml_str)
     _invalidate_config_cache()
+    logger.info("Config saved (raw YAML)")
     return {"status": "saved"}
 
 
@@ -131,6 +135,7 @@ async def save_structured_config(body: dict = Body(...)):
     yaml_str = yaml.dump(merged, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
     _invalidate_config_cache()
+    logger.info("Structured config saved")
     return {"status": "saved"}
 
 
@@ -172,6 +177,7 @@ async def update_config_value(body: dict = Body(...)):
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
     _invalidate_config_cache()
+    logger.info("Config key updated: %s", key)
     return {"status": "saved", "key": key}
 
 

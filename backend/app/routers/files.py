@@ -1,3 +1,4 @@
+import logging
 import os
 import stat
 from datetime import datetime, timezone
@@ -6,6 +7,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from ..config import HERMES_HOME
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -165,6 +168,7 @@ async def write_file(body: dict):
     except PermissionError:
         raise HTTPException(403, "Permission denied")
 
+    logger.info("File written: %s (%d bytes)", rel_path, target.stat().st_size)
     return {
         "status": "saved",
         "path": rel_path,
@@ -185,4 +189,5 @@ async def delete_file(path: str = Query(..., description="Relative file path to 
         target.unlink()
     except PermissionError:
         raise HTTPException(403, "Permission denied")
+    logger.info("File deleted: %s", path)
     return {"status": "deleted", "path": path}
