@@ -27,11 +27,18 @@ async def list_system_crons():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            parts = line.split(maxsplit=6)
+            parts = line.split()
             if len(parts) >= 6:
                 schedule = " ".join(parts[:5])
-                command = parts[5] if len(parts) > 5 else ""
-                name = command.split("/")[-1].replace(".sh", "").replace(".py", "")
+                command = " ".join(parts[5:])
+                # Extract script name from command path (before any redirection)
+                cmd_before_redirect = command.split(">")[0].strip()
+                name = cmd_before_redirect.split("/")[-1].replace(".sh", "").replace(".py", "")
+                if name in ("bash", "sh", "python3", "python"):
+                    for segment in cmd_before_redirect.split():
+                        if "/" in segment:
+                            name = segment.split("/")[-1].replace(".sh", "").replace(".py", "")
+                            break
                 result["crontab"].append({
                     "schedule": schedule,
                     "command": command,
@@ -54,22 +61,34 @@ async def list_system_crons():
                     timer_name = parts[-1]
                     result["systemd_timers"].append({
                         "name": timer_name,
-                        "next_run": parts[0] + " " + parts[1] if len(parts) > 1 else "",
-                        "last_run": parts[3] + " " + parts[4] if len(parts) > 4 else "",
+                        "next_run": " ".join(parts[0:3]) if len(parts) > 2 else "",
+                        "last_run": " ".join(parts[3:6]) if len(parts) > 5 else "",
                     })
     except Exception:
         pass
 
-    # 3. Check key Hermes services status
-    services = ["hermes-watchdog", "hermes-dashboard", "hermes-gateway"]
-    for svc in services:
+    # 3. Check key Hermes services/timers status
+    # For timer-based services, check the timer (not the service which is oneshot)
+    checks = [
+        ("hermes-watchdog", "timer"),
+        ("hermes-dashboard", "service"),
+        ("hermes-gateway", "service"),
+    ]
+    for name, kind in checks:
         try:
             status = subprocess.check_output(
-                ["systemctl", "is-active", svc], text=True, timeout=5
+                ["systemctl", f"is-active", f"{name}.{kind}"],
+                text=True, timeout=5
             ).strip()
-            result["systemd_services"].append({"name": svc, "status": status})
         except Exception:
-            result["systemd_services"].append({"name": svc, "status": "not-found"})
+            # Fallback: try as service
+            try:
+                status = subprocess.check_output(
+                    ["systemctl", "is-active", name], text=True, timeout=5
+                ).strip()
+            except Exception:
+                status = "not-found"
+        result["systemd_services"].append({"name": name, "status": status, "kind": kind})
 
     return result
 
