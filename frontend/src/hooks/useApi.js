@@ -701,6 +701,13 @@ export function useFineTuneAvailable() {
   })
 }
 
+export function useFineTuneProviders() {
+  return useQuery({
+    queryKey: ['fine-tune', 'providers'],
+    queryFn: () => api.fineTuneProviders(),
+  })
+}
+
 export function useFineTunePairs(date, limit = 50, offset = 0) {
   return useQuery({
     queryKey: ['fine-tune', 'pairs', date, limit, offset],

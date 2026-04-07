@@ -138,6 +138,7 @@ export const api = {
 
   // Fine-Tune
   fineTuneAvailable: () => request('/fine-tune/available'),
+  fineTuneProviders: () => request('/fine-tune/providers'),
   fineTunePairs: (date, limit = 50, offset = 0) => {
     const params = new URLSearchParams({ limit, offset })
     if (date) params.set('date', date)
@@ -146,6 +147,21 @@ export const api = {
   fineTuneUpdatePair: (baseName, transcript) => request(`/fine-tune/pairs/${encodeURIComponent(baseName)}`, { method: 'PUT', body: JSON.stringify({ transcript }) }),
   fineTuneDeletePair: (baseName) => request(`/fine-tune/pairs/${encodeURIComponent(baseName)}`, { method: 'DELETE' }),
   fineTuneStats: () => request('/fine-tune/stats'),
+
+  // Fine-Tune Cross-Validation
+  crossvalStats: () => request('/fine-tune/crossval/stats'),
+  crossvalPairs: (params = {}) => {
+    const p = new URLSearchParams()
+    if (params.status) p.set('status', params.status)
+    if (params.minScore != null) p.set('min_score', params.minScore)
+    if (params.sort) p.set('sort', params.sort)
+    p.set('limit', params.limit || 50)
+    p.set('offset', params.offset || 0)
+    return request(`/fine-tune/crossval/pairs?${p}`)
+  },
+  crossvalUpdateStatus: (index, status) => request(`/fine-tune/crossval/pairs/${index}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+  crossvalReview: (index) => request(`/fine-tune/crossval/review/${index}`, { method: 'POST' }),
+  crossvalReviewBatchUrl: () => `${API_BASE}/fine-tune/crossval/review-batch`,
 
   // Gateway
   gatewayStatus: () => request('/gateway/status'),
@@ -241,6 +257,10 @@ export const api = {
   pluginsDisable: (name) => request('/plugins/disable', { method: 'POST', body: JSON.stringify({ name }) }),
   pluginsUpdate: (name) => request('/plugins/update', { method: 'POST', body: JSON.stringify({ name }) }),
   mcpList: () => request('/mcp/list'),
+  mcpDetail: (name) => request(`/mcp/detail/${encodeURIComponent(name)}`),
+  mcpConfig: (name) => request(`/mcp/config/${encodeURIComponent(name)}`),
+  mcpUpdateConfig: (name, config) => request(`/mcp/config/${encodeURIComponent(name)}`, { method: 'POST', body: JSON.stringify({ config }) }),
+  mcpToggle: (name, enabled) => request(`/mcp/toggle/${encodeURIComponent(name)}`, { method: 'POST', body: JSON.stringify({ enabled }) }),
   mcpAdd: (body) => request('/mcp/add', { method: 'POST', body: JSON.stringify(body) }),
   mcpTest: (name) => request('/mcp/test', { method: 'POST', body: JSON.stringify({ name }) }),
   mcpRemove: (name) => request('/mcp/remove', { method: 'POST', body: JSON.stringify({ name }) }),

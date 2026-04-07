@@ -3,11 +3,14 @@ import re
 import stat
 import time
 import tempfile
+import logging
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Body
 import httpx
 from ..config import HERMES_HOME
 from ..schemas import ApiKeySetRequest, ApiKeyDeleteRequest, ApiKeyTestRequest
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/api-keys", tags=["api-keys"])
 
@@ -317,11 +320,29 @@ API_KEY_DEFINITIONS = [
     },
     {
         "key": "VOICE_TOOLS_OPENAI_KEY",
-        "label": "OpenAI TTS Key",
+        "label": "Voice Tools OpenAI Key (TTS + Voxtral STT)",
         "category": "Tools",
         "subcategory": "TTS",
-        "description": "OpenAI API key used for TTS voice generation",
+        "description": "OpenAI API key used for TTS voice generation and Voxtral STT transcription",
         "url": "https://platform.openai.com/api-keys",
+        "is_password": True,
+    },
+    {
+        "key": "DEEPGRAM_API_KEY",
+        "label": "Deepgram STT",
+        "category": "Tools",
+        "subcategory": "STT",
+        "description": "API key for Deepgram Nova-3 speech-to-text transcription",
+        "url": "https://console.deepgram.com/api-keys",
+        "is_password": True,
+    },
+    {
+        "key": "ASSEMBLYAI_API_KEY",
+        "label": "AssemblyAI STT",
+        "category": "Tools",
+        "subcategory": "STT",
+        "description": "API key for AssemblyAI Universal-3-Pro speech-to-text transcription",
+        "url": "https://www.assemblyai.com/app/account",
         "is_password": True,
     },
     {
@@ -760,7 +781,7 @@ async def test_api_key(body: ApiKeyTestRequest):
 
     # For unknown keys, try a generic OpenAI-compatible approach
     if not config:
-        base_url_key = key_name.replace("_KEY", "_BASE_URL").replace("_TOKEN", "_BASE_URL").replace("_SECRET", "_BASE_URL")
+        base_url_key = body.key.replace("_KEY", "_BASE_URL").replace("_TOKEN", "_BASE_URL").replace("_SECRET", "_BASE_URL")
         base_url = _get_env_value(base_url_key)
         if not base_url:
             return {"status": "error", "error": "No test available for this key"}
@@ -801,7 +822,8 @@ async def test_api_key(body: ApiKeyTestRequest):
                     try:
                         err = resp.json()
                         msg = err.get("error", {}).get("message", resp.text[:200])
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("Failed to parse Anthropic error response: %s", e)
                         msg = resp.text[:200]
                     return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
 
@@ -831,7 +853,8 @@ async def test_api_key(body: ApiKeyTestRequest):
                     try:
                         err = resp.json()
                         msg = err.get("message", resp.text[:200])
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("Failed to parse Cohere error response: %s", e)
                         msg = resp.text[:200]
                     return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
 
@@ -849,7 +872,8 @@ async def test_api_key(body: ApiKeyTestRequest):
                     try:
                         err = resp.json()
                         msg = err.get("detail", {}).get("message", resp.text[:200])
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("Failed to parse ElevenLabs error response: %s", e)
                         msg = resp.text[:200]
                     return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
 
@@ -870,7 +894,8 @@ async def test_api_key(body: ApiKeyTestRequest):
                     try:
                         err = resp.json()
                         msg = err.get("message", resp.text[:200])
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("Failed to parse Home Assistant error response: %s", e)
                         msg = resp.text[:200]
                     return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
 
@@ -907,7 +932,8 @@ async def test_api_key(body: ApiKeyTestRequest):
                     try:
                         err = resp.json()
                         msg = err.get("error", {}).get("message", resp.text[:200])
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("Failed to parse OpenAI-compatible error response: %s", e)
                         msg = resp.text[:200]
                     return {"status": "error", "error": f"HTTP {resp.status_code}: {msg}"}
 
