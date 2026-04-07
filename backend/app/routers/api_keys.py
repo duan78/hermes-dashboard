@@ -893,8 +893,13 @@ async def test_api_key(body: dict = Body(...)):
                         base_url = custom
                 if not base_url:
                     return {"status": "error", "error": "No base URL configured for this provider"}
+                # Strip trailing /chat/completions if user included it in the base URL
+                endpoint = f"{base_url}/chat/completions"
+                endpoint = endpoint.replace("//chat/completions", "/chat/completions")
+                if endpoint.count("/chat/completions") > 1:
+                    endpoint = endpoint.replace("/chat/completions", "", 1)
                 resp = await client.post(
-                    f"{base_url}/chat/completions",
+                    endpoint,
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
