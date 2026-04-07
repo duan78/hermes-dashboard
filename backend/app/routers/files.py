@@ -1,4 +1,3 @@
-import logging
 import os
 import stat
 from datetime import datetime, timezone
@@ -7,8 +6,6 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from ..config import HERMES_HOME
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -72,8 +69,8 @@ async def list_files(path: str = Query(default="", description="Relative path un
     entries = []
     try:
         for item in sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
-            if item.name.startswith("."):
-                continue  # skip hidden files (including .env)
+            if item.name.startswith(".") and item.name not in (".env",):
+                continue  # skip hidden files except .env
             rel = str(item.relative_to(HERMES_HOME_RESOLVED))
             entries.append(_file_entry(item, rel))
     except PermissionError:
@@ -94,7 +91,7 @@ async def directory_tree():
     root_files = []
     if HERMES_HOME_RESOLVED.exists():
         for item in sorted(HERMES_HOME_RESOLVED.iterdir()):
-            if item.name.startswith("."):
+            if item.name.startswith(".") and item.name not in (".env",):
                 continue
             rel = str(item.relative_to(HERMES_HOME_RESOLVED))
             if item.is_dir() and item.name in ROOT_DIRS:
@@ -123,8 +120,6 @@ async def read_file(path: str = Query(..., description="Relative file path under
         raise HTTPException(404, f"File not found: {path}")
     if target.is_dir():
         raise HTTPException(400, f"Path is a directory: {path}")
-    if target.name == ".env":
-        raise HTTPException(403, "Access denied: .env files are not readable via this API")
     if _is_binary(target):
         raise HTTPException(400, f"Binary file, cannot display: {target.suffix}")
     if target.stat().st_size > 5 * 1024 * 1024:  # 5MB limit
@@ -168,7 +163,6 @@ async def write_file(body: dict):
     except PermissionError:
         raise HTTPException(403, "Permission denied")
 
-    logger.info("File written: %s (%d bytes)", rel_path, target.stat().st_size)
     return {
         "status": "saved",
         "path": rel_path,
@@ -189,5 +183,4 @@ async def delete_file(path: str = Query(..., description="Relative file path to 
         target.unlink()
     except PermissionError:
         raise HTTPException(403, "Permission denied")
-    logger.info("File deleted: %s", path)
     return {"status": "deleted", "path": path}

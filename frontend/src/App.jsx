@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
@@ -7,65 +7,33 @@ import {
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { api } from './api'
-
-// ── Core pages (eager) ──
 import Overview from './pages/Overview'
 import Config from './pages/Config'
 import Sessions from './pages/Sessions'
+import Tools from './pages/Tools'
+import Skills from './pages/Skills'
+import CronJobs from './pages/CronJobs'
 import MemorySoul from './pages/MemorySoul'
-
-// ── Chat group (lazy) ──
-const Chat = React.lazy(() => import('./pages/Chat'))
-
-// ── Terminal group (lazy — heavy: xterm.js) ──
-const TerminalPage = React.lazy(() => import('./pages/TerminalPage'))
-
-// ── Tools group (lazy) ──
-const Tools = React.lazy(() => import('./pages/Tools'))
-const Skills = React.lazy(() => import('./pages/Skills'))
-const SkillsHub = React.lazy(() => import('./pages/SkillsHub'))
-const McpServersPage = React.lazy(() => import('./pages/McpServers'))
-
-// ── Admin group (lazy) ──
-const Models = React.lazy(() => import('./pages/Models'))
-const Platforms = React.lazy(() => import('./pages/Platforms'))
-const ApiKeys = React.lazy(() => import('./pages/ApiKeys'))
-const EnvVarsPage = React.lazy(() => import('./pages/EnvVars'))
-const ProfilesPage = React.lazy(() => import('./pages/Profiles'))
-const AuthPairingPage = React.lazy(() => import('./pages/AuthPairing'))
-const PluginsPage = React.lazy(() => import('./pages/Plugins'))
-const WebhooksPage = React.lazy(() => import('./pages/Webhooks'))
-
-// ── Monitoring group (lazy) ──
-const CronJobs = React.lazy(() => import('./pages/CronJobs'))
-const Insights = React.lazy(() => import('./pages/Insights'))
-const GatewayControl = React.lazy(() => import('./pages/GatewayControl'))
-const Diagnostics = React.lazy(() => import('./pages/Diagnostics'))
-const ClaudeCodePage = React.lazy(() => import('./pages/ClaudeCode'))
-
-// ── Data group (lazy) ──
-const Files = React.lazy(() => import('./pages/Files'))
-const BackupRestorePage = React.lazy(() => import('./pages/BackupRestore'))
-const FineTune = React.lazy(() => import('./pages/FineTune'))
-const MoaConfig = React.lazy(() => import('./pages/MoaConfig'))
-
-// ── Loading spinner ──
-function LoadingSpinner() {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      minHeight: '60vh', flexDirection: 'column', gap: '1rem', color: '#94a3b8'
-    }}>
-      <div style={{
-        width: 32, height: 32, border: '3px solid rgba(148,163,184,0.2)',
-        borderTopColor: '#8b5cf6', borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite'
-      }} />
-      <span style={{ fontSize: '0.875rem' }}>Loading...</span>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-    </div>
-  )
-}
+import Models from './pages/Models'
+import Platforms from './pages/Platforms'
+import ApiKeys from './pages/ApiKeys'
+import Insights from './pages/Insights'
+import Chat from './pages/Chat'
+import Files from './pages/Files'
+import TerminalPage from './pages/TerminalPage'
+import SkillsHub from './pages/SkillsHub'
+import FineTune from './pages/FineTune'
+import GatewayControl from './pages/GatewayControl'
+import Diagnostics from './pages/Diagnostics'
+import WebhooksPage from './pages/Webhooks'
+import EnvVarsPage from './pages/EnvVars'
+import PluginsPage from './pages/Plugins'
+import McpServersPage from './pages/McpServers'
+import AuthPairingPage from './pages/AuthPairing'
+import ProfilesPage from './pages/Profiles'
+import BackupRestorePage from './pages/BackupRestore'
+import ClaudeCodePage from './pages/ClaudeCode'
+import MoaConfig from './pages/MoaConfig'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -151,7 +119,6 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <Suspense fallback={<LoadingSpinner />}>
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/gateway" element={<GatewayControl />} />
@@ -183,7 +150,6 @@ function App() {
           <Route path="/claude-code" element={<ClaudeCodePage />} />
           <Route path="/moa" element={<MoaConfig />} />
         </Routes>
-        </Suspense>
       </main>
     </div>
   )

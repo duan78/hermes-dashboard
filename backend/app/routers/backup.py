@@ -1,5 +1,4 @@
 import io
-import logging
 import os
 import tarfile
 import time
@@ -10,8 +9,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from ..config import HERMES_HOME
 from ..utils import hermes_path
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/backup", tags=["backup"])
 
@@ -77,11 +74,8 @@ async def create_backup(request: Request):
     include_env = body.get("include_env", True)
     include_skills = body.get("include_skills", True)
     try:
-        result = _create_archive(include_env=include_env, include_skills=include_skills)
-        logger.info("Backup created: %s (%d bytes)", result.get("filename"), result.get("size_bytes", 0))
-        return result
+        return _create_archive(include_env=include_env, include_skills=include_skills)
     except Exception as e:
-        logger.error("Backup creation failed: %s", e)
         return {"success": False, "error": str(e)}
 
 
@@ -125,9 +119,7 @@ async def restore_backup(request: Request):
                 # Security check
                 if member.name.startswith("/") or ".." in member.name:
                     continue
-                target = (HERMES_HOME / member.name).resolve()
-                if not str(target).startswith(str(HERMES_HOME.resolve())):
-                    continue
+                target = HERMES_HOME / member.name
                 if member.isdir():
                     target.mkdir(parents=True, exist_ok=True)
                 elif member.isfile():
@@ -138,7 +130,6 @@ async def restore_backup(request: Request):
                         restored.append(member.name)
         return {"success": True, "restored_files": restored, "output": f"Restored {len(restored)} files"}
     except Exception as e:
-        logger.error("Backup restore failed: %s", e)
         return {"success": False, "error": str(e)}
 
 

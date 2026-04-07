@@ -1,11 +1,8 @@
 import json
-import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Body
 from ..utils import run_hermes, hermes_path
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cron", tags=["cron"])
 
@@ -36,7 +33,6 @@ async def create_cron_job(body: dict = Body(...)):
     name = body.get("name", "")
     if not schedule or not prompt:
         raise HTTPException(400, "Missing 'schedule' or 'prompt'")
-    logger.info("Creating cron job: name=%s schedule=%s", name, schedule)
     try:
         args = ["cron", "create", "--schedule", schedule, "--prompt", prompt]
         if name:
@@ -79,7 +75,6 @@ async def resume_cron_job(job_id: str):
 @router.post("/{job_id}/run")
 async def run_cron_job(job_id: str):
     """Run a cron job manually."""
-    logger.info("Manually running cron job %s", job_id)
     try:
         output = await run_hermes("cron", "run", job_id, timeout=60)
         return {"status": "running", "output": output}
@@ -90,7 +85,6 @@ async def run_cron_job(job_id: str):
 @router.delete("/{job_id}")
 async def delete_cron_job(job_id: str):
     """Delete a cron job."""
-    logger.info("Deleting cron job %s", job_id)
     try:
         output = await run_hermes("cron", "remove", job_id, "--yes", timeout=15)
         return {"status": "deleted", "output": output}

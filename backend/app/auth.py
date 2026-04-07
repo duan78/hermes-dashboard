@@ -1,16 +1,6 @@
-import secrets
-from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from .config import DASHBOARD_TOKEN
-
-
-def verify_token(token: str) -> bool:
-    """Check if a token matches the configured DASHBOARD_TOKEN.
-    Returns True if auth is disabled (no token configured)."""
-    if not DASHBOARD_TOKEN:
-        return True
-    return secrets.compare_digest(token, DASHBOARD_TOKEN)
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -26,14 +16,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not DASHBOARD_TOKEN:
             return await call_next(request)
 
-        # Allow /api/auth/token — Nginx basic auth is the gate, this returns the bearer token
-        if request.url.path == "/api/auth/token":
-            return await call_next(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]  # Strip "Bearer "
-            if verify_token(token):
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+            if token == DASHBOARD_TOKEN:
                 return await call_next(request)
 
-        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+        raise HTTPException(status_code=401, detail="Unauthorized")

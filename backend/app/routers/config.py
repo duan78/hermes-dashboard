@@ -1,5 +1,4 @@
 import copy
-import logging
 import os
 import re
 
@@ -9,30 +8,7 @@ from pathlib import Path
 from ..utils import hermes_path, mask_secrets, run_hermes
 from ..config import HERMES_HOME
 
-logger = logging.getLogger(__name__)
-
 _MASK_RE = re.compile(r"^\*{4}$|^.{4}\*{4}.{4}$")
-
-# ── Config cache (mtime-based) ──
-_config_cache: dict = {"data": None, "mtime": 0}
-
-
-def _invalidate_config_cache():
-    """Force next read to reload from disk (call after writes)."""
-    _config_cache["data"] = None
-    _config_cache["mtime"] = 0
-
-
-def get_cached_config(config_path: Path):
-    """Read config.yaml with mtime-based caching — avoids redundant disk I/O."""
-    try:
-        mtime = config_path.stat().st_mtime
-    except OSError:
-        mtime = 0
-    if _config_cache["mtime"] != mtime:
-        _config_cache["data"] = yaml.safe_load(config_path.read_text())
-        _config_cache["mtime"] = mtime
-    return _config_cache["data"]
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
@@ -43,8 +19,8 @@ async def get_config():
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         raise HTTPException(404, "config.yaml not found")
-    raw = get_cached_config(config_path)
-    return {"config": mask_secrets(raw)}
+    raw = yaml.safe_load(config_path.read_text())
+    return {"config": mask_secrets(raw), "raw_yaml": config_path.read_text()}
 
 
 @router.put("")
@@ -62,8 +38,6 @@ async def save_config(body: dict = Body(...)):
 
     config_path = hermes_path("config.yaml")
     config_path.write_text(yaml_str)
-    _invalidate_config_cache()
-    logger.info("Config saved (raw YAML)")
     return {"status": "saved"}
 
 
@@ -73,7 +47,7 @@ async def get_config_sections():
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         raise HTTPException(404, "config.yaml not found")
-    raw = get_cached_config(config_path)
+    raw = yaml.safe_load(config_path.read_text())
     sections = {}
     for key, value in raw.items():
         sections[key] = mask_secrets({key: value})[key]
@@ -134,8 +108,6 @@ async def save_structured_config(body: dict = Body(...)):
 
     yaml_str = yaml.dump(merged, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
-    _invalidate_config_cache()
-    logger.info("Structured config saved")
     return {"status": "saved"}
 
 
@@ -176,8 +148,6 @@ async def update_config_value(body: dict = Body(...)):
 
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
-    _invalidate_config_cache()
-    logger.info("Config key updated: %s", key)
     return {"status": "saved", "key": key}
 
 
@@ -189,7 +159,7 @@ async def get_moa_config():
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         raise HTTPException(404, "config.yaml not found")
-    raw = get_cached_config(config_path) or {}
+    raw = yaml.safe_load(config_path.read_text()) or {}
     moa = raw.get("moa", {})
     if not moa:
         # Return defaults when no moa section exists
@@ -257,7 +227,6 @@ async def save_moa_config(body: dict = Body(...)):
 
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
-    _invalidate_config_cache()
     return {"status": "saved"}
 
 
@@ -269,7 +238,7 @@ async def get_moa_providers():
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         raise HTTPException(404, "config.yaml not found")
-    raw = get_cached_config(config_path) or {}
+    raw = yaml.safe_load(config_path.read_text()) or {}
     providers = raw.get("moa_providers", {})
 
     result = {}
@@ -309,7 +278,6 @@ async def save_moa_providers(body: dict = Body(...)):
 
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
-    _invalidate_config_cache()
     return {"status": "saved"}
 
 
@@ -324,7 +292,7 @@ async def test_moa_provider(body: dict = Body(...)):
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         raise HTTPException(404, "config.yaml not found")
-    raw = get_cached_config(config_path) or {}
+    raw = yaml.safe_load(config_path.read_text()) or {}
     providers = raw.get("moa_providers", {})
     provider_cfg = providers.get(provider_id)
     if not provider_cfg:

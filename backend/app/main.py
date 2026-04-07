@@ -3,25 +3,15 @@ import os
 import struct
 import fcntl
 import termios
-import logging
-from collections import defaultdict
 from pathlib import Path
-from time import time
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-logger = logging.getLogger("hermes-dashboard")
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from .auth import AuthMiddleware, verify_token
-from .config import HOST, PORT, HERMES_HOME, DASHBOARD_TOKEN
+from .auth import AuthMiddleware
+from .config import HOST, PORT, HERMES_HOME
 from .routers import (
     overview,
     config,
@@ -35,6 +25,7 @@ from .routers import (
     insights,
     chat,
     files,
+    terminal,
     api_keys,
     fine_tune,
     gateway,
@@ -54,9 +45,6 @@ app = FastAPI(
     description="Web dashboard for Hermes Agent administration",
     version="0.1.0",
 )
-
-# GZip compression — reduces transfer size ~70% for responses > 1KB
-app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS for frontend dev
 app.add_middleware(
@@ -84,147 +72,13 @@ async def add_security_headers(request, call_next):
         "img-src 'self' data:; "
         "connect-src 'self' http://127.0.0.1:*;"
     )
-    # Cache-Control for static assets (1 year, immutable — filenames contain hashes)
-    if request.url.path.startswith("/assets/"):
-        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response
-
-
-# ── Simple in-memory rate limiter ──
-# Tracks per-IP request counts in a sliding window.
-# No external dependencies needed.
-
-# Format: {client_ip: {endpoint_prefix: [timestamps]}}
-_rate_limit_store: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
-
-RATE_LIMIT_MAX_REQUESTS = 60  # per window
-RATE_LIMIT_WINDOW = 60  # seconds
-
-# Endpoints that get stricter rate limits (format: (prefix, max_requests, window_seconds))
-STRICT_LIMITS = [
-    ("/api/chat", 20, 60),
-    ("/api/auth", 10, 60),
-    ("/api/files/write", 15, 60),
-    ("/api/config", 10, 60),
-]
-
-# Cleanup older entries periodically
-_last_rate_cleanup = 0.0
-
-
-def _check_rate_limit(client_ip: str, path: str) -> tuple[bool, str]:
-    """Check if a request should be rate limited.
-    Returns (allowed, retry_after_str)."""
-    global _last_rate_cleanup
-
-    now = time()
-
-    # Periodic cleanup of old entries (every 5 minutes)
-    if now - _last_rate_cleanup > 300:
-        _last_rate_cleanup = now
-        stale_ips = []
-        for ip in _rate_limit_store:
-            stale_prefixes = []
-            for prefix, timestamps in _rate_limit_store[ip].items():
-                # Remove timestamps outside all windows
-                cutoff = now - 3600  # keep 1 hour max
-                _rate_limit_store[ip][prefix] = [t for t in timestamps if t > cutoff]
-                if not _rate_limit_store[ip][prefix]:
-                    stale_prefixes.append(prefix)
-            for p in stale_prefixes:
-                del _rate_limit_store[ip][p]
-            if not _rate_limit_store[ip]:
-                stale_ips.append(ip)
-        for ip in stale_ips:
-            del _rate_limit_store[ip]
-
-    # Determine limits for this path
-    max_req = RATE_LIMIT_MAX_REQUESTS
-    window = RATE_LIMIT_WINDOW
-    for prefix, mr, w in STRICT_LIMITS:
-        if path.startswith(prefix):
-            max_req = mr
-            window = w
-            break
-
-    # Clean old timestamps for this IP+prefix
-    prefix_key = next(
-        (p for p, _, _ in STRICT_LIMITS if path.startswith(p)),
-        "_default",
-    )
-    timestamps = _rate_limit_store[client_ip][prefix_key]
-    cutoff = now - window
-    # Filter in-place
-    i = 0
-    while i < len(timestamps):
-        if timestamps[i] <= cutoff:
-            timestamps.pop(i)
-        else:
-            i += 1
-
-    if len(timestamps) >= max_req:
-        retry_after = int(timestamps[0] - now + window)
-        return False, f"Rate limit exceeded. Retry after {retry_after}s"
-
-    timestamps.append(now)
-    return True, ""
-
-
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    """Enforce rate limits on API endpoints."""
-    path = request.url.path
-    if not path.startswith("/api/"):
-        return await call_next(request)
-
-    # Get client IP
-    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-    if not client_ip:
-        client_ip = request.client.host if request.client else "unknown"
-
-    allowed, retry_msg = _check_rate_limit(client_ip, path)
-    if not allowed:
-        from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=429,
-            content={"detail": retry_msg},
-            headers={"Retry-After": str(int(retry_msg.split()[-1][:-1]))},
-        )
-
-    return await call_next(request)
 
 
 # Health check
 @app.get("/api/health")
 async def health():
-    return {"status": "ok"}
-
-
-# ── Request body size limit middleware ──
-MAX_BODY_SIZE = 10 * 1024 * 1024  # 10MB
-
-@app.middleware("http")
-async def body_size_limit_middleware(request: Request, call_next):
-    """Reject requests with Content-Length exceeding 10MB."""
-    content_length = request.headers.get("content-length")
-    if content_length:
-        try:
-            size = int(content_length)
-            if size > MAX_BODY_SIZE:
-                from fastapi.responses import JSONResponse
-                return JSONResponse(
-                    status_code=413,
-                    content={"detail": f"Request body too large (max {MAX_BODY_SIZE // (1024*1024)}MB)"},
-                )
-        except (ValueError, TypeError):
-            pass
-    return await call_next(request)
-
-
-# Auth token endpoint — returns bearer token (protected by Nginx basic auth)
-@app.get("/api/auth/token")
-async def get_auth_token():
-    return {"token": DASHBOARD_TOKEN}
+    return {"status": "ok", "hermes_home": str(HERMES_HOME)}
 
 
 # Register routers
@@ -240,6 +94,7 @@ app.include_router(platforms.router)
 app.include_router(insights.router)
 app.include_router(chat.router)
 app.include_router(files.router)
+app.include_router(terminal.router)
 app.include_router(api_keys.router)
 app.include_router(fine_tune.router)
 app.include_router(gateway.router)
@@ -259,18 +114,7 @@ app.include_router(claude_code.router)
 @app.websocket("/ws/terminal")
 async def terminal_ws(websocket: WebSocket):
     """WebSocket endpoint that spawns an interactive PTY shell."""
-    # Validate Bearer token from query parameter (since WebSocket doesn't use HTTP headers easily)
-    token = websocket.query_params.get("token", "")
-    if not token or not verify_token(token):
-        logger.warning("WebSocket rejected: invalid or missing token")
-        await websocket.close(code=1008, reason="Unauthorized")
-        return
-
-    client_ip = websocket.headers.get("x-forwarded-for", "").split(",")[0].strip()
-    real_ip = websocket.headers.get("x-real-ip", "").strip()
-
     await websocket.accept()
-    logger.info(f"WebSocket connection from {client_ip or real_ip}")
 
     shell = os.environ.get("SHELL", "/bin/bash")
 
@@ -355,7 +199,6 @@ async def terminal_ws(websocket: WebSocket):
     try:
         await asyncio.gather(read_task, write_task, return_exceptions=True)
     finally:
-        logger.info("WebSocket disconnected")
         for task in [read_task, write_task]:
             if not task.done():
                 task.cancel()

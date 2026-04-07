@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import sys
 import os
 import yaml
@@ -10,8 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, HTTPException, Body
 from ..config import HERMES_HOME, HERMES_MEMORY_PATH
 from ..utils import hermes_path
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
 
@@ -346,7 +343,6 @@ async def vector_store(body: dict = Body(...)):
     text = body.get("text", "").strip()
     if not text:
         raise HTTPException(400, "text is required")
-    logger.info("Storing vector memory (source=%s)", body.get("source", "manual"))
     mem = _get_hermes_memory()
     if not mem:
         _vm_unavailable()

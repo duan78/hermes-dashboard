@@ -1,7 +1,5 @@
 import json
-import logging
 import os
-import time
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -12,66 +10,56 @@ from fastapi.responses import StreamingResponse
 from ..config import HERMES_HOME
 from ..utils import hermes_path
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 # Gateway URL: env var > config.yaml > default
 GATEWAY_URL = os.getenv("HERMES_GATEWAY_URL", "")
 
-# ── Simple TTL cache for config reads ──
-_config_cache: dict = {"data": None, "timestamp": 0}
-_CONFIG_CACHE_TTL = 30  # seconds
-
-
-def _load_raw_config() -> dict | None:
-    """Load config.yaml from disk (used by TTL cache)."""
-    import yaml
-    config_path = hermes_path("config.yaml")
-    if not config_path.exists():
-        return None
-    try:
-        return yaml.safe_load(config_path.read_text())
-    except Exception:
-        return None
-
-
-def _get_cached_config() -> dict | None:
-    """Return cached config, refreshing if TTL expired."""
-    now = time.monotonic()
-    if _config_cache["data"] is None or (now - _config_cache["timestamp"]) > _CONFIG_CACHE_TTL:
-        _config_cache["data"] = _load_raw_config()
-        _config_cache["timestamp"] = now
-    return _config_cache["data"]
-
 
 def _get_gateway_url() -> str:
-    """Resolve the Hermes gateway base URL (TTL-cached)."""
+    """Resolve the Hermes gateway base URL."""
     if GATEWAY_URL:
         return GATEWAY_URL.rstrip("/")
-    cfg = _get_cached_config()
-    if cfg:
-        gw = cfg.get("gateway", {})
-        url = gw.get("url") or gw.get("api_url") or ""
-        if url:
-            return url.rstrip("/")
+    # Try reading from config.yaml
+    import yaml
+    config_path = hermes_path("config.yaml")
+    if config_path.exists():
+        try:
+            cfg = yaml.safe_load(config_path.read_text())
+            gw = cfg.get("gateway", {})
+            url = gw.get("url") or gw.get("api_url") or ""
+            if url:
+                return url.rstrip("/")
+        except Exception:
+            pass
+    # Default
     return "http://localhost:8000"
 
 
 def _get_api_key() -> str:
-    """Read API key from config for direct LLM calls (TTL-cached)."""
-    cfg = _get_cached_config()
-    if cfg:
-        model_cfg = cfg.get("model", {})
-        return model_cfg.get("api_key", "")
+    """Read API key from config for direct LLM calls if gateway is unavailable."""
+    import yaml
+    config_path = hermes_path("config.yaml")
+    if config_path.exists():
+        try:
+            cfg = yaml.safe_load(config_path.read_text())
+            model_cfg = cfg.get("model", {})
+            return model_cfg.get("api_key", "")
+        except Exception:
+            pass
     return ""
 
 
 def _get_model() -> str:
-    """Read model name from config (TTL-cached)."""
-    cfg = _get_cached_config()
-    if cfg:
-        return cfg.get("model", {}).get("default", "gpt-4o")
+    """Read model name from config."""
+    import yaml
+    config_path = hermes_path("config.yaml")
+    if config_path.exists():
+        try:
+            cfg = yaml.safe_load(config_path.read_text())
+            return cfg.get("model", {}).get("default", "gpt-4o")
+        except Exception:
+            pass
     return "gpt-4o"
 
 
@@ -113,7 +101,6 @@ def _save_message_to_session(session_id: str, role: str, content: str):
 @router.post("/send")
 async def chat_send(request: Request):
     """Send a message and receive the complete response (non-streaming)."""
-    logger.debug("Chat send request received")
     body = await request.json()
     message = body.get("message", "")
     session_id = body.get("session_id") or str(uuid.uuid4())[:8]
@@ -175,7 +162,6 @@ async def chat_send(request: Request):
     if full_response:
         _save_message_to_session(session_id, "assistant", full_response)
 
-    logger.info("Chat send completed for session %s", session_id)
     return {"session_id": session_id, "response": full_response, "model": model}
 
 
@@ -250,7 +236,6 @@ async def chat_session_messages(session_id: str):
 @router.post("/stream")
 async def chat_stream(request: Request):
     """Stream chat responses via SSE, proxying to the Hermes gateway."""
-    logger.debug("Chat stream request received")
     body = await request.json()
     message = body.get("message", "")
     session_id = body.get("session_id") or str(uuid.uuid4())[:8]
