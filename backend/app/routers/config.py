@@ -9,6 +9,7 @@ from pathlib import Path
 from ..utils import hermes_path, mask_secrets, run_hermes
 from ..config import HERMES_HOME
 from ..schemas import ConfigSetRequest
+from ..schemas.config import ConfigSetResponse
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ async def get_config_sections():
     return sections
 
 
-@router.post("/set")
+@router.post("/set", response_model=ConfigSetResponse)
 async def set_config_value(body: ConfigSetRequest):
     """Set a single config value using hermes config set."""
     try:

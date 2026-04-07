@@ -1,10 +1,14 @@
 import asyncio
+import logging
 import re
 from pathlib import Path
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from ..config import HERMES_HOME
+from ..schemas.gateway import GatewayStatus, GatewayActionResponse, GatewayLogsResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/gateway", tags=["gateway"])
 
@@ -97,7 +101,7 @@ def _parse_systemctl_output(output: str) -> dict:
     return result
 
 
-@router.get("/status")
+@router.get("/status", response_model=GatewayStatus)
 async def gateway_status():
     """Get gateway service status via systemctl."""
     proc = await asyncio.create_subprocess_exec(
@@ -122,7 +126,7 @@ async def gateway_status():
     return result
 
 
-@router.post("/restart")
+@router.post("/restart", response_model=GatewayActionResponse)
 async def gateway_restart():
     """Restart the gateway service."""
     proc = await asyncio.create_subprocess_exec(
@@ -145,7 +149,7 @@ async def gateway_restart():
     return {"status": "restarted", "new_state": status["state"]}
 
 
-@router.post("/stop")
+@router.post("/stop", response_model=GatewayActionResponse)
 async def gateway_stop():
     """Stop the gateway service."""
     proc = await asyncio.create_subprocess_exec(
@@ -157,7 +161,7 @@ async def gateway_stop():
     return {"status": "stopped"}
 
 
-@router.post("/start")
+@router.post("/start", response_model=GatewayActionResponse)
 async def gateway_start():
     """Start the gateway service."""
     proc = await asyncio.create_subprocess_exec(
@@ -194,7 +198,7 @@ def _parse_log_line(line: str) -> dict:
     return {"timestamp": "", "level": "INFO", "logger": "", "message": line}
 
 
-@router.get("/logs")
+@router.get("/logs", response_model=GatewayLogsResponse)
 async def gateway_logs(
     lines: int = Query(default=100),
     level: str = Query(default="all"),
@@ -264,8 +268,8 @@ async def gateway_logs_stream(level: str = Query(default="all")):
                 yield f"data: {json.dumps(parsed)}\n\n"
         except asyncio.TimeoutError:
             yield f"data: {json.dumps({'timestamp': '', 'level': 'INFO', 'logger': 'dashboard', 'message': 'keepalive'})}\n\n"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error in log stream: %s", e)
         finally:
             proc.kill()
 

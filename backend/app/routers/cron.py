@@ -6,13 +6,14 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Body
 from ..utils import run_hermes, hermes_path
 from ..schemas import CronCreateRequest
+from ..schemas.cron import CronJob, CronJobActionResponse, CronJobCreateResponse, SystemCronResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cron", tags=["cron"])
 
 
-@router.get("/system")
+@router.get("/system", response_model=SystemCronResponse)
 async def list_system_crons():
     """List system-level cron jobs and systemd timers."""
     result = {
@@ -45,8 +46,8 @@ async def list_system_crons():
                     "command": command,
                     "name": name,
                 })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to read crontab: %s", e)
 
     # 2. List Hermes-related systemd timers
     try:
@@ -65,8 +66,8 @@ async def list_system_crons():
                         "next_run": " ".join(parts[0:3]) if len(parts) > 2 else "",
                         "last_run": " ".join(parts[3:6]) if len(parts) > 5 else "",
                     })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to list systemd timers: %s", e)
 
     # 3. Check key Hermes services/timers status
     # For timer-based services, check the timer (not the service which is oneshot)
@@ -87,14 +88,15 @@ async def list_system_crons():
                 status = subprocess.check_output(
                     ["systemctl", "is-active", name], text=True, timeout=5
                 ).strip()
-            except Exception:
+            except Exception as e:
+                logger.debug("Service %s not found: %s", name, e)
                 status = "not-found"
         result["systemd_services"].append({"name": name, "status": status, "kind": kind})
 
     return result
 
 
-@router.get("")
+@router.get("", response_model=list[CronJob])
 async def list_cron_jobs():
     """List all cron jobs."""
     cron_dir = hermes_path("cron")
@@ -112,7 +114,7 @@ async def list_cron_jobs():
     return jobs
 
 
-@router.post("")
+@router.post("", response_model=CronJobCreateResponse)
 async def create_cron_job(body: CronCreateRequest):
     """Create a cron job."""
     logger.info("Creating cron job: name=%s schedule=%s", body.name, body.schedule)
@@ -126,7 +128,7 @@ async def create_cron_job(body: CronCreateRequest):
         raise HTTPException(500, str(e))
 
 
-@router.get("/{job_id}")
+@router.get("/{job_id}", response_model=CronJob)
 async def get_cron_job(job_id: str):
     """Get cron job details."""
     job_file = hermes_path("cron", f"{job_id}.json")
@@ -135,7 +137,7 @@ async def get_cron_job(job_id: str):
     return json.loads(job_file.read_text())
 
 
-@router.post("/{job_id}/pause")
+@router.post("/{job_id}/pause", response_model=CronJobActionResponse)
 async def pause_cron_job(job_id: str):
     """Pause a cron job."""
     try:
@@ -145,7 +147,7 @@ async def pause_cron_job(job_id: str):
         raise HTTPException(500, str(e))
 
 
-@router.post("/{job_id}/resume")
+@router.post("/{job_id}/resume", response_model=CronJobActionResponse)
 async def resume_cron_job(job_id: str):
     """Resume a cron job."""
     try:
@@ -155,7 +157,7 @@ async def resume_cron_job(job_id: str):
         raise HTTPException(500, str(e))
 
 
-@router.post("/{job_id}/run")
+@router.post("/{job_id}/run", response_model=CronJobActionResponse)
 async def run_cron_job(job_id: str):
     """Run a cron job manually."""
     try:
@@ -165,7 +167,7 @@ async def run_cron_job(job_id: str):
         raise HTTPException(500, str(e))
 
 
-@router.delete("/{job_id}")
+@router.delete("/{job_id}", response_model=CronJobActionResponse)
 async def delete_cron_job(job_id: str):
     """Delete a cron job."""
     logger.info("Deleting cron job: %s", job_id)

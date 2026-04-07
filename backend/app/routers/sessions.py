@@ -5,13 +5,17 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from ..utils import hermes_path, run_hermes
+from ..schemas.sessions import (
+    SessionSummary, SessionSearchResult, SessionDetail,
+    SessionStats, SessionExport,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
-@router.get("/search")
+@router.get("/search", response_model=list[SessionSearchResult])
 async def search_sessions(q: str = Query(min_length=1, max_length=200)):
     """Search sessions by content. Searches through session previews and JSONL message content."""
     sessions_dir = hermes_path("sessions")
@@ -66,8 +70,8 @@ async def search_sessions(q: str = Query(min_length=1, max_length=200)):
                             if end < len(content):
                                 snippet = snippet + "..."
                             break
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Error reading JSONL messages for session %s: %s", sid, e)
 
             if matched_in:
                 seen_ids.add(sid)
@@ -76,8 +80,8 @@ async def search_sessions(q: str = Query(min_length=1, max_length=200)):
                     try:
                         lines = jsonl_path.read_text(errors="replace").strip().split("\n")
                         msg_count = sum(1 for l in lines if l.strip())
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Skipping message count for matched session %s: %s", sid, e)
 
                 results.append({
                     "id": sid,
@@ -89,13 +93,14 @@ async def search_sessions(q: str = Query(min_length=1, max_length=200)):
                     "matched_in": matched_in,
                     "snippet": snippet,
                 })
-        except (json.JSONDecodeError, Exception):
+        except (json.JSONDecodeError, Exception) as e:
+            logger.debug("Skipping session file %s: %s", f.name, e)
             continue
 
     return results
 
 
-@router.get("")
+@router.get("", response_model=list[SessionSummary])
 async def list_sessions():
     """List all unique sessions with metadata, deduplicated by session_id."""
     sessions_dir = hermes_path("sessions")
@@ -122,8 +127,8 @@ async def list_sessions():
                 try:
                     lines = jsonl_path.read_text(errors="replace").strip().split("\n")
                     msg_count = sum(1 for l in lines if l.strip())
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Skipping message count for session %s: %s", sid, e)
 
             # Build a useful preview/title
             preview = data.get("preview", "")
@@ -139,8 +144,8 @@ async def list_sessions():
                             if msg.get("role") == "user" and msg.get("content"):
                                 preview = msg["content"][:80]
                                 break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Skipping preview extraction for session %s: %s", sid, e)
             if not preview and created_at:
                 preview = created_at
 
@@ -153,12 +158,13 @@ async def list_sessions():
                 "tokens": data.get("tokens", {}),
                 "preview": preview,
             })
-        except (json.JSONDecodeError, Exception):
+        except (json.JSONDecodeError, Exception) as e:
+            logger.debug("Skipping session file %s: %s", f.name, e)
             continue
     return sessions
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=SessionStats)
 async def sessions_stats():
     """Global sessions stats."""
     try:
@@ -168,7 +174,7 @@ async def sessions_stats():
         return {"output": "", "error": str(e)}
 
 
-@router.get("/{session_id}")
+@router.get("/{session_id}", response_model=SessionDetail)
 async def get_session(session_id: str):
     """Get session detail with messages."""
     # Try JSON format first
@@ -225,7 +231,7 @@ async def prune_sessions(days: int = Query(default=30)):
         raise HTTPException(500, str(e))
 
 
-@router.get("/{session_id}/export")
+@router.get("/{session_id}/export", response_model=SessionExport)
 async def export_session(session_id: str):
     """Export a session."""
     jsonl_file = hermes_path("sessions", f"{session_id}.jsonl")

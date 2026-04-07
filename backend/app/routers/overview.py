@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 import shutil
 import time
@@ -9,11 +10,17 @@ from pathlib import Path
 from fastapi import APIRouter
 from ..config import HERMES_PYTHON, HERMES_AGENT_DIR
 from ..utils import run_hermes, hermes_path
+from ..schemas.overview import (
+    OverviewStats, LogResponse, SystemMetrics, VersionInfo,
+    ChangelogResponse, UpdateResponse,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/overview", tags=["overview"])
 
 
-@router.get("")
+@router.get("", response_model=OverviewStats)
 async def get_overview():
     """Dashboard overview: status, model, sessions, quick stats."""
     result = {
@@ -65,7 +72,8 @@ async def get_overview():
             try:
                 sd = json.loads(f.read_text())
                 total_messages += sd.get("message_count", 0)
-            except (json.JSONDecodeError, Exception):
+            except (json.JSONDecodeError, Exception) as e:
+                logger.debug("Skipping session file in overview stats %s: %s", f.name, e)
                 continue
         result["sessions"]["messages"] = total_messages
 
@@ -95,7 +103,7 @@ async def get_overview():
     return result
 
 
-@router.get("/logs")
+@router.get("/logs", response_model=LogResponse)
 async def get_recent_logs(lines: int = 100):
     """Get recent gateway logs."""
     log_path = hermes_path("logs", "gateway.log")
@@ -110,7 +118,7 @@ async def get_recent_logs(lines: int = 100):
         return {"logs": [], "error": str(e)}
 
 
-@router.get("/system")
+@router.get("/system", response_model=SystemMetrics)
 async def system_metrics():
     """Get system metrics: CPU, RAM, Disk, Load."""
     import asyncio
@@ -130,7 +138,8 @@ async def system_metrics():
         d_idle = t2[3] - t1[3]
         d_total = sum(t2[i] - t1[i] for i in range(len(t1)))
         cpu_percent = round((1 - d_idle / d_total) * 100, 1) if d_total > 0 else 0
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to read CPU metrics: %s", e)
         cpu_percent = 0
 
     # RAM from /proc/meminfo
@@ -149,8 +158,8 @@ async def system_metrics():
         ram_total_gb = round(total_kb / 1024 / 1024, 1)
         ram_used_gb = round(used_kb / 1024 / 1024, 1)
         ram_percent = round((used_kb / total_kb) * 100, 1) if total_kb > 0 else 0
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to read RAM metrics: %s", e)
 
     # Disk
     disk_total_gb = disk_used_gb = disk_percent = 0
@@ -159,8 +168,8 @@ async def system_metrics():
         disk_total_gb = round(disk.total / (1024 ** 3), 1)
         disk_used_gb = round(disk.used / (1024 ** 3), 1)
         disk_percent = round((disk.used / disk.total) * 100, 1) if disk.total > 0 else 0
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to read disk metrics: %s", e)
 
     # Load average
     load_avg = [0.0, 0.0, 0.0]
@@ -168,8 +177,8 @@ async def system_metrics():
         with open("/proc/loadavg", "r") as f:
             parts = f.read().split()
             load_avg = [float(parts[i]) for i in range(3)]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to read load average: %s", e)
 
     return {
         "cpu_percent": cpu_percent,
@@ -186,7 +195,7 @@ async def system_metrics():
 
 
 
-@router.get("/version")
+@router.get("/version", response_model=VersionInfo)
 async def hermes_version():
     """Get current Hermes Agent version info."""
     try:
@@ -233,7 +242,7 @@ async def hermes_version():
         return {"error": str(e), "raw": "", "current_version": "", "update_available": False, "commits_behind": 0}
 
 
-@router.post("/update")
+@router.post("/update", response_model=UpdateResponse)
 async def hermes_update():
     """Run hermes update (git pull + pip install)."""
     try:
@@ -258,7 +267,7 @@ async def hermes_update():
         return {"success": False, "output": "", "error": str(e)}
 
 
-@router.get("/changelog")
+@router.get("/changelog", response_model=ChangelogResponse)
 async def hermes_changelog():
     """Get changelog (commits behind origin/main)."""
     try:
