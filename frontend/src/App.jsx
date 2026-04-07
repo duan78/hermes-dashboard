@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { ToastProvider } from './contexts/ToastContext'
+import { useWebSocket } from './hooks/useWebSocket'
 import { api } from './api'
 
 // Eager imports — most frequently accessed / shell pages
@@ -92,6 +93,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [features, setFeatures] = useState({})
   const location = useLocation()
+  useWebSocket() // Auto-connect WebSocket for real-time cache invalidation
 
   useEffect(() => {
     setSidebarOpen(false)
@@ -115,7 +117,7 @@ function App() {
   return (
     <ToastProvider>
     <div className="app-layout">
-      <button className="mobile-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+      <button className="mobile-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle menu">
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
@@ -124,7 +126,7 @@ function App() {
           <Cpu size={22} />
           Hermes Dashboard
         </div>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">
           {visibleNavItems.map(item => (
             <NavLink
               key={item.to}
@@ -142,7 +144,7 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content" role="main">
         <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path="/" element={<Overview />} />

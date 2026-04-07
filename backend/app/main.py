@@ -259,6 +259,24 @@ app.include_router(claude_code.router)
 app.include_router(wiki.router)
 
 
+# ── WebSocket Hub for real-time dashboard updates ──
+from .websocket_hub import ws_hub_handler, poll_bridge
+
+@app.websocket("/ws/hub")
+async def dashboard_hub_ws(websocket):
+    """WebSocket endpoint for real-time dashboard events."""
+    await ws_hub_handler(websocket)
+
+
+@app.on_event("startup")
+async def _start_poll_bridge():
+    poll_bridge.start()
+
+@app.on_event("shutdown")
+async def _stop_poll_bridge():
+    poll_bridge.stop()
+
+
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──
 
 @app.websocket("/ws/terminal")
