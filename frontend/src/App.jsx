@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
@@ -13,17 +13,12 @@ import Sessions from './pages/Sessions'
 import Tools from './pages/Tools'
 import Skills from './pages/Skills'
 import CronJobs from './pages/CronJobs'
-import MemorySoul from './pages/MemorySoul'
 import Models from './pages/Models'
 import Platforms from './pages/Platforms'
 import ApiKeys from './pages/ApiKeys'
 import Insights from './pages/Insights'
-import Chat from './pages/Chat'
 import Files from './pages/Files'
-import TerminalPage from './pages/TerminalPage'
 import SkillsHub from './pages/SkillsHub'
-import FineTune from './pages/FineTune'
-import GatewayControl from './pages/GatewayControl'
 import Diagnostics from './pages/Diagnostics'
 import WebhooksPage from './pages/Webhooks'
 import EnvVarsPage from './pages/EnvVars'
@@ -32,8 +27,15 @@ import McpServersPage from './pages/McpServers'
 import AuthPairingPage from './pages/AuthPairing'
 import ProfilesPage from './pages/Profiles'
 import BackupRestorePage from './pages/BackupRestore'
-import ClaudeCodePage from './pages/ClaudeCode'
-import MoaConfig from './pages/MoaConfig'
+
+// Lazy-loaded heavy pages (xterm.js, react-markdown, react-syntax-highlighter)
+const TerminalPage = React.lazy(() => import('./pages/TerminalPage'))
+const MemorySoul = React.lazy(() => import('./pages/MemorySoul'))
+const Chat = React.lazy(() => import('./pages/Chat'))
+const FineTune = React.lazy(() => import('./pages/FineTune'))
+const ClaudeCodePage = React.lazy(() => import('./pages/ClaudeCode'))
+const MoaConfig = React.lazy(() => import('./pages/MoaConfig'))
+const GatewayControl = React.lazy(() => import('./pages/GatewayControl'))
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -119,6 +121,7 @@ function App() {
       </aside>
 
       <main className="main-content">
+        <Suspense fallback={<div className="loading-screen" style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh',color:'#94a3b8'}}>Loading...</div>}>
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/gateway" element={<GatewayControl />} />
@@ -150,6 +153,7 @@ function App() {
           <Route path="/claude-code" element={<ClaudeCodePage />} />
           <Route path="/moa" element={<MoaConfig />} />
         </Routes>
+        </Suspense>
       </main>
     </div>
   )

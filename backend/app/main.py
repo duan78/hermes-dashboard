@@ -3,7 +3,14 @@ import os
 import struct
 import fcntl
 import termios
+import logging
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("hermes-dashboard")
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -114,7 +121,16 @@ app.include_router(claude_code.router)
 @app.websocket("/ws/terminal")
 async def terminal_ws(websocket: WebSocket):
     """WebSocket endpoint that spawns an interactive PTY shell."""
+    # Reject direct connections (must go through Nginx auth)
+    client_ip = websocket.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    real_ip = websocket.headers.get("x-real-ip", "").strip()
+    if not client_ip and not real_ip:
+        logger.warning("WebSocket rejected direct connection")
+        await websocket.close(code=1008, reason="Direct connections not allowed")
+        return
+
     await websocket.accept()
+    logger.info(f"WebSocket connection from {client_ip or real_ip}")
 
     shell = os.environ.get("SHELL", "/bin/bash")
 
@@ -199,6 +215,7 @@ async def terminal_ws(websocket: WebSocket):
     try:
         await asyncio.gather(read_task, write_task, return_exceptions=True)
     finally:
+        logger.info("WebSocket disconnected")
         for task in [read_task, write_task]:
             if not task.done():
                 task.cancel()

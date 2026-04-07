@@ -16,9 +16,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not DASHBOARD_TOKEN:
             return await call_next(request)
 
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]  # Strip "Bearer "
             if token == DASHBOARD_TOKEN:
                 return await call_next(request)
 
