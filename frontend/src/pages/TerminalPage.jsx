@@ -1,7 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
-import '@xterm/xterm/css/xterm.css'
 import './terminal.css'
 
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -39,98 +36,124 @@ export default function TerminalPage() {
   const fitAddonRef = useRef(null)
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!containerRef.current) return
 
-    const term = new Terminal({
-      cursorBlink: true,
-      fontSize: 14,
-      fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
-      theme: {
-        background: '#0f1117',
-        foreground: '#e4e6eb',
-        cursor: '#8b5cf6',
-        cursorAccent: '#0f1117',
-        selectionBackground: 'rgba(139, 92, 246, 0.3)',
-        black: '#0f1117',
-        red: '#ef4444',
-        green: '#10b981',
-        yellow: '#f59e0b',
-        blue: '#3b82f6',
-        magenta: '#8b5cf6',
-        cyan: '#06b6d4',
-        white: '#e4e6eb',
-        brightBlack: '#6b7280',
-        brightRed: '#f87171',
-        brightGreen: '#34d399',
-        brightYellow: '#fbbf24',
-        brightBlue: '#60a5fa',
-        brightMagenta: '#a78bfa',
-        brightCyan: '#22d3ee',
-        brightWhite: '#f9fafb',
-      },
-      allowProposedApi: true,
-    })
+    let disposed = false
+    let term, fitAddon, TerminalCls, FitAddonCls
 
-    const fitAddon = new FitAddon()
-    term.loadAddon(fitAddon)
-    fitAddonRef.current = fitAddon
-    termRef.current = term
-    term.open(containerRef.current)
+    // Dynamically import xterm.js
+    Promise.all([
+      import('@xterm/xterm').then(m => { TerminalCls = m.Terminal }),
+      import('@xterm/addon-fit').then(m => { FitAddonCls = m.FitAddon }),
+      import('@xterm/xterm/css/xterm.css'),
+    ]).then(() => {
+      if (disposed || !containerRef.current) return
 
-    // Connect WebSocket — build URL dynamically to handle path prefixes
-    const wsUrl = buildWsUrl()
-    const ws = new WebSocket(wsUrl)
+      term = new TerminalCls({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+        theme: {
+          background: '#0f1117',
+          foreground: '#e4e6eb',
+          cursor: '#8b5cf6',
+          cursorAccent: '#0f1117',
+          selectionBackground: 'rgba(139, 92, 246, 0.3)',
+          black: '#0f1117',
+          red: '#ef4444',
+          green: '#10b981',
+          yellow: '#f59e0b',
+          blue: '#3b82f6',
+          magenta: '#8b5cf6',
+          cyan: '#06b6d4',
+          white: '#e4e6eb',
+          brightBlack: '#6b7280',
+          brightRed: '#f87171',
+          brightGreen: '#34d399',
+          brightYellow: '#fbbf24',
+          brightBlue: '#60a5fa',
+          brightMagenta: '#a78bfa',
+          brightCyan: '#22d3ee',
+          brightWhite: '#f9fafb',
+        },
+        allowProposedApi: true,
+      })
 
-    ws.binaryType = 'arraybuffer'
+      fitAddon = new FitAddonCls()
+      term.loadAddon(fitAddon)
+      fitAddonRef.current = fitAddon
+      termRef.current = term
+      term.open(containerRef.current)
+      setLoading(false)
 
-    ws.onopen = () => {
-      setConnected(true)
-      setError(null)
-      // Initial fit
-      setTimeout(() => fitAddon.fit(), 100)
-    }
+      // Connect WebSocket — build URL dynamically to handle path prefixes
+      const wsUrl = buildWsUrl()
+      const ws = new WebSocket(wsUrl)
 
-    ws.onmessage = (event) => {
-      const text = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data)
-      term.write(text)
-    }
+      ws.binaryType = 'arraybuffer'
 
-    ws.onerror = () => {
-      setError('WebSocket error')
-    }
+      ws.onopen = () => {
+        setConnected(true)
+        setError(null)
+        // Initial fit
+        setTimeout(() => fitAddon.fit(), 100)
+      }
 
-    ws.onclose = () => {
-      setConnected(false)
-      term.write('\r\n\x1b[31m--- Disconnected ---\x1b[0m\r\n')
-    }
+      ws.onmessage = (event) => {
+        const text = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data)
+        term.write(text)
+      }
 
-    wsRef.current = ws
+      ws.onerror = () => {
+        setError('WebSocket error')
+      }
 
-    // Send terminal input to WebSocket
-    const disposable = term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'input', data }))
+      ws.onclose = () => {
+        setConnected(false)
+        term.write('\r\n\x1b[31m--- Disconnected ---\x1b[0m\r\n')
+      }
+
+      wsRef.current = ws
+
+      // Send terminal input to WebSocket
+      const disposable = term.onData((data) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'input', data }))
+        }
+      })
+
+      // Handle resize
+      const resizeObserver = new ResizeObserver(() => {
+        fitAddon.fit()
+        if (ws.readyState === WebSocket.OPEN && term.cols && term.rows) {
+          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
+        }
+      })
+
+      resizeObserver.observe(containerRef.current)
+
+      return () => {
+        resizeObserver.disconnect()
+        disposable.dispose()
+      }
+    }).catch((err) => {
+      if (!disposed) {
+        setError('Failed to load terminal')
+        setLoading(false)
       }
     })
-
-    // Handle resize
-    const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit()
-      if (ws.readyState === WebSocket.OPEN && term.cols && term.rows) {
-        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
-      }
-    })
-
-    resizeObserver.observe(containerRef.current)
 
     return () => {
-      resizeObserver.disconnect()
-      disposable.dispose()
-      term.dispose()
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close()
+      disposed = true
+      if (termRef.current) {
+        termRef.current.dispose()
+        termRef.current = null
+      }
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close()
       }
     }
   }, [])
@@ -171,6 +194,14 @@ export default function TerminalPage() {
       {error && <div className="error-box">{error}</div>}
 
       <div className="terminal-container">
+        {loading ? (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: '100%', color: 'var(--text-secondary, #94a3b8)'
+          }}>
+            Loading terminal...
+          </div>
+        ) : null}
         <div ref={containerRef} className="terminal-xterm" />
       </div>
     </div>

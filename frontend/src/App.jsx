@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
@@ -7,33 +7,37 @@ import {
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { api } from './api'
+
+// Eager imports — most frequently accessed / shell pages
 import Overview from './pages/Overview'
 import Config from './pages/Config'
 import Sessions from './pages/Sessions'
-import Tools from './pages/Tools'
-import Skills from './pages/Skills'
-import CronJobs from './pages/CronJobs'
 import MemorySoul from './pages/MemorySoul'
-import Models from './pages/Models'
-import Platforms from './pages/Platforms'
-import ApiKeys from './pages/ApiKeys'
-import Insights from './pages/Insights'
-import Chat from './pages/Chat'
-import Files from './pages/Files'
-import TerminalPage from './pages/TerminalPage'
-import SkillsHub from './pages/SkillsHub'
-import FineTune from './pages/FineTune'
-import GatewayControl from './pages/GatewayControl'
-import Diagnostics from './pages/Diagnostics'
-import WebhooksPage from './pages/Webhooks'
-import EnvVarsPage from './pages/EnvVars'
-import PluginsPage from './pages/Plugins'
-import McpServersPage from './pages/McpServers'
-import AuthPairingPage from './pages/AuthPairing'
-import ProfilesPage from './pages/Profiles'
-import BackupRestorePage from './pages/BackupRestore'
-import ClaudeCodePage from './pages/ClaudeCode'
-import MoaConfig from './pages/MoaConfig'
+
+// Lazy imports — all other pages (23)
+const Tools = lazy(() => import('./pages/Tools'))
+const Skills = lazy(() => import('./pages/Skills'))
+const CronJobs = lazy(() => import('./pages/CronJobs'))
+const Models = lazy(() => import('./pages/Models'))
+const Platforms = lazy(() => import('./pages/Platforms'))
+const ApiKeys = lazy(() => import('./pages/ApiKeys'))
+const Insights = lazy(() => import('./pages/Insights'))
+const Chat = lazy(() => import('./pages/Chat'))
+const Files = lazy(() => import('./pages/Files'))
+const TerminalPage = lazy(() => import('./pages/TerminalPage'))
+const SkillsHub = lazy(() => import('./pages/SkillsHub'))
+const FineTune = lazy(() => import('./pages/FineTune'))
+const GatewayControl = lazy(() => import('./pages/GatewayControl'))
+const Diagnostics = lazy(() => import('./pages/Diagnostics'))
+const WebhooksPage = lazy(() => import('./pages/Webhooks'))
+const EnvVarsPage = lazy(() => import('./pages/EnvVars'))
+const PluginsPage = lazy(() => import('./pages/Plugins'))
+const McpServersPage = lazy(() => import('./pages/McpServers'))
+const AuthPairingPage = lazy(() => import('./pages/AuthPairing'))
+const ProfilesPage = lazy(() => import('./pages/Profiles'))
+const BackupRestorePage = lazy(() => import('./pages/BackupRestore'))
+const ClaudeCodePage = lazy(() => import('./pages/ClaudeCode'))
+const MoaConfig = lazy(() => import('./pages/MoaConfig'))
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -64,6 +68,22 @@ const NAV_ITEMS = [
   { to: '/profiles', icon: Users, label: 'Profiles' },
   { to: '/backup', icon: HardDrive, label: 'Backup' },
 ]
+
+function Spinner() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '60vh', color: 'var(--text-secondary, #94a3b8)'
+    }}>
+      <div style={{
+        width: 32, height: 32, border: '3px solid var(--border, rgba(255,255,255,0.1))',
+        borderTopColor: 'var(--accent, #8b5cf6)', borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite'
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -119,37 +139,39 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <Routes>
-          <Route path="/" element={<Overview />} />
-          <Route path="/gateway" element={<GatewayControl />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/chat/:id" element={<Chat />} />
-          <Route path="/config" element={<Config />} />
-          <Route path="/sessions" element={<Sessions />} />
-          <Route path="/sessions/:id" element={<Sessions />} />
-          <Route path="/files" element={<Files />} />
-          <Route path="/terminal" element={<TerminalPage />} />
-          <Route path="/tools" element={<Tools />} />
-          <Route path="/skills" element={<Skills />} />
-          <Route path="/skills-hub" element={<SkillsHub />} />
-          <Route path="/cron" element={<CronJobs />} />
-          <Route path="/memory" element={<MemorySoul />} />
-          <Route path="/models" element={<Models />} />
-          <Route path="/platforms" element={<Platforms />} />
-          <Route path="/api-keys" element={<ApiKeys />} />
-          <Route path="/fine-tune" element={<FineTune />} />
-          <Route path="/insights" element={<Insights />} />
-          <Route path="/diagnostics" element={<Diagnostics />} />
-          <Route path="/webhooks" element={<WebhooksPage />} />
-          <Route path="/env-vars" element={<EnvVarsPage />} />
-          <Route path="/plugins" element={<PluginsPage />} />
-          <Route path="/mcp" element={<McpServersPage />} />
-          <Route path="/auth-pairing" element={<AuthPairingPage />} />
-          <Route path="/profiles" element={<ProfilesPage />} />
-          <Route path="/backup" element={<BackupRestorePage />} />
-          <Route path="/claude-code" element={<ClaudeCodePage />} />
-          <Route path="/moa" element={<MoaConfig />} />
-        </Routes>
+        <Suspense fallback={<Spinner />}>
+          <Routes>
+            <Route path="/" element={<Overview />} />
+            <Route path="/gateway" element={<GatewayControl />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/:id" element={<Chat />} />
+            <Route path="/config" element={<Config />} />
+            <Route path="/sessions" element={<Sessions />} />
+            <Route path="/sessions/:id" element={<Sessions />} />
+            <Route path="/files" element={<Files />} />
+            <Route path="/terminal" element={<TerminalPage />} />
+            <Route path="/tools" element={<Tools />} />
+            <Route path="/skills" element={<Skills />} />
+            <Route path="/skills-hub" element={<SkillsHub />} />
+            <Route path="/cron" element={<CronJobs />} />
+            <Route path="/memory" element={<MemorySoul />} />
+            <Route path="/models" element={<Models />} />
+            <Route path="/platforms" element={<Platforms />} />
+            <Route path="/api-keys" element={<ApiKeys />} />
+            <Route path="/fine-tune" element={<FineTune />} />
+            <Route path="/insights" element={<Insights />} />
+            <Route path="/diagnostics" element={<Diagnostics />} />
+            <Route path="/webhooks" element={<WebhooksPage />} />
+            <Route path="/env-vars" element={<EnvVarsPage />} />
+            <Route path="/plugins" element={<PluginsPage />} />
+            <Route path="/mcp" element={<McpServersPage />} />
+            <Route path="/auth-pairing" element={<AuthPairingPage />} />
+            <Route path="/profiles" element={<ProfilesPage />} />
+            <Route path="/backup" element={<BackupRestorePage />} />
+            <Route path="/claude-code" element={<ClaudeCodePage />} />
+            <Route path="/moa" element={<MoaConfig />} />
+          </Routes>
+        </Suspense>
       </main>
     </div>
   )

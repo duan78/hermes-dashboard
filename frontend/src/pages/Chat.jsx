@@ -4,10 +4,26 @@ import {
   MessageCircle, Plus, Send, Loader2, Wrench, ChevronDown, ChevronRight,
   Bot, User, Trash2, PanelLeftClose, PanelLeft, Square
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { api } from '../api'
 import './chat.css'
+
+// Lazy-loaded heavy markdown dependencies
+let ReactMarkdown = null
+let remarkGfm = null
+
+async function _loadMarkdown() {
+  if (!ReactMarkdown) {
+    const [md, gfm] = await Promise.all([
+      import('react-markdown'),
+      import('remark-gfm'),
+    ])
+    ReactMarkdown = md.default
+    remarkGfm = gfm.default
+  }
+}
+
+// Preload markdown deps on first interaction
+_loadMarkdown()
 
 // ── Helpers ──
 
@@ -31,6 +47,17 @@ function getSessionPreview(session) {
 // ── Markdown Component ──
 
 function ChatMarkdown({ children }) {
+  const [ready, setReady] = useState(!!ReactMarkdown)
+
+  useEffect(() => {
+    if (ReactMarkdown) return
+    _loadMarkdown().then(() => setReady(true))
+  }, [])
+
+  if (!ready) {
+    return <div className="chat-md">{children}</div>
+  }
+
   return (
     <div className="chat-md">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>
