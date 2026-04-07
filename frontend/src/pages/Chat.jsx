@@ -4,10 +4,24 @@ import {
   MessageCircle, Plus, Send, Loader2, Wrench, ChevronDown, ChevronRight,
   Bot, User, Trash2, PanelLeftClose, PanelLeft, Square
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { api } from '../api'
 import './chat.css'
+
+// ── Lazy-loaded markdown renderer ──
+let _ReactMarkdown = null
+let _remarkGfm = null
+let _mdLoadPromise = null
+
+async function loadMarkdownDeps() {
+  if (_ReactMarkdown) return
+  if (!_mdLoadPromise) {
+    _mdLoadPromise = Promise.all([
+      import('react-markdown').then(m => { _ReactMarkdown = m.default }),
+      import('remark-gfm').then(m => { _remarkGfm = m.default }),
+    ])
+  }
+  return _mdLoadPromise
+}
 
 // ── Helpers ──
 
@@ -28,14 +42,29 @@ function getSessionPreview(session) {
   return `Session ${session.id?.slice(0, 8) || 'unknown'}`
 }
 
-// ── Markdown Component ──
+// ── Markdown Component (lazy-loaded) ──
 
 function ChatMarkdown({ children }) {
+  const [MdComponent, setMdComponent] = useState(null)
+
+  useEffect(() => {
+    loadMarkdownDeps().then(() => {
+      setMdComponent(() => {
+        // Return a function component that uses the cached modules
+        return function LazyMd({ content }) {
+          return _ReactMarkdown ? (
+            <_ReactMarkdown remarkPlugins={[_remarkGfm].filter(Boolean)}>
+              {content}
+            </_ReactMarkdown>
+          ) : null
+        }
+      })
+    })
+  }, [])
+
   return (
     <div className="chat-md">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-        {children}
-      </ReactMarkdown>
+      {MdComponent ? <MdComponent content={children} /> : <span>{children}</span>}
     </div>
   )
 }
