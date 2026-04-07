@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Body
 from ..utils import run_hermes, hermes_path
+from ..schemas import CronCreateRequest
 
 logger = logging.getLogger(__name__)
 
@@ -112,18 +113,13 @@ async def list_cron_jobs():
 
 
 @router.post("")
-async def create_cron_job(body: dict = Body(...)):
+async def create_cron_job(body: CronCreateRequest):
     """Create a cron job."""
-    schedule = body.get("schedule")
-    prompt = body.get("prompt")
-    name = body.get("name", "")
-    if not schedule or not prompt:
-        raise HTTPException(400, "Missing 'schedule' or 'prompt'")
-    logger.info("Creating cron job: name=%s schedule=%s", name, schedule)
+    logger.info("Creating cron job: name=%s schedule=%s", body.name, body.schedule)
     try:
-        args = ["cron", "create", "--schedule", schedule, "--prompt", prompt]
-        if name:
-            args += ["--name", name]
+        args = ["cron", "create", "--schedule", body.schedule, "--prompt", body.prompt]
+        if body.name:
+            args += ["--name", body.name]
         output = await run_hermes(*args, timeout=30)
         return {"status": "created", "output": output}
     except RuntimeError as e:

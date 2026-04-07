@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Body
 from pathlib import Path
 from ..utils import hermes_path, mask_secrets, run_hermes
 from ..config import HERMES_HOME
+from ..schemas import ConfigSetRequest
 
 logger = logging.getLogger(__name__)
 
@@ -59,14 +60,10 @@ async def get_config_sections():
 
 
 @router.post("/set")
-async def set_config_value(body: dict = Body(...)):
+async def set_config_value(body: ConfigSetRequest):
     """Set a single config value using hermes config set."""
-    key = body.get("key")
-    value = body.get("value")
-    if not key:
-        raise HTTPException(400, "Missing 'key'")
     try:
-        output = await run_hermes("config", "set", key, str(value))
+        output = await run_hermes("config", "set", body.key, str(body.value))
         return {"status": "ok", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))

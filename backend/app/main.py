@@ -1,9 +1,12 @@
 import asyncio
 import collections
+import datetime
+import json
 import logging
 import os
 import struct
 import time
+import uuid
 import fcntl
 import termios
 from pathlib import Path
@@ -44,7 +47,39 @@ from .routers import (
     wiki,
 )
 
+# ── Structured logging setup ──
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 logger = logging.getLogger(__name__)
+
+# ── Audit trail setup ──
+AUDIT_LOG_PATH = Path("/tmp/dashboard-audit.log")
+AUDIT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def _rotate_audit_log():
+    """Rotate audit log if it exceeds max size."""
+    try:
+        if AUDIT_LOG_PATH.exists() and AUDIT_LOG_PATH.stat().st_size > AUDIT_MAX_BYTES:
+            backup = AUDIT_LOG_PATH.with_suffix(".log.1")
+            if backup.exists():
+                backup.unlink()
+            AUDIT_LOG_PATH.rename(backup)
+    except OSError:
+        pass
+
+
+def _write_audit(entry: dict):
+    """Append a JSON-line entry to the audit log."""
+    _rotate_audit_log()
+    try:
+        with open(AUDIT_LOG_PATH, "a") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except OSError:
+        pass
 
 app = FastAPI(
     title="Hermes Dashboard",
@@ -73,6 +108,8 @@ SENSITIVE_LIMITS = {
     "/api/chat": 20,
     "/api/auth": 10,
     "/api/files/write": 15,
+    "/api/diagnostics": 10,
+    "/api/overview/update": 5,
 }
 
 MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -104,15 +141,18 @@ def _check_rate_limit(ip: str, path: str) -> tuple[bool, int, int]:
     return True, limit - len(bucket), 0
 
 
-# ── Body size + rate limiting + security headers middleware ──
+# ── Body size + rate limiting + security headers + structured logging + audit middleware ──
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    # Skip WebSocket and static file requests for body size check
+    # Skip WebSocket
     if request.scope.get("type") == "websocket":
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         return response
+
+    # Generate request_id for correlation
+    request_id = str(uuid.uuid4())[:8]
 
     # Body size limit (skip GET/HEAD/DELETE/OPTIONS)
     if request.method in ("POST", "PUT", "PATCH"):
@@ -135,20 +175,45 @@ async def security_middleware(request: Request, call_next):
     if path not in ("/api/health", "/favicon.ico") and not path.startswith("/assets"):
         allowed, remaining, retry_after = _check_rate_limit(client_ip, path)
         if not allowed:
+            logger.warning("[%s] %s %s 429 rate_limited ip=%s", request_id, request.method, path, client_ip)
             response = JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded"},
             )
             response.headers["Retry-After"] = str(retry_after)
             response.headers["X-RateLimit-Remaining"] = "0"
+            response.headers["X-Request-ID"] = request_id
             return response
 
+    start_time = time.monotonic()
     response = await call_next(request)
+    elapsed_ms = int((time.monotonic() - start_time) * 1000)
+
+    # Structured logging
+    logger.info(
+        "[%s] %s %s %s %dms ip=%s",
+        request_id, request.method, path, response.status_code, elapsed_ms, client_ip,
+    )
+
+    # Audit trail for mutations
+    if request.method in ("POST", "PUT", "DELETE", "PATCH") and path.startswith("/api/"):
+        user_agent = request.headers.get("user-agent", "")
+        _write_audit({
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "request_id": request_id,
+            "method": request.method,
+            "path": path,
+            "status_code": response.status_code,
+            "ip": client_ip,
+            "user_agent": user_agent,
+            "elapsed_ms": elapsed_ms,
+        })
 
     # Security headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["X-Request-ID"] = request_id
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline'; "

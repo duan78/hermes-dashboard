@@ -6,6 +6,7 @@ import {
   Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
 } from 'lucide-react'
 import { api } from '../api'
+import { useToast } from '../contexts/ToastContext'
 import Tooltip from '../components/Tooltip'
 import './config.css'
 
@@ -329,13 +330,8 @@ export default function Config() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [openSections, setOpenSections] = useState(() => new Set(['model']))
-  const [toast, setToast] = useState(null)
   const [saving, setSaving] = useState(false)
-
-  const showToast = useCallback((msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
-  }, [])
+  const { toast } = useToast()
 
   const load = useCallback(async () => {
     try {
@@ -367,9 +363,9 @@ export default function Config() {
       setSaving(true)
       await api.saveStructuredConfig(workingConfig)
       await load()
-      showToast('Configuration saved successfully')
+      toast.success('Configuration saved successfully')
     } catch (e) {
-      showToast(e.message, 'error')
+      toast.error(e.message)
     } finally {
       setSaving(false)
     }
@@ -377,7 +373,7 @@ export default function Config() {
 
   const handleReset = () => {
     setWorkingConfig(JSON.parse(JSON.stringify(originalConfig)))
-    showToast('Changes discarded', 'info')
+    toast.info('Changes discarded')
   }
 
   const toggleSection = (id) => {
@@ -474,13 +470,6 @@ export default function Config() {
         )
       })}
 
-      {toast && (
-        <div className={`toast toast-${toast.type}`}>
-          {toast.type === 'success' && <Check size={16} />}
-          {toast.type === 'error' && <X size={16} />}
-          {toast.msg}
-        </div>
-      )}
     </div>
   )
 }

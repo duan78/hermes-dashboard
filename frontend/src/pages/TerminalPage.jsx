@@ -1,27 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import './terminal.css'
 
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+const RECONNECT_BASE_DELAY = 1000
+const RECONNECT_MAX_DELAY = 30000
 
 /**
  * Build the WebSocket URL. Works both in direct dev mode and
  * behind a reverse-proxy path prefix like /dashboard/.
- *
- *  - Direct  (http://host:3100)  → ws://host:3100/ws/terminal
- *  - Proxied (http://host/dashboard/) → ws://host/dashboard/ws/terminal
  */
 function buildWsUrl() {
   const proto = WS_PROTOCOL
   const host = window.location.host
 
-  // Determine the base path from <base href> or the current pathname
   let base = ''
   const baseEl = document.querySelector('base')
   if (baseEl && baseEl.getAttribute('href')) {
     base = baseEl.getAttribute('href').replace(/\/$/, '')
   } else {
-    // If the pathname starts with something other than / and contains
-    // at least two segments (e.g. /dashboard/), treat the first as base
     const m = window.location.pathname.match(/^(\/[^/]+)\//)
     if (m) base = m[1]
   }
@@ -35,22 +31,91 @@ export default function TerminalPage() {
   const wsRef = useRef(null)
   const fitAddonRef = useRef(null)
   const [connected, setConnected] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const reconnectAttemptRef = useRef(0)
+  const reconnectTimerRef = useRef(null)
+  const disposedRef = useRef(false)
+
+  const connectWs = useCallback((term, fitAddon) => {
+    if (disposedRef.current) return
+
+    const wsUrl = buildWsUrl()
+    const ws = new WebSocket(wsUrl)
+    ws.binaryType = 'arraybuffer'
+    wsRef.current = ws
+
+    ws.onopen = () => {
+      setConnected(true)
+      setReconnecting(false)
+      setError(null)
+      reconnectAttemptRef.current = 0
+      setTimeout(() => fitAddon.fit(), 100)
+    }
+
+    ws.onmessage = (event) => {
+      const text = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data)
+      term.write(text)
+    }
+
+    ws.onerror = () => {
+      setError('WebSocket error')
+    }
+
+    ws.onclose = () => {
+      setConnected(false)
+      if (!disposedRef.current) {
+        term.write('\r\n\x1b[31m--- Disconnected ---\x1b[0m\r\n')
+        // Auto-reconnect with exponential backoff
+        const attempt = reconnectAttemptRef.current
+        const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, attempt), RECONNECT_MAX_DELAY)
+        reconnectAttemptRef.current = attempt + 1
+        setReconnecting(true)
+        term.write(`\r\n\x1b[33mReconnecting in ${delay / 1000}s (attempt ${attempt + 1})...\x1b[0m\r\n`)
+        reconnectTimerRef.current = setTimeout(() => {
+          if (!disposedRef.current) {
+            connectWs(term, fitAddon)
+          }
+        }, delay)
+      }
+    }
+
+    // Send terminal input
+    const disposable = term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'input', data }))
+      }
+    })
+
+    // Handle resize
+    const resizeObserver = new ResizeObserver(() => {
+      fitAddon.fit()
+      if (ws.readyState === WebSocket.OPEN && term.cols && term.rows) {
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
+      }
+    })
+    resizeObserver.observe(containerRef.current)
+
+    // Store cleanup for this connection
+    ws._cleanup = () => {
+      resizeObserver.disconnect()
+      disposable.dispose()
+    }
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current) return
 
-    let disposed = false
     let term, fitAddon, TerminalCls, FitAddonCls
+    disposedRef.current = false
 
-    // Dynamically import xterm.js
     Promise.all([
       import('@xterm/xterm').then(m => { TerminalCls = m.Terminal }),
       import('@xterm/addon-fit').then(m => { FitAddonCls = m.FitAddon }),
       import('@xterm/xterm/css/xterm.css'),
     ]).then(() => {
-      if (disposed || !containerRef.current) return
+      if (disposedRef.current || !containerRef.current) return
 
       term = new TerminalCls({
         cursorBlink: true,
@@ -89,86 +154,55 @@ export default function TerminalPage() {
       term.open(containerRef.current)
       setLoading(false)
 
-      // Connect WebSocket — build URL dynamically to handle path prefixes
-      const wsUrl = buildWsUrl()
-      const ws = new WebSocket(wsUrl)
-
-      ws.binaryType = 'arraybuffer'
-
-      ws.onopen = () => {
-        setConnected(true)
-        setError(null)
-        // Initial fit
-        setTimeout(() => fitAddon.fit(), 100)
-      }
-
-      ws.onmessage = (event) => {
-        const text = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data)
-        term.write(text)
-      }
-
-      ws.onerror = () => {
-        setError('WebSocket error')
-      }
-
-      ws.onclose = () => {
-        setConnected(false)
-        term.write('\r\n\x1b[31m--- Disconnected ---\x1b[0m\r\n')
-      }
-
-      wsRef.current = ws
-
-      // Send terminal input to WebSocket
-      const disposable = term.onData((data) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'input', data }))
-        }
-      })
-
-      // Handle resize
-      const resizeObserver = new ResizeObserver(() => {
-        fitAddon.fit()
-        if (ws.readyState === WebSocket.OPEN && term.cols && term.rows) {
-          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
-        }
-      })
-
-      resizeObserver.observe(containerRef.current)
-
-      return () => {
-        resizeObserver.disconnect()
-        disposable.dispose()
-      }
-    }).catch((err) => {
-      if (!disposed) {
+      connectWs(term, fitAddon)
+    }).catch(() => {
+      if (!disposedRef.current) {
         setError('Failed to load terminal')
         setLoading(false)
       }
     })
 
     return () => {
-      disposed = true
+      disposedRef.current = true
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
+      if (wsRef.current?._cleanup) {
+        wsRef.current._cleanup()
+      }
+      if (wsRef.current) {
+        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+          wsRef.current.close()
+        }
+        wsRef.current = null
+      }
       if (termRef.current) {
         termRef.current.dispose()
         termRef.current = null
       }
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.close()
-      }
     }
-  }, [])
+  }, [connectWs])
 
   const reconnect = () => {
+    // Reset backoff and reconnect immediately
+    reconnectAttemptRef.current = 0
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    if (wsRef.current?._cleanup) {
+      wsRef.current._cleanup()
+    }
     if (wsRef.current) {
       wsRef.current.close()
+      wsRef.current = null
     }
-    // Force remount by toggling connected
-    setConnected(false)
+    setReconnecting(false)
     setError(null)
-    // The useEffect cleanup + re-run will handle reconnection
-    // We need to force a remount
-    if (containerRef.current) {
-      containerRef.current.innerHTML = ''
+    // Reconnect immediately
+    if (termRef.current && fitAddonRef.current) {
+      connectWs(termRef.current, fitAddonRef.current)
     }
   }
 
@@ -181,9 +215,9 @@ export default function TerminalPage() {
         </svg>
         Terminal
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className={`badge ${connected ? 'badge-success' : 'badge-error'}`}>
+          <span className={`badge ${connected ? 'badge-success' : reconnecting ? 'badge-warning' : 'badge-error'}`}>
             <span className="badge-dot" />
-            {connected ? 'Connected' : 'Disconnected'}
+            {connected ? 'Connected' : reconnecting ? 'Reconnecting...' : 'Disconnected'}
           </span>
           <button className="btn btn-sm" onClick={reconnect}>
             Reconnect

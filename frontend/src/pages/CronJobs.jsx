@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Clock, Plus, Pause, Play, Trash2, PlayCircle, RefreshCw, Server, Activity, Terminal } from 'lucide-react'
 import { api } from '../api'
+import { useToast } from '../contexts/ToastContext'
 import Tooltip from '../components/Tooltip'
 
 async function fetchSystemCrons() {
@@ -164,6 +165,7 @@ export default function CronJobs() {
   const [error, setError] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
   const [newJob, setNewJob] = useState({ schedule: '', prompt: '', name: '' })
+  const { toast } = useToast()
 
   // System automation state
   const [systemData, setSystemData] = useState(null)
@@ -201,8 +203,10 @@ export default function CronJobs() {
       await api.createCronJob(newJob.schedule, newJob.prompt, newJob.name)
       setShowCreate(false)
       setNewJob({ schedule: '', prompt: '', name: '' })
+      toast.success('Cron job created')
       load()
     } catch (e) {
+      toast.error(e.message)
       setError(e.message)
     }
   }
@@ -211,20 +215,34 @@ export default function CronJobs() {
     try {
       if (job.enabled) await api.pauseCronJob(job.id)
       else await api.resumeCronJob(job.id)
+      toast.success(job.enabled ? 'Job paused' : 'Job resumed')
       load()
     } catch (e) {
+      toast.error(e.message)
       setError(e.message)
     }
   }
 
   const runNow = async (id) => {
-    try { await api.runCronJob(id) } catch (e) { setError(e.message) }
+    try {
+      await api.runCronJob(id)
+      toast.success('Job triggered')
+    } catch (e) {
+      toast.error(e.message)
+      setError(e.message)
+    }
   }
 
   const remove = async (id) => {
     if (!confirm('Delete this cron job?')) return
-    try { await api.deleteCronJob(id); load() }
-    catch (e) { setError(e.message) }
+    try {
+      await api.deleteCronJob(id)
+      toast.success('Job deleted')
+      load()
+    } catch (e) {
+      toast.error(e.message)
+      setError(e.message)
+    }
   }
 
   return (

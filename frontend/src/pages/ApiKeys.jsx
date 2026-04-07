@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Key, Eye, EyeOff, Trash2, Edit3, Save, Search, ExternalLink, RefreshCw, Shield, Cpu, Radio, CheckCircle, XCircle, Zap } from 'lucide-react'
 import { api } from '../api'
+import { useToast } from '../contexts/ToastContext'
 import Tooltip from '../components/Tooltip'
 
 const CATEGORY_META = {
@@ -28,7 +29,7 @@ export default function ApiKeys() {
   const [saving, setSaving] = useState({})
   const [deleting, setDeleting] = useState({})
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [toast, setToast] = useState(null)
+  const { toast } = useToast()
   const [testing, setTesting] = useState({})
   const [testResults, setTestResults] = useState({})
 
@@ -55,22 +56,17 @@ export default function ApiKeys() {
     }
   }
 
-  const showToast = useCallback((message, type = 'success') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
-  }, [])
-
   const fetchKeys = useCallback(async () => {
     try {
       setLoading(true)
       const result = await api.getApiKeys()
       setData(result)
     } catch (e) {
-      showToast(e.message, 'error')
+      toast.error(e.message)
     } finally {
       setLoading(false)
     }
-  }, [showToast])
+  }, [toast])
 
   useEffect(() => { fetchKeys() }, [fetchKeys])
 
@@ -78,12 +74,12 @@ export default function ApiKeys() {
     setSaving(prev => ({ ...prev, [key]: true }))
     try {
       await api.setApiKey(key, value)
-      showToast(`${key} saved`)
+      toast.success(`${key} saved`)
       setEditing(prev => { const n = { ...prev }; delete n[key]; return n })
       setNewValues(prev => { const n = { ...prev }; delete n[key]; return n })
       await fetchKeys()
     } catch (e) {
-      showToast(e.message, 'error')
+      toast.error(e.message)
     } finally {
       setSaving(prev => ({ ...prev, [key]: false }))
     }
@@ -93,11 +89,11 @@ export default function ApiKeys() {
     setDeleting(prev => ({ ...prev, [key]: true }))
     try {
       await api.deleteApiKey(key)
-      showToast(`${key} deleted`)
+      toast.success(`${key} deleted`)
       setConfirmDelete(null)
       await fetchKeys()
     } catch (e) {
-      showToast(e.message, 'error')
+      toast.error(e.message)
     } finally {
       setDeleting(prev => ({ ...prev, [key]: false }))
     }
@@ -282,28 +278,7 @@ export default function ApiKeys() {
         )
       })}
 
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          padding: '12px 20px',
-          borderRadius: 8,
-          background: toast.type === 'error' ? '#ef4444' : '#10b981',
-          color: '#fff',
-          fontSize: 14,
-          fontWeight: 500,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-          {toast.type === 'error' ? <XCircle size={16} /> : <CheckCircle size={16} />}
-          {toast.message}
-        </div>
-      )}
+      {/* Toast handled by global provider */}
     </div>
   )
 }

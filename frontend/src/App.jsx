@@ -6,6 +6,7 @@ import {
   Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
+import { ToastProvider } from './contexts/ToastContext'
 import { api } from './api'
 
 // Eager imports — most frequently accessed / shell pages
@@ -112,6 +113,7 @@ function App() {
   const visibleNavItems = NAV_ITEMS.filter(item => !item.feature || features[item.feature])
 
   return (
+    <ToastProvider>
     <div className="app-layout">
       <button className="mobile-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
@@ -177,6 +179,7 @@ function App() {
         </Suspense>
       </main>
     </div>
+    </ToastProvider>
   )
 }
 

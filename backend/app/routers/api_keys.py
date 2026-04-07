@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Body
 import httpx
 from ..config import HERMES_HOME
+from ..schemas import ApiKeySetRequest, ApiKeyDeleteRequest, ApiKeyTestRequest
 
 router = APIRouter(prefix="/api/api-keys", tags=["api-keys"])
 
@@ -635,39 +636,32 @@ async def get_api_keys():
 
 
 @router.post("/set")
-async def set_api_key(body: dict = Body(...)):
+async def set_api_key(body: ApiKeySetRequest):
     """Set an API key in ~/.hermes/.env."""
-    key = body.get("key")
-    value = body.get("value", "")
-    if not key:
-        raise HTTPException(400, "Missing 'key'")
     # Validate against known keys or custom key pattern
     known_keys = {d["key"] for d in API_KEY_DEFINITIONS}
     _CUSTOM_KEY_RE = re.compile(r'^[A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_URL|_API)$')
-    if key not in known_keys and not _CUSTOM_KEY_RE.match(key):
-        raise HTTPException(400, f"Unknown key: {key}")
+    if body.key not in known_keys and not _CUSTOM_KEY_RE.match(body.key):
+        raise HTTPException(400, f"Unknown key: {body.key}")
     try:
-        _save_env_value(key, value)
+        _save_env_value(body.key, body.value)
     except Exception as e:
         raise HTTPException(500, f"Failed to save: {e}")
-    return {"status": "ok", "key": key}
+    return {"status": "ok", "key": body.key}
 
 
 @router.post("/delete")
-async def delete_api_key(body: dict = Body(...)):
+async def delete_api_key(body: ApiKeyDeleteRequest):
     """Remove an API key from ~/.hermes/.env."""
-    key = body.get("key")
-    if not key:
-        raise HTTPException(400, "Missing 'key'")
     known_keys = {d["key"] for d in API_KEY_DEFINITIONS}
     _CUSTOM_KEY_RE = re.compile(r'^[A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_URL|_API)$')
-    if key not in known_keys and not _CUSTOM_KEY_RE.match(key):
-        raise HTTPException(400, f"Unknown key: {key}")
+    if body.key not in known_keys and not _CUSTOM_KEY_RE.match(body.key):
+        raise HTTPException(400, f"Unknown key: {body.key}")
     try:
-        _delete_env_value(key)
+        _delete_env_value(body.key)
     except Exception as e:
         raise HTTPException(500, f"Failed to delete: {e}")
-    return {"status": "ok", "key": key}
+    return {"status": "ok", "key": body.key}
 
 
 # ── Provider test configuration ──
@@ -756,17 +750,13 @@ PROVIDER_TEST_CONFIG = {
 
 
 @router.post("/test")
-async def test_api_key(body: dict = Body(...)):
+async def test_api_key(body: ApiKeyTestRequest):
     """Test if an API key works by making a minimal API call."""
-    key_name = body.get("key", "")
-    if not key_name:
-        raise HTTPException(400, "Missing 'key'")
-
-    api_key = _get_env_value(key_name)
+    api_key = _get_env_value(body.key)
     if not api_key:
-        return {"status": "error", "error": f"Key {key_name} is not set"}
+        return {"status": "error", "error": f"Key {body.key} is not set"}
 
-    config = PROVIDER_TEST_CONFIG.get(key_name)
+    config = PROVIDER_TEST_CONFIG.get(body.key)
 
     # For unknown keys, try a generic OpenAI-compatible approach
     if not config:
