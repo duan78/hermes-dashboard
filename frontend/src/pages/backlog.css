@@ -201,6 +201,35 @@
   color: #ef4444;
 }
 
+.backlog-btn-launch {
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.backlog-btn-launch:hover {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: #22c55e;
+}
+
+.backlog-btn-launch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.backlog-btn-launching {
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.backlog-btn-launching .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ── Modal ── */
 
 .backlog-modal-overlay {
@@ -301,3 +330,5 @@
   margin: 0;
   font-size: 15px;
 }
+
+/* ── End ── */

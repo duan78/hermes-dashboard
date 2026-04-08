@@ -1,6 +1,8 @@
 import json
 import re
 import fcntl
+import subprocess
+import time
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -210,3 +212,77 @@ async def patch_backlog_status(item_id: str, body: StatusPatch):
             return items[i]
 
     raise HTTPException(404, "Backlog item not found")
+
+
+@router.post("/{item_id}/run")
+async def run_backlog_item(item_id: str):
+    """Launch a Claude Code session to execute this backlog item."""
+    data = _read_backlog()
+    items = data.get("items", [])
+
+    target_item = None
+    target_index = -1
+    for i, item in enumerate(items):
+        if item.get("id") == item_id:
+            target_item = item
+            target_index = i
+            break
+
+    if target_item is None:
+        raise HTTPException(404, "Backlog item not found")
+
+    if target_item.get("status") == "done":
+        raise HTTPException(400, "Task already done")
+
+    # Build task prompt
+    title = target_item.get("title", "")
+    description = target_item.get("description", "")
+    if description:
+        task_prompt = "Task from Hermes Backlog:\n\n## " + title + "\n\n" + description + "\n\n## Instructions\nExecute this task autonomously. When done, report the results."
+    else:
+        task_prompt = "Task from Hermes Backlog:\n\n## " + title + "\n\n## Instructions\nExecute this task autonomously. When done, report the results."
+
+    session_name = "task-" + item_id
+
+    # Check if tmux session already exists
+    result = subprocess.run(
+        ["tmux", "has-session", "-t", session_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    if result.returncode == 0:
+        # Session already exists
+        return {"ok": True, "session": session_name, "status": "in-progress", "prompt": task_prompt, "existing": True}
+
+    # Create new tmux session
+    subprocess.run(["tmux", "new-session", "-d", "-s", session_name])
+
+    # Send Claude Code launch command
+    subprocess.run(["tmux", "send-keys", "-t", session_name, "/root/.local/bin/claude", "Enter"])
+
+    # Wait for Claude Code to start
+    time.sleep(3)
+
+    # Send the task prompt
+    subprocess.run(["tmux", "send-keys", "-t", session_name, task_prompt, "Enter"])
+
+    # Update item status to in-progress
+    items[target_index]["status"] = "in-progress"
+    data["items"] = items
+    _write_backlog(data)
+    logger.info("Launched Claude Code session %s for backlog item %s", session_name, item_id)
+
+    return {"ok": True, "session": session_name, "status": "in-progress", "prompt": task_prompt}
+
+
+@router.get("/{item_id}/session")
+async def get_session_status(item_id: str):
+    """Check if a Claude Code session is running for this backlog item."""
+    session_name = "task-" + item_id
+    result = subprocess.run(
+        ["tmux", "has-session", "-t", session_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    running = result.returncode == 0
+    return {"session": session_name, "running": running}

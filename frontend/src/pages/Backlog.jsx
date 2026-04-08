@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw } from 'lucide-react'
+import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2 } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -88,7 +88,56 @@ export default function Backlog() {
   var saving = _useState11[0]
   var setSaving = _useState11[1]
 
+  var _useState12 = useState(null)
+  var runningSessions = _useState12[0]
+  var setRunningSessions = _useState12[1]
+
+  var _useState13 = useState({})
+  var launching = _useState13[0]
+  var setLaunching = _useState13[1]
+
   var toast = useToast().toast
+
+  function handleLaunch(item) {
+    setLaunching(function (prev) { var next = {}; next[item.id] = true; return Object.assign({}, prev, next) })
+    api.runBacklogItem(item.id)
+      .then(function (data) {
+        toast('Claude Code lancé pour : ' + item.title, 'success')
+        setRunningSessions(function (prev) {
+          var next = prev || {}
+          next[item.id] = data.session
+          return next
+        })
+        fetchItems()
+        fetchStats()
+      })
+      .catch(function (err) {
+        toast('Erreur au lancement : ' + (err.message || 'inconnu'), 'error')
+      })
+      .finally(function () {
+        setLaunching(function (prev) { var next = {}; next[item.id] = false; return Object.assign({}, prev, next) })
+      })
+  }
+
+  function checkSessions() {
+    items.forEach(function (item) {
+      if (item.status === 'in-progress' || runningSessions && runningSessions[item.id]) {
+        api.getBacklogSession(item.id)
+          .then(function (data) {
+            setRunningSessions(function (prev) {
+              var next = prev || {}
+              if (data.running) {
+                next[item.id] = data.session
+              } else {
+                delete next[item.id]
+              }
+              return Object.assign({}, next)
+            })
+          })
+          .catch(function () {})
+      }
+    })
+  }
 
   var fetchItems = useCallback(function () {
     setLoading(true)
@@ -375,8 +424,19 @@ export default function Backlog() {
                     {item.done_date && <span> &middot; Done {formatDate(item.done_date)}</span>}
                   </span>
                   <div className="backlog-item-actions">
+                    {item.status !== 'done' && item.status !== 'waiting-human' && (
+                      <Tooltip text={"Lancer Claude Code pour exécuter cette tâche automatiquement"}>
+                        <button
+                          className={"backlog-btn backlog-btn-launch" + (runningSessions && runningSessions[item.id] ? ' backlog-btn-launching' : '')}
+                          disabled={launching && launching[item.id]}
+                          onClick={function () { handleLaunch(item) }}
+                        >
+                          {launching && launching[item.id] ? <Loader2 size={14} /> : (runningSessions && runningSessions[item.id] ? <Loader2 size={14} className="spin" /> : <Play size={14} />)}
+                        </button>
+                      </Tooltip>
+                    )}
                     {!isDone && (
-                      <Tooltip text="Mark as done">
+                      <Tooltip text={"Marquer cette tâche comme terminée"}>
                         <button className="backlog-btn backlog-btn-done" onClick={function () { handleMarkDone(item) }}>
                           <Check size={14} />
                         </button>
