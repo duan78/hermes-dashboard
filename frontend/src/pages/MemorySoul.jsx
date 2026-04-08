@@ -4,20 +4,10 @@ import {
   Search, Database, Plus, Zap, BarChart3, Calendar, Hash, User, Cpu
 } from 'lucide-react'
 import { api } from '../api'
+import { formatSize, formatDate } from '../utils/format'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 import './memory.css'
-
-function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  return `${(bytes / 1024).toFixed(1)} KB`
-}
-
-function formatDate(ts) {
-  if (!ts) return '—'
-  const d = ts > 1e12 ? new Date(ts) : new Date(ts * 1000)
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-}
 
 function sourceClass(source) {
   if (!source) return 'source-unknown'
@@ -28,21 +18,6 @@ function sourceClass(source) {
   if (s.includes('auto_capture')) return 'source-auto_capture'
   if (s.includes('test')) return 'source-test'
   return 'source-unknown'
-}
-
-function ConfirmDialog({ message, onConfirm, onCancel }) {
-  return (
-    <div className="confirm-overlay" onClick={onCancel}>
-      <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
-        <div className="confirm-icon"><AlertTriangle size={24} /></div>
-        <p className="confirm-msg">{message}</p>
-        <div className="confirm-actions">
-          <button className="btn" onClick={onCancel}><X size={14} /> Cancel</button>
-          <button className="btn btn-danger" onClick={onConfirm}><Trash2 size={14} /> Delete</button>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 // ── Vector Memory Tab ──
@@ -198,6 +173,7 @@ function VectorMemoryTab({ showToast }) {
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
+          aria-label="Search vector memory"
         />
         <button className="btn btn-primary" onClick={handleSearch} disabled={searching}>
           <Search size={14} /> {searching ? 'Searching...' : 'Search'}
@@ -308,10 +284,12 @@ function VectorMemoryTab({ showToast }) {
 
       {/* Delete confirmation */}
       {deleting && (
-        <ConfirmDialog
+        <ConfirmModal
+          title="Confirm"
           message="Are you sure you want to delete this vector memory? This cannot be undone."
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}
+          confirmLabel="Delete"
         />
       )}
     </div>
@@ -595,6 +573,7 @@ function HonchoTab({ showToast }) {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              aria-label="Search Honcho memory"
             />
             <button className="btn btn-primary" onClick={handleSearch} disabled={searching}>
               <Search size={14} /> {searching ? 'Searching...' : 'Search'}
@@ -856,6 +835,7 @@ export default function MemorySoul() {
                   value={newFileName}
                   onChange={e => setNewFileName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                  aria-label="New file name"
                   autoFocus
                 />
                 <button className="btn btn-sm btn-primary" onClick={handleCreate}>
@@ -977,10 +957,12 @@ export default function MemorySoul() {
 
       {/* Delete confirmation dialog */}
       {deleteTarget && (
-        <ConfirmDialog
+        <ConfirmModal
+          title="Confirm"
           message={`Are you sure you want to delete "${deleteTarget.name}"? This cannot be undone.`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+          confirmLabel="Delete"
         />
       )}
 

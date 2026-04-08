@@ -2,27 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Shield, RefreshCw, Eye, EyeOff, Plus, Trash2, Search, Loader2, CheckCircle, XCircle, X } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 import './env-vars.css'
-
-function ConfirmModal({ title, message, onConfirm, onCancel, loading }) {
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="btn btn-sm" onClick={onCancel} style={{ padding: '2px 8px' }}><X size={16} /></button>
-        </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 }}>{message}</p>
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={loading}>Cancel</button>
-          <button className="btn btn-danger" onClick={onConfirm} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function EnvVars() {
   const [vars, setVars] = useState([])
@@ -175,6 +156,7 @@ export default function EnvVars() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, fontSize: 13 }}
+            aria-label="Filter variables"
           />
         </div>
         <div className="env-vars-list">
@@ -242,6 +224,7 @@ export default function EnvVars() {
             onChange={e => setFormKey(e.target.value)}
             disabled={!!formKey && formKey !== formKey}
             style={{ fontFamily: 'var(--font-mono)', maxWidth: 300 }}
+            aria-label="Variable key"
           />
           <input
             type="text"
@@ -250,6 +233,7 @@ export default function EnvVars() {
             value={formValue}
             onChange={e => setFormValue(e.target.value)}
             style={{ flex: 1 }}
+            aria-label="Variable value"
           />
           <button className="btn btn-primary" type="submit" disabled={formLoading || !formKey.trim()}>
             {formLoading ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
@@ -265,6 +249,7 @@ export default function EnvVars() {
           onConfirm={handleDelete}
           onCancel={() => setDeleteKey(null)}
           loading={deleteLoading}
+          confirmLabel="Delete"
         />
       )}
     </div>

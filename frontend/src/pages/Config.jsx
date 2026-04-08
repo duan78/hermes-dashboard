@@ -300,7 +300,7 @@ function SecretField({ value, onChange }) {
         onChange={e => onChange(e.target.value)}
         placeholder="Leave unchanged to keep current"
       />
-      <button type="button" className="secret-toggle-btn" onClick={() => setVisible(v => !v)}>
+      <button type="button" className="secret-toggle-btn" onClick={() => setVisible(v => !v)} aria-label={visible ? 'Hide secret' : 'Show secret'}>
         {visible ? <EyeOff size={14} /> : <Eye size={14} />}
       </button>
     </div>

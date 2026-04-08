@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Radio, RefreshCw, Wifi, WifiOff, Users, Key, Check, X, Loader2, Settings, Eye, EyeOff, Save, Send, MessageCircle, Smartphone, Shield, Hash, Grid, Home, Mail } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 
 const PLATFORM_INFO = {
   telegram: { desc: "Telegram bot integration. Receives and sends messages through a Telegram bot.", icon: Send },
@@ -70,14 +71,14 @@ function ConfigureModal({ platform, envVars, onClose, onSave }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.key === 'Escape' && onClose()} style={{ maxWidth: 520 }}>
         <div className="modal-header">
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Settings size={18} />
             Configure {platform.charAt(0).toUpperCase() + platform.slice(1).replace('_', ' ')}
           </h3>
-          <button className="btn btn-sm" onClick={onClose} style={{ padding: '2px 8px' }}>
+          <button className="btn btn-sm" onClick={onClose} style={{ padding: '2px 8px' }} aria-label="Close">
             <X size={16} />
           </button>
         </div>
@@ -146,6 +147,7 @@ export default function Platforms() {
   const [pairingOutput, setPairingOutput] = useState('')
   const [pairingLoading, setPairingLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState({})
+  const [confirmModal, setConfirmModal] = useState(null)
 
   // Configuration modal state
   const [envVars, setEnvVars] = useState({})
@@ -190,17 +192,22 @@ export default function Platforms() {
     }
   }
 
-  const revokePairing = async (userId) => {
-    if (!confirm(`Revoke pairing for "${userId}"?`)) return
-    setActionLoading(prev => ({ ...prev, [`revoke:${userId}`]: true }))
-    try {
-      await api.revokePairing(userId)
-      loadPairing()
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setActionLoading(prev => ({ ...prev, [`revoke:${userId}`]: false }))
-    }
+  const revokePairing = (userId) => {
+    setConfirmModal({
+      message: `Revoke pairing for "${userId}"?`,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        setActionLoading(prev => ({ ...prev, [`revoke:${userId}`]: true }))
+        try {
+          await api.revokePairing(userId)
+          loadPairing()
+        } catch (e) {
+          setError(e.message)
+        } finally {
+          setActionLoading(prev => ({ ...prev, [`revoke:${userId}`]: false }))
+        }
+      }
+    })
   }
 
   const openConfigure = async (platformName) => {
@@ -464,6 +471,15 @@ export default function Platforms() {
           <div className="empty-state">No channels configured</div>
         )}
       </div>
+
+      {confirmModal && (
+        <ConfirmModal
+          title="Revoke Pairing"
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   )
 }

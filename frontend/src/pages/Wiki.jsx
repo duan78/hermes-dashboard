@@ -3,6 +3,7 @@ import {
   FileText, Search, X, RefreshCw, BookOpen, Clock, Tag, FolderOpen,
   Database, ChevronDown, ChevronRight, File, Archive
 } from 'lucide-react'
+import { formatSize, formatDate } from '../utils/format'
 
 const TYPE_LABELS = {
   entities: { label: 'Entities', icon: Database, color: '#8b5cf6' },
@@ -15,17 +16,6 @@ const SOURCE_LABELS = {
   articles: { label: 'Articles', icon: FileText, color: '#6366f1' },
   papers: { label: 'Papers', icon: FolderOpen, color: '#ec4899' },
   transcripts: { label: 'Transcripts', icon: File, color: '#14b8a6' },
-}
-
-function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  return `${(bytes / 1024).toFixed(1)} KB`
-}
-
-function formatDate(ts) {
-  if (!ts) return '—'
-  const d = new Date(ts)
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 const TAG_COLORS = [
@@ -59,8 +49,8 @@ function PageModal({ page, onClose }) {
   }, [onClose])
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="wiki-page-modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="wiki-page-modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.key === 'Escape' && onClose()}>
         <div className="wiki-page-modal-header">
           <div>
             <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary, #e2e8f0)' }}>{page.title}</h2>
@@ -80,7 +70,7 @@ function PageModal({ page, onClose }) {
               )}
             </div>
           </div>
-          <button className="btn" onClick={onClose} style={{ padding: '6px 10px' }}>
+          <button className="btn" onClick={onClose} style={{ padding: '6px 10px' }} aria-label="Close">
             <X size={16} />
           </button>
         </div>
@@ -306,6 +296,7 @@ export default function Wiki() {
           placeholder="Search pages by name or tag..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
+          aria-label="Search wiki pages"
         />
         {searchQuery && (
           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #94a3b8)' }}>

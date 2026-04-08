@@ -1,28 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Puzzle, RefreshCw, Plus, Trash2, Power, PowerOff, ArrowUpCircle, Loader2, X } from 'lucide-react'
+import { Puzzle, RefreshCw, Plus, Trash2, Power, PowerOff, ArrowUpCircle, Loader2 } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 import './plugins.css'
-
-function ConfirmModal({ title, message, onConfirm, onCancel, loading }) {
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="btn btn-sm" onClick={onCancel} style={{ padding: '2px 8px' }}><X size={16} /></button>
-        </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 }}>{message}</p>
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={loading}>Cancel</button>
-          <button className="btn btn-danger" onClick={onConfirm} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Remove
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function Plugins() {
   const [plugins, setPlugins] = useState([])
@@ -158,6 +139,7 @@ export default function Plugins() {
             value={installUrl}
             onChange={e => setInstallUrl(e.target.value)}
             style={{ flex: 1 }}
+            aria-label="Plugin URL"
           />
           <button className="btn btn-primary" type="submit" disabled={installLoading || !installUrl.trim()}>
             {installLoading ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
@@ -234,6 +216,7 @@ export default function Plugins() {
           onConfirm={handleRemove}
           onCancel={() => setRemoveTarget(null)}
           loading={removeLoading}
+          confirmLabel="Remove"
         />
       )}
     </div>

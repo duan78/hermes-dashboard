@@ -49,8 +49,8 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
   if (!toolInfo) return null
 
   return (
-    <div className="tool-config-overlay" onClick={onClose}>
-      <div className="tool-config-panel" onClick={e => e.stopPropagation()}>
+    <div className="tool-config-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="tool-config-panel" onClick={e => e.stopPropagation()} onKeyDown={e => e.key === 'Escape' && onClose()}>
         <div className="tool-config-header">
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -59,7 +59,7 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
             </h2>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{toolKey}</span>
           </div>
-          <button className="btn btn-sm" onClick={onClose}><X size={14} /></button>
+          <button className="btn btn-sm" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
 
         <div className="tool-config-body">

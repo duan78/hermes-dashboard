@@ -2,27 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Users, RefreshCw, Plus, Trash2, Edit3, Check, Loader2, X, Star } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 import './profiles.css'
-
-function ConfirmModal({ title, message, onConfirm, onCancel, loading }) {
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="btn btn-sm" onClick={onCancel} style={{ padding: '2px 8px' }}><X size={16} /></button>
-        </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 }}>{message}</p>
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={loading}>Cancel</button>
-          <button className="btn btn-danger" onClick={onConfirm} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function Profiles() {
   const [profiles, setProfiles] = useState([])
@@ -158,6 +139,7 @@ export default function Profiles() {
             value={newName}
             onChange={e => setNewName(e.target.value)}
             style={{ flex: 1 }}
+            aria-label="Profile name"
           />
           <button className="btn btn-primary" type="submit" disabled={createLoading || !newName.trim()}>
             {createLoading ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
@@ -201,6 +183,7 @@ export default function Profiles() {
                       onChange={e => setRenameValue(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleRename()}
                       placeholder="New name"
+                      aria-label="New profile name"
                       autoFocus
                     />
                     <button className="btn btn-sm" onClick={handleRename} disabled={renameLoading}>
@@ -244,6 +227,7 @@ export default function Profiles() {
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={deleteLoading}
+          confirmLabel="Delete"
         />
       )}
     </div>

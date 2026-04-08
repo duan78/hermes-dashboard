@@ -146,7 +146,7 @@ function ChatSidebar({ sessions, activeId, onSelect, onNew, onDelete, collapsed,
   if (collapsed) {
     return (
       <div className="chat-sidebar collapsed">
-        <button className="chat-sidebar-toggle" onClick={onToggle} title="Expand sidebar">
+        <button className="chat-sidebar-toggle" onClick={onToggle} title="Expand sidebar" aria-label="Expand sidebar">
           <PanelLeft size={16} />
         </button>
       </div>
@@ -158,10 +158,10 @@ function ChatSidebar({ sessions, activeId, onSelect, onNew, onDelete, collapsed,
       <div className="chat-sidebar-header">
         <span className="chat-sidebar-title">Sessions</span>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button className="btn btn-sm btn-primary" onClick={onNew} title="New chat">
+          <button className="btn btn-sm btn-primary" onClick={onNew} title="New chat" aria-label="New chat">
             <Plus size={14} />
           </button>
-          <button className="chat-sidebar-toggle" onClick={onToggle} title="Collapse sidebar">
+          <button className="chat-sidebar-toggle" onClick={onToggle} title="Collapse sidebar" aria-label="Collapse sidebar">
             <PanelLeftClose size={16} />
           </button>
         </div>
@@ -186,6 +186,7 @@ function ChatSidebar({ sessions, activeId, onSelect, onNew, onDelete, collapsed,
                 className="chat-sidebar-item-delete"
                 onClick={e => { e.stopPropagation(); onDelete(s.id) }}
                 title="Delete session"
+                aria-label="Delete session"
               >
                 <Trash2 size={12} />
               </button>
@@ -240,12 +241,14 @@ function ChatInput({ onSend, disabled, onStop }) {
         placeholder={disabled ? 'Waiting for response...' : 'Type a message... (Shift+Enter for new line)'}
         disabled={disabled}
         rows={1}
+        aria-label="Chat message input"
       />
       {disabled && onStop ? (
         <button
           className="chat-stop-btn"
           onClick={onStop}
           title="Stop generating"
+          aria-label="Stop generating"
         >
           <Square size={18} />
         </button>

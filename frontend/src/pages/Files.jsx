@@ -4,6 +4,8 @@ import {
   RefreshCw, Save, X, Edit3, File, ArrowLeft, Home, Trash2, Plus, Check
 } from 'lucide-react'
 import { api } from '../api'
+import { formatSize, formatDate } from '../utils/format'
+import ConfirmModal from '../components/ConfirmModal'
 import './files.css'
 
 const SYNTAX_MAP = {
@@ -19,26 +21,6 @@ const SYNTAX_MAP = {
 function getSyntaxClass(ext) {
   const lang = SYNTAX_MAP[ext] || 'text'
   return `syntax-${lang}`
-}
-
-function formatSize(bytes) {
-  if (!bytes || bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
-}
-
-function formatDate(iso) {
-  if (!iso) return ''
-  try {
-    const d = new Date(iso)
-    return d.toLocaleDateString(undefined, {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch {
-    return ''
-  }
 }
 
 // ── Directory Tree Item ──
@@ -147,6 +129,7 @@ function FileViewer({ fileData, onSaved, onDelete }) {
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
+  const [confirmModal, setConfirmModal] = useState(null)
 
   useEffect(() => {
     setEditing(false)
@@ -187,9 +170,13 @@ function FileViewer({ fileData, onSaved, onDelete }) {
   }
 
   const handleDelete = () => {
-    if (confirm(`Delete file "${fileData.name}"? This cannot be undone.`)) {
-      onDelete(fileData.path)
-    }
+    setConfirmModal({
+      message: `Delete file "${fileData.name}"? This cannot be undone.`,
+      onConfirm: () => {
+        setConfirmModal(null)
+        onDelete(fileData.path)
+      }
+    })
   }
 
   return (
@@ -207,7 +194,7 @@ function FileViewer({ fileData, onSaved, onDelete }) {
               {saveMsg}
             </span>
           )}
-          <button className="btn btn-sm btn-danger" onClick={handleDelete} title="Delete this file">
+          <button className="btn btn-sm btn-danger" onClick={handleDelete} title="Delete this file" aria-label="Delete file">
             <Trash2 size={13} />
           </button>
           {editing ? (
@@ -232,6 +219,7 @@ function FileViewer({ fileData, onSaved, onDelete }) {
           value={content}
           onChange={e => setContent(e.target.value)}
           spellCheck={false}
+          aria-label="File content editor"
         />
       ) : (
         <div className={`file-content ${syntaxClass}`}>
@@ -246,6 +234,14 @@ function FileViewer({ fileData, onSaved, onDelete }) {
             </tbody>
           </table>
         </div>
+      )}
+      {confirmModal && (
+        <ConfirmModal
+          title="Delete File"
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
       )}
     </div>
   )
@@ -264,6 +260,7 @@ export default function Files() {
   const [newFileName, setNewFileName] = useState('')
   const [creating, setCreating] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
+  const [confirmModal, setConfirmModal] = useState(null)
 
   const loadTree = useCallback(async () => {
     try {
@@ -346,9 +343,13 @@ export default function Files() {
   const handleDeleteSelected = () => {
     if (!selectedFile) return
     const name = selectedFile.split('/').pop()
-    if (confirm(`Delete "${name}"? This cannot be undone.`)) {
-      handleDeleteFile(selectedFile)
-    }
+    setConfirmModal({
+      message: `Delete "${name}"? This cannot be undone.`,
+      onConfirm: () => {
+        setConfirmModal(null)
+        handleDeleteFile(selectedFile)
+      }
+    })
   }
 
   const handleCreateFile = async () => {
@@ -383,7 +384,7 @@ export default function Files() {
           <button className="btn btn-sm" onClick={() => setShowNewFile(true)}>
             <Plus size={14} /> New File
           </button>
-          <button className="btn btn-sm btn-danger" onClick={handleDeleteSelected} disabled={!selectedFile} title={selectedFile ? `Delete ${selectedFile.split('/').pop()}` : 'Select a file to delete'}>
+          <button className="btn btn-sm btn-danger" onClick={handleDeleteSelected} disabled={!selectedFile} title={selectedFile ? `Delete ${selectedFile.split('/').pop()}` : 'Select a file to delete'} aria-label="Delete selected file">
             <Trash2 size={14} />
           </button>
           <button className="btn btn-sm" onClick={handleRefresh}>
@@ -457,11 +458,12 @@ export default function Files() {
                     onChange={e => setNewFileName(e.target.value)}
                     onKeyDown={handleNewFileKeyDown}
                     autoFocus
+                    aria-label="New file name"
                   />
-                  <button className="btn btn-sm btn-primary" onClick={handleCreateFile} disabled={creating || !newFileName.trim()}>
+                  <button className="btn btn-sm btn-primary" onClick={handleCreateFile} disabled={creating || !newFileName.trim()} aria-label="Create file">
                     {creating ? '...' : <Check size={13} />}
                   </button>
-                  <button className="btn btn-sm" onClick={() => { setShowNewFile(false); setNewFileName('') }}>
+                  <button className="btn btn-sm" onClick={() => { setShowNewFile(false); setNewFileName('') }} aria-label="Cancel new file">
                     <X size={13} />
                   </button>
                 </div>
@@ -491,6 +493,15 @@ export default function Files() {
           ) : null}
         </div>
       </div>
+
+      {confirmModal && (
+        <ConfirmModal
+          title="Delete File"
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   )
 }

@@ -1,28 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { HardDrive, RefreshCw, Plus, Trash2, Download, RotateCcw, Loader2, X, CheckCircle } from 'lucide-react'
+import { HardDrive, RefreshCw, Plus, Trash2, Download, RotateCcw, Loader2, CheckCircle } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 import './backup.css'
-
-function ConfirmModal({ title, message, onConfirm, onCancel, loading, confirmLabel = 'Confirm' }) {
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="btn btn-sm" onClick={onCancel} style={{ padding: '2px 8px' }}><X size={16} /></button>
-        </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 }}>{message}</p>
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={loading}>Cancel</button>
-          <button className="btn btn-danger" onClick={onConfirm} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function BackupRestore() {
   const [backups, setBackups] = useState([])

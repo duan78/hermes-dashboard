@@ -190,6 +190,7 @@ export default function ApiKeys() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{ width: '100%', paddingLeft: 36, boxSizing: 'border-box' }}
+          aria-label="Search API keys"
         />
       </div>
 
@@ -340,7 +341,7 @@ function KeyRow({
               {revealed ? info.value_preview : '••••••••••••'}
             </code>
             {info.is_password && (
-              <button className="btn btn-sm" onClick={onToggleReveal} title={revealed ? 'Hide' : 'Reveal'}>
+              <button className="btn btn-sm" onClick={onToggleReveal} title={revealed ? 'Hide' : 'Reveal'} aria-label={revealed ? 'Hide value' : 'Reveal value'}>
                 {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             )}
@@ -403,11 +404,11 @@ function KeyRow({
 
         {info.is_set && !editing ? (
           <>
-            <button className="btn btn-sm" onClick={onStartEdit} title="Edit">
+            <button className="btn btn-sm" onClick={onStartEdit} title="Edit" aria-label="Edit key">
               <Edit3 size={14} />
             </button>
             {!confirmDelete ? (
-              <button className="btn btn-sm" onClick={onConfirmDelete} title="Delete" style={{ color: '#ef4444' }}>
+              <button className="btn btn-sm" onClick={onConfirmDelete} title="Delete" style={{ color: '#ef4444' }} aria-label="Delete key">
                 <Trash2 size={14} />
               </button>
             ) : (

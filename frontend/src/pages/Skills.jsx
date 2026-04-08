@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BookOpen, Search, Trash2, Eye, RefreshCw, Download, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 
 export default function Skills() {
   const [skills, setSkills] = useState([])
@@ -13,6 +14,7 @@ export default function Skills() {
   const [filter, setFilter] = useState('')
   const [installing, setInstalling] = useState({})
   const [installResult, setInstallResult] = useState({})
+  const [confirmModal, setConfirmModal] = useState(null)
 
   const load = async () => {
     try {
@@ -47,14 +49,19 @@ export default function Skills() {
     }
   }
 
-  const uninstall = async (name) => {
-    if (!confirm(`Uninstall skill "${name}"?`)) return
-    try {
-      await api.uninstallSkill(name)
-      load()
-    } catch (e) {
-      setError(e.message)
-    }
+  const uninstall = (name) => {
+    setConfirmModal({
+      message: `Uninstall skill "${name}"?`,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          await api.uninstallSkill(name)
+          load()
+        } catch (e) {
+          setError(e.message)
+        }
+      }
+    })
   }
 
   const installSkill = async (name) => {
@@ -150,6 +157,7 @@ export default function Skills() {
 
   return (
     <div>
+      {confirmModal && <ConfirmModal title="Confirm" message={confirmModal.message} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(null)} confirmLabel="Uninstall" />}
       <div className="page-title">
         <BookOpen size={28} />
         Skills ({skills.length})
@@ -168,8 +176,9 @@ export default function Skills() {
           placeholder="Search skills..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
+          aria-label="Search skills"
         />
-        <select className="form-select" value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 'auto' }}>
+        <select className="form-select" value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 'auto' }} aria-label="Filter by category">
           <option value="">All categories</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -270,7 +279,7 @@ export default function Skills() {
                         <Eye size={12} /> Inspect
                       </button>
                       {skill.source !== 'builtin' && (
-                        <button className="btn btn-sm btn-danger" onClick={() => uninstall(skill.name)}>
+                        <button className="btn btn-sm btn-danger" onClick={() => uninstall(skill.name)} aria-label="Uninstall skill">
                           <Trash2 size={12} />
                         </button>
                       )}

@@ -36,7 +36,7 @@ export default function Insights() {
         Insights
         <Tooltip text="Usage analytics and activity patterns across all sessions. Shows model usage, platform distribution, tool call frequency, activity timeline, and notable sessions for the selected period." />
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select className="form-select" value={days} onChange={e => setDays(Number(e.target.value))} style={{ width: 'auto' }}>
+          <select className="form-select" value={days} onChange={e => setDays(Number(e.target.value))} style={{ width: 'auto' }} aria-label="Time period">
             <option value={1}>1 day</option>
             <option value={7}>7 days</option>
             <option value={14}>14 days</option>

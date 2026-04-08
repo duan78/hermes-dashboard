@@ -1,28 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Activity, RefreshCw, Play, Square, RotateCcw, Loader2, Search, X, ChevronDown } from 'lucide-react'
+import { Activity, RefreshCw, Play, Square, RotateCcw, Loader2, Search, ChevronDown } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 import './gateway.css'
-
-function ConfirmModal({ title, message, onConfirm, onCancel, loading }) {
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="btn btn-sm" onClick={onCancel} style={{ padding: '2px 8px' }}><X size={16} /></button>
-        </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 }}>{message}</p>
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={loading}>Cancel</button>
-          <button className="btn btn-danger" onClick={onConfirm} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Confirm
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function GatewayControl() {
   const [status, setStatus] = useState(null)
@@ -278,7 +259,7 @@ export default function GatewayControl() {
             <span className="live-dot" />
             {live ? 'Live' : 'Go Live'}
           </button>
-          <select className="form-select" value={level} onChange={e => setLevel(e.target.value)}>
+          <select className="form-select" value={level} onChange={e => setLevel(e.target.value)} aria-label="Filter log level">
             <option value="all">All Levels</option>
             <option value="info">Info</option>
             <option value="warning">Warning</option>
@@ -294,9 +275,10 @@ export default function GatewayControl() {
               onChange={e => setSearch(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && loadLogs()}
               style={{ paddingLeft: 28, fontSize: 12, padding: '4px 8px 4px 28px' }}
+              aria-label="Search logs"
             />
           </div>
-          <button className="btn btn-sm" onClick={() => loadLogs()} disabled={logLoading}>
+          <button className="btn btn-sm" onClick={() => loadLogs()} disabled={logLoading} aria-label="Refresh logs">
             {logLoading ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />}
           </button>
         </div>

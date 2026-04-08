@@ -5,7 +5,7 @@ import './tooltip.css'
 const TIP_MAX_W = 350
 const GAP = 8
 
-export default function Tooltip({ text, iconSize = 14 }) {
+export default function Tooltip({ text, iconSize = 14, children }) {
   const [show, setShow] = useState(false)
   const [style, setStyle] = useState({})
   const [arrowStyle, setArrowStyle] = useState({})
@@ -69,7 +69,7 @@ export default function Tooltip({ text, iconSize = 14 }) {
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
     >
-      <Info size={iconSize} className="tip-icon" />
+      {children || <Info size={iconSize} className="tip-icon" />}
       {show && (
         <span className={`tip-content ${posClass}`} style={style}>
           {text}

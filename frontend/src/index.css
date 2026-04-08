@@ -23,6 +23,16 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Accessibility: focus-visible outline */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.btn:focus-visible, .sidebar-link:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 body {
   font-family: var(--font-sans);
   background: var(--bg-primary);

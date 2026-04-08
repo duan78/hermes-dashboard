@@ -4,6 +4,7 @@ import {
   Activity, Clock, FolderOpen, RefreshCw, Terminal, AlertCircle, Loader2
 } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 import { api } from '../api'
 import './claude-code.css'
 
@@ -97,8 +98,9 @@ function SessionCard({ session, onExpand, onSend, onStop, onKill, isExpanded }) 
                 placeholder="Type a message..."
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 autoFocus
+                aria-label="Message to send to Claude Code"
               />
-              <button className="cc-btn cc-btn-send" onClick={handleSend}>
+              <button className="cc-btn cc-btn-send" onClick={handleSend} aria-label="Send message">
                 <Send size={14} />
               </button>
             </div>
@@ -196,13 +198,13 @@ function NewSessionForm({ onCreated }) {
         <Tooltip text="Session name (will be prefixed with claude- if not already)">
           <label>Session</label>
         </Tooltip>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} aria-label="Session name" />
       </div>
       <div className="cc-form-row">
         <Tooltip text="Working directory for Claude Code">
           <label>Workdir</label>
         </Tooltip>
-        <input type="text" value={workdir} onChange={(e) => setWorkdir(e.target.value)} />
+        <input type="text" value={workdir} onChange={(e) => setWorkdir(e.target.value)} aria-label="Working directory" />
       </div>
       <button className="cc-btn cc-btn-create" onClick={handleCreate} disabled={creating}>
         {creating ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
@@ -219,6 +221,7 @@ export default function ClaudeCode() {
   const [stats, setStats] = useState(null)
   const [expandedSession, setExpandedSession] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [confirmModal, setConfirmModal] = useState(null)
   const pollRef = useRef(null)
 
   const fetchActive = useCallback(async () => {
@@ -278,10 +281,14 @@ export default function ClaudeCode() {
   }
 
   const handleKill = async (session) => {
-    if (confirm(`Kill session ${session}?`)) {
-      await api.killClaudeSession(session)
-      setTimeout(fetchActive, 500)
-    }
+    setConfirmModal({
+      message: `Kill session ${session}?`,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        await api.killClaudeSession(session)
+        setTimeout(fetchActive, 500)
+      }
+    })
   }
 
   const handleCreated = () => {
@@ -312,7 +319,7 @@ export default function ClaudeCode() {
             </div>
           )}
           <Tooltip text="Refresh all data">
-            <button className="cc-btn cc-btn-refresh" onClick={refreshAll}>
+            <button className="cc-btn cc-btn-refresh" onClick={refreshAll} aria-label="Refresh all data">
               <RefreshCw size={14} className={refreshing ? 'spin' : ''} />
             </button>
           </Tooltip>
@@ -380,6 +387,7 @@ export default function ClaudeCode() {
           <NewSessionForm onCreated={handleCreated} />
         </div>
       )}
+      {confirmModal && <ConfirmModal title="Confirm" message={confirmModal.message} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(null)} confirmLabel="Kill" />}
     </div>
   )
 }

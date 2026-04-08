@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Webhook, Plus, Trash2, RefreshCw, Loader2, ExternalLink } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import ConfirmModal from '../components/ConfirmModal'
 import './webhooks.css'
 
 export default function Webhooks() {
@@ -13,6 +14,7 @@ export default function Webhooks() {
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [raw, setRaw] = useState('')
+  const [confirmModal, setConfirmModal] = useState(null)
 
   const load = async () => {
     try {
@@ -46,17 +48,22 @@ export default function Webhooks() {
     }
   }
 
-  const handleDelete = async (url) => {
-    if (!confirm(`Delete webhook: ${url}?`)) return
-    setDeleting(url)
-    try {
-      await api.deleteWebhook(url)
-      load()
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setDeleting(null)
-    }
+  const handleDelete = (url) => {
+    setConfirmModal({
+      message: `Delete webhook: ${url}?`,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        setDeleting(url)
+        try {
+          await api.deleteWebhook(url)
+          load()
+        } catch (e) {
+          setError(e.message)
+        } finally {
+          setDeleting(null)
+        }
+      }
+    })
   }
 
   if (loading) return <div className="spinner" />
@@ -147,6 +154,7 @@ export default function Webhooks() {
                 className="btn btn-sm btn-danger"
                 onClick={() => handleDelete(wh.url)}
                 disabled={deleting === wh.url}
+                aria-label="Delete webhook"
               >
                 {deleting === wh.url ? <Loader2 size={12} className="spin" /> : <Trash2 size={12} />}
               </button>
@@ -167,6 +175,7 @@ export default function Webhooks() {
           <pre style={{ maxHeight: 200, overflow: 'auto' }}>{raw}</pre>
         </div>
       )}
+      {confirmModal && <ConfirmModal title="Confirm" message={confirmModal.message} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(null)} confirmLabel="Delete" />}
     </div>
   )
 }

@@ -7,14 +7,8 @@ import {
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../api'
+import { formatSize } from '../utils/format'
 import './skills-hub.css'
-
-function formatSize(bytes) {
-  if (!bytes) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 // ── Source badge colors ──
 
@@ -108,8 +102,8 @@ function SkillDrawer({ skill, onClose, isInstalled, onInstall, installing, insta
   const skillName = skill.name
 
   return (
-    <div className="sh-overlay" onClick={onClose}>
-      <div className="sh-drawer" onClick={e => e.stopPropagation()}>
+    <div className="sh-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="sh-drawer" onClick={e => e.stopPropagation()} onKeyDown={e => e.key === 'Escape' && onClose()}>
         <div className="sh-drawer-header">
           <div>
             <h2 className="sh-drawer-title">{skill.display_name || skill.name}</h2>
@@ -145,7 +139,7 @@ function SkillDrawer({ skill, onClose, isInstalled, onInstall, installing, insta
             {installResult === 'success' && !isInstalled && (
               <span style={{ color: 'var(--success)', fontSize: 12 }}>Installed! Refreshing...</span>
             )}
-            <button className="sh-drawer-close" onClick={onClose}>
+            <button className="sh-drawer-close" onClick={onClose} aria-label="Close">
               <X size={20} />
             </button>
           </div>
@@ -215,8 +209,8 @@ function RegistryInspectDrawer({ skill, inspectOutput, onClose, isInstalled, onI
   const identifier = skill.identifier || skill.name
 
   return (
-    <div className="sh-overlay" onClick={onClose}>
-      <div className="sh-drawer" onClick={e => e.stopPropagation()}>
+    <div className="sh-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="sh-drawer" onClick={e => e.stopPropagation()} onKeyDown={e => e.key === 'Escape' && onClose()}>
         <div className="sh-drawer-header">
           <div>
             <h2 className="sh-drawer-title">{skill.name}</h2>
@@ -252,7 +246,7 @@ function RegistryInspectDrawer({ skill, inspectOutput, onClose, isInstalled, onI
             {installResult === 'success' && !isInstalled && (
               <span style={{ color: 'var(--success)', fontSize: 12 }}>Installed!</span>
             )}
-            <button className="sh-drawer-close" onClick={onClose}>
+            <button className="sh-drawer-close" onClick={onClose} aria-label="Close">
               <X size={20} />
             </button>
           </div>
@@ -523,6 +517,7 @@ export default function SkillsHub() {
                 placeholder="Search skills by name, description, or tags..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                aria-label="Search installed skills"
               />
               {search && (
                 <button className="sh-search-clear" onClick={() => setSearch('')}>
@@ -595,6 +590,7 @@ export default function SkillsHub() {
                 placeholder="Search online skills..."
                 value={regQuery}
                 onChange={e => handleRegSearch(e.target.value)}
+                aria-label="Search online skills"
               />
               {regQuery && (
                 <button className="sh-search-clear" onClick={() => handleRegSearch('')}>
@@ -673,7 +669,7 @@ export default function SkillsHub() {
 
       {/* Loading overlay for detail */}
       {detailLoading && (
-        <div className="sh-overlay" onClick={() => setDetailLoading(false)}>
+        <div className="sh-overlay" onClick={() => setDetailLoading(false)} role="dialog" aria-modal="true">
           <div className="spinner" />
         </div>
       )}

@@ -22,7 +22,9 @@ function buildWsUrl() {
     if (m) base = m[1]
   }
 
-  return `${proto}//${host}${base}/ws/terminal`
+  const token = localStorage.getItem('hermes_token') || ''
+  const sep = token ? '?' : ''
+  return `${proto}//${host}${base}/ws/terminal${sep}${token ? 'token=' + encodeURIComponent(token) : ''}`
 }
 
 export default function TerminalPage() {

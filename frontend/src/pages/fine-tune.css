@@ -311,3 +311,474 @@
     max-width: 100%;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Cross-Validation Tab
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tabs ── */
+.ft-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.ft-tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ft-tab:hover {
+  color: var(--text-primary);
+}
+
+.ft-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Histogram ── */
+.cv-histogram {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.cv-histogram-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.cv-histogram-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+}
+
+.cv-hist-bar-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  gap: 4px;
+}
+
+.cv-hist-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.cv-hist-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.2s;
+}
+
+.cv-hist-label {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+/* ── CrossVal card ── */
+.cv-pairs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cv-pair-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.15s;
+}
+
+.cv-pair-card:hover {
+  border-color: var(--accent);
+}
+
+.cv-pair-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cv-pair-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cv-pair-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Status badge ── */
+.cv-status-badge {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cv-status-validated {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.cv-status-review {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+/* ── Transcript columns ── */
+.cv-transcripts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.cv-transcripts-row-dynamic {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.cv-transcript-col {
+  background: var(--bg-primary);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  border-top: 3px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cv-transcript-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.cv-transcript-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cv-transcript-score {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cv-transcript-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* ── Similarity bars ── */
+.cv-sim-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.cv-sim-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cv-sim-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.cv-sim-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cv-sim-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.cv-sim-value {
+  font-size: 11px;
+  font-weight: 600;
+  width: 50px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── CrossVal responsive ── */
+@media (max-width: 900px) {
+  .cv-transcripts-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cv-transcripts-row-4col {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 901px) {
+  .cv-transcripts-row-4col {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .cv-pair-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cv-sim-row {
+    flex-wrap: wrap;
+  }
+
+  .cv-sim-label {
+    width: 100%;
+  }
+}
+
+/* ── AI Review ── */
+.cv-ai-section {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.cv-ai-review-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.cv-ai-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cv-ai-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cv-ai-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #a78bfa;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cv-ai-provider {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
+  font-weight: 600;
+}
+
+.cv-ai-providers-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+  font-weight: 500;
+}
+
+.cv-ai-consensus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+
+.cv-ai-consensus-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+
+.cv-ai-consensus-tag {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-weight: 500;
+}
+
+.cv-ai-transcript {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cv-ai-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cv-ai-confidence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.cv-ai-confidence-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.cv-ai-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cv-ai-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #a78bfa;
+  transition: width 0.3s;
+}
+
+.cv-ai-confidence-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a78bfa;
+  min-width: 32px;
+}
+
+.cv-ai-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cv-ai-reasoning {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Batch progress ── */
+.cv-batch-progress {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cv-batch-bar-track {
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cv-batch-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+
+.cv-batch-done {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Spinner animation ── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
