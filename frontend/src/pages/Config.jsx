@@ -5,7 +5,7 @@ import {
   Zap, Database, Volume2, Shield, Archive, Layers, Code, Plug,
   Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
   Route, FileText, Plus, Trash2, RefreshCw, Zap as TestIcon,
-  AlertTriangle,
+  AlertTriangle, Skull, Smile, XCircle,
 } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
@@ -187,6 +187,7 @@ const SECTIONS = [
       { key: 'checkpoints.max_snapshots', label: 'Max Snapshots', type: 'number', min: 1, max: 200, desc: 'Maximum number of checkpoint snapshots to keep per session. Older snapshots are automatically cleaned up. Default: 50.' },
       { key: 'approvals.mode', label: 'Approval Mode', type: 'select', options: ['manual', 'smart', 'auto'], desc: 'How tool approvals work. "manual" requires user confirmation for dangerous tools. "smart" uses an auxiliary LLM to auto-approve low-risk commands. "auto" approves everything — use only in trusted environments.' },
       { key: 'approvals.timeout', label: 'Approval Timeout (s)', type: 'number', min: 10, max: 300, desc: 'Seconds to wait for user approval before auto-rejecting the tool call. Increase for slow interactions or when stepping away. Default: 60.' },
+      { key: '_yolo_toggle', label: 'YOLO Mode', type: 'yolo' },
       { key: 'session_reset.mode', label: 'Reset Mode', type: 'select', options: ['both', 'idle', 'scheduled', 'off'], desc: 'When to automatically reset sessions. "both" resets on idle AND on schedule. "idle" only after inactivity. "scheduled" only at a specific hour. "off" never auto-resets.' },
       { key: 'session_reset.idle_minutes', label: 'Idle Reset (min)', type: 'number', min: 10, max: 10080, desc: 'Minutes of inactivity before resetting a session. 1440 = 24 hours. The session context is cleared and a fresh conversation starts. Default: 1440.' },
       { key: 'session_reset.at_hour', label: 'Reset Hour', type: 'number', min: 0, max: 23, desc: 'Hour of the day (0-23, local timezone) to reset scheduled sessions. Default: 4 (4 AM). Choose off-peak hours to avoid disrupting active conversations.' },
@@ -325,6 +326,40 @@ function FieldWidget({ field, value, onChange }) {
     default:
       return <TextField value={value} onChange={onChange} />
   }
+}
+
+// ── YOLO Mode Button ──
+
+function YoloButton({ approvalMode, approvalOnChange }) {
+  const isYolo = approvalMode === 'auto'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button
+        onClick={() => approvalOnChange(isYolo ? 'manual' : 'auto')}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+          border: isYolo ? '2px solid #ef4444' : '2px solid #f59e0b',
+          background: isYolo ? '#ef4444' : 'transparent',
+          color: isYolo ? '#fff' : '#f59e0b',
+          cursor: 'pointer', transition: 'all 0.15s',
+        }}
+      >
+        {isYolo ? <Skull size={15} /> : <Smile size={15} />}
+        {isYolo ? 'YOLO Active' : 'YOLO Mode'}
+        <Tooltip text={isYolo
+          ? 'YOLO Mode is ON — all tool calls are automatically approved. Click to revert to manual approval.'
+          : 'Enable YOLO Mode to automatically approve ALL tool calls without confirmation. Use only in trusted environments.'
+        } />
+      </button>
+      {isYolo && (
+        <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 500 }}>
+          All approvals bypassed
+          <Tooltip text="Every tool call will execute immediately without asking for confirmation. This is dangerous in untrusted environments." />
+        </span>
+      )}
+    </div>
+  )
 }
 
 // ── Provider Routing Section ──
@@ -522,6 +557,177 @@ function ProviderRoutingSection({ config }) {
               </div>
             </>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Personality Creator Section ──
+
+function PersonalityCreatorSection({ config, onChange }) {
+  const [personalities, setPersonalities] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [newPersonality, setNewPersonality] = useState({ name: '', system_prompt: '', description: '', tone: '', style: '' })
+  const [saving, setSaving] = useState(false)
+  const { toast } = useToast()
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await api.listPersonalities()
+      setPersonalities(data.personalities || [])
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => { load() }, [load])
+
+  const customPersonalities = personalities.filter(p => !p.builtin)
+
+  const handleSave = async () => {
+    if (!newPersonality.name || !newPersonality.system_prompt) return
+    try {
+      setSaving(true)
+      await api.createPersonality(
+        newPersonality.name, newPersonality.system_prompt,
+        newPersonality.description, newPersonality.tone, newPersonality.style
+      )
+      toast.success(`Personality "${newPersonality.name}" saved`)
+      setShowCreate(false)
+      setNewPersonality({ name: '', system_prompt: '', description: '', tone: '', style: '' })
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (name) => {
+    try {
+      await api.deletePersonality(name)
+      toast.success(`Personality "${name}" deleted`)
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    }
+  }
+
+  return (
+    <div className="accordion-card">
+      <div className="accordion-header" style={{ cursor: 'default' }}>
+        <Smile size={18} className="accordion-icon" />
+        <span className="accordion-title">Custom Personalities</span>
+        <span className="field-count">{customPersonalities.length} custom</span>
+        <Tooltip text="Create and manage custom AI personalities. Each personality defines a unique system prompt that changes how the AI responds." />
+        <button
+          className="btn btn-sm btn-primary"
+          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}
+          onClick={() => setShowCreate(!showCreate)}
+        >
+          <Plus size={12} /> Create
+          <Tooltip text="Create a new custom personality with a name, system prompt, and optional tone/style settings." />
+        </button>
+      </div>
+      {showCreate && (
+        <div className="accordion-body" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div className="field-group">
+              <label className="field-label">
+                Name
+                <Tooltip text="Unique name for this personality. Use lowercase with dashes (e.g. 'code-reviewer')." />
+              </label>
+              <input
+                className="form-input"
+                placeholder="e.g. code-reviewer"
+                value={newPersonality.name}
+                onChange={e => setNewPersonality({ ...newPersonality, name: e.target.value })}
+              />
+            </div>
+            <div className="field-group" style={{ gridColumn: '1 / -1' }}>
+              <label className="field-label">
+                System Prompt
+                <Tooltip text="The core prompt that defines how this personality behaves. Be specific about tone, style, and behavior." />
+              </label>
+              <textarea
+                className="form-textarea"
+                placeholder="You are a meticulous code reviewer. Focus on bugs, security issues, and performance..."
+                value={newPersonality.system_prompt}
+                onChange={e => setNewPersonality({ ...newPersonality, system_prompt: e.target.value })}
+                style={{ minHeight: 80, fontSize: 12, fontFamily: 'var(--font-mono)' }}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <div className="field-group">
+                <label className="field-label">
+                  Description
+                  <Tooltip text="Brief description of what this personality does." />
+                </label>
+                <input
+                  className="form-input"
+                  placeholder="Optional description"
+                  value={newPersonality.description}
+                  onChange={e => setNewPersonality({ ...newPersonality, description: e.target.value })}
+                />
+              </div>
+              <div className="field-group">
+                <label className="field-label">
+                  Tone
+                  <Tooltip text="Communication tone (e.g. 'formal', 'casual', 'enthusiastic')." />
+                </label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. formal"
+                  value={newPersonality.tone}
+                  onChange={e => setNewPersonality({ ...newPersonality, tone: e.target.value })}
+                />
+              </div>
+              <div className="field-group">
+                <label className="field-label">
+                  Style
+                  <Tooltip text="Communication style (e.g. 'bullet points', 'conversational')." />
+                </label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. bullet points"
+                  value={newPersonality.style}
+                  onChange={e => setNewPersonality({ ...newPersonality, style: e.target.value })}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-sm" onClick={() => setShowCreate(false)}>Cancel</button>
+              <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={saving || !newPersonality.name || !newPersonality.system_prompt}>
+                <Save size={12} /> {saving ? 'Saving...' : 'Save Personality'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {customPersonalities.length > 0 && (
+        <div style={{ padding: '8px 16px' }}>
+          {customPersonalities.map(p => (
+            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {(p.description || p.system_prompt || '').slice(0, 80)}
+              </span>
+              <button className="btn btn-sm" onClick={() => handleDelete(p.name)} style={{ color: '#ef4444', fontSize: 11 }}>
+                <Trash2 size={12} />
+                <Tooltip text={`Delete custom personality "${p.name}". This cannot be undone.`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {customPersonalities.length === 0 && !showCreate && (
+        <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+          No custom personalities yet. Click "Create" to add one.
         </div>
       )}
     </div>
@@ -734,6 +940,20 @@ export default function Config() {
   const expandAll = () => setOpenSections(new Set(SECTIONS.map(s => s.id)))
   const collapseAll = () => setOpenSections(new Set())
 
+  // Load custom personalities to merge into the select
+  const [customPersonalityNames, setCustomPersonalityNames] = useState([])
+  useEffect(() => {
+    api.listPersonalities().then(data => {
+      const names = (data.personalities || []).filter(p => !p.builtin).map(p => p.name)
+      setCustomPersonalityNames(names)
+    }).catch(() => {})
+  }, [])
+
+  const getPersonalityOptions = () => {
+    const base = ['default', 'helpful', 'concise', 'technical', 'creative', 'teacher', 'kawaii', 'catgirl', 'pirate', 'shakespeare', 'surfer', 'noir', 'uwu', 'philosopher', 'hype']
+    return [...base, ...customPersonalityNames.filter(n => !base.includes(n))]
+  }
+
   if (loading) return <div className="spinner" />
   if (error) return <div className="error-box">{error}</div>
   if (!workingConfig) return null
@@ -792,7 +1012,27 @@ export default function Config() {
             {isOpen && (
               <div className="accordion-body">
                 {section.fields.map(field => {
+                  // YOLO toggle — special widget
+                  if (field.type === 'yolo') {
+                    const approvalMode = getDeepValue(workingConfig, 'approvals.mode')
+                    return (
+                      <div key={field.key} className="field-group">
+                        <label className="field-label">
+                          {field.label}
+                          <Tooltip text="Quick toggle to enable/disable YOLO mode (auto-approve all tool calls)." />
+                        </label>
+                        <YoloButton
+                          approvalMode={approvalMode}
+                          approvalOnChange={v => handleChange('approvals.mode', v)}
+                        />
+                      </div>
+                    )
+                  }
                   const value = getDeepValue(workingConfig, field.key)
+                  // Use dynamic personality options for display.personality
+                  const fieldDef = field.key === 'display.personality'
+                    ? { ...field, options: getPersonalityOptions() }
+                    : field
                   return (
                     <div
                       key={field.key}
@@ -803,7 +1043,7 @@ export default function Config() {
                         <Tooltip text={field.desc} />
                       </label>
                       <FieldWidget
-                        field={field}
+                        field={fieldDef}
                         value={value}
                         onChange={v => handleChange(field.key, v)}
                       />
@@ -818,6 +1058,7 @@ export default function Config() {
 
       {/* Special sections */}
       <ProviderRoutingSection config={workingConfig} />
+      <PersonalityCreatorSection config={workingConfig} onChange={handleChange} />
       <SystemPromptSection />
 
     </div>

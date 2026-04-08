@@ -42,6 +42,7 @@ export const api = {
   pruneSessions: (days = 30) => request(`/sessions/prune?days=${days}`, { method: 'POST' }),
   getSessionStats: () => request('/sessions/stats'),
   exportSession: (id) => request(`/sessions/${id}/export`),
+  exportAllSessions: () => request('/sessions/export-all', { method: 'POST' }),
 
   // Memory & SOUL
   getSoul: () => request('/memory/soul'),
@@ -245,6 +246,11 @@ export const api = {
   getSystemPrompt: () => request('/config/prompt/system'),
   getCustomPrompt: () => request('/config/prompt/custom'),
   saveCustomPrompt: (content) => request('/config/prompt/custom', { method: 'PUT', body: JSON.stringify({ content }) }),
+
+  // Personalities
+  listPersonalities: () => request('/config/personalities'),
+  createPersonality: (name, systemPrompt, description, tone, style) => request('/config/personalities', { method: 'POST', body: JSON.stringify({ name, system_prompt: systemPrompt, description, tone, style }) }),
+  deletePersonality: (name) => request('/config/personalities', { method: 'DELETE', body: JSON.stringify({ name }) }),
 
   // Claude Code Monitor
   activeClaudeSessions: () => request('/claude-code/active'),

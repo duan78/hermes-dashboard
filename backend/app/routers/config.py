@@ -14,6 +14,7 @@ from ..schemas.requests import (
     ConfigValueUpdateRequest, MoaProviderTestRequest, YamlSaveRequest,
     MoaConfigUpdateRequest, MoaProvidersUpdateRequest, ProviderCreateRequest,
     ProviderUpdateRequest, ProviderTestRequest, CustomPromptRequest,
+    PersonalityCreateRequest, PersonalityDeleteRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -697,6 +698,7 @@ async def get_custom_prompt():
 
 
 @router.put("/prompt/custom")
+@router.post("/prompt/custom")
 async def save_custom_prompt(body: CustomPromptRequest):
     """Save the custom prompt file and update config to point to it."""
     config_path = hermes_path("config.yaml")
@@ -713,3 +715,90 @@ async def save_custom_prompt(body: CustomPromptRequest):
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
     return {"status": "saved", "path": str(prompt_path)}
+
+
+# ── Personalities ──
+
+BUILTIN_PERSONALITIES = {
+    "helpful", "concise", "technical", "creative", "teacher",
+    "kawaii", "catgirl", "pirate", "shakespeare", "surfer",
+    "noir", "uwu", "philosopher", "hype",
+}
+
+
+@router.get("/personalities")
+async def list_personalities():
+    """List all personalities (built-in + custom)."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    agent_cfg = raw.get("agent", {})
+    personalities = agent_cfg.get("personalities", {}) if isinstance(agent_cfg, dict) else {}
+
+    result = []
+    for name in BUILTIN_PERSONALITIES:
+        result.append({"name": name, "builtin": True})
+    for name, value in (personalities.items() if isinstance(personalities, dict) else []):
+        if name not in BUILTIN_PERSONALITIES:
+            entry = {"name": name, "builtin": False}
+            if isinstance(value, dict):
+                entry["description"] = value.get("description", "")
+                entry["system_prompt"] = value.get("system_prompt", "")
+                entry["tone"] = value.get("tone", "")
+                entry["style"] = value.get("style", "")
+            else:
+                entry["system_prompt"] = str(value)
+            result.append(entry)
+    return {"personalities": result}
+
+
+@router.post("/personalities")
+async def create_personality(body: PersonalityCreateRequest):
+    """Create or update a custom personality."""
+    if body.name in BUILTIN_PERSONALITIES:
+        raise HTTPException(400, f"Cannot overwrite built-in personality '{body.name}'")
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    original = yaml.safe_load(config_path.read_text()) or {}
+    if "agent" not in original or not isinstance(original.get("agent"), dict):
+        original["agent"] = {}
+    if "personalities" not in original["agent"]:
+        original["agent"]["personalities"] = {}
+
+    # Build the personality config (dict format for extended, string for simple)
+    if body.description or body.tone or body.style:
+        personality_cfg = {}
+        if body.description:
+            personality_cfg["description"] = body.description
+        personality_cfg["system_prompt"] = body.system_prompt
+        if body.tone:
+            personality_cfg["tone"] = body.tone
+        if body.style:
+            personality_cfg["style"] = body.style
+    else:
+        personality_cfg = body.system_prompt
+
+    original["agent"]["personalities"][body.name] = personality_cfg
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved", "personality": body.name}
+
+
+@router.delete("/personalities")
+async def delete_personality(body: PersonalityDeleteRequest):
+    """Delete a custom personality."""
+    if body.name in BUILTIN_PERSONALITIES:
+        raise HTTPException(400, f"Cannot delete built-in personality '{body.name}'")
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    original = yaml.safe_load(config_path.read_text()) or {}
+    personalities = (original.get("agent", {}) or {}).get("personalities", {})
+    if body.name not in personalities:
+        raise HTTPException(404, f"Personality '{body.name}' not found")
+    del original["agent"]["personalities"][body.name]
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "deleted", "personality": body.name}

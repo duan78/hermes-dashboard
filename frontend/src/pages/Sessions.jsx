@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2, BarChart3, Calendar } from 'lucide-react'
+import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2, BarChart3, Calendar, FileDown } from 'lucide-react'
 import { useSessions, useSession, useSearchSessions, useDeleteSession, usePruneSessions, useExportSession } from '../hooks/useApi'
+import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 import ConfirmModal from '../components/ConfirmModal'
 
@@ -183,6 +184,8 @@ export default function Sessions() {
   const [showPrune, setShowPrune] = useState(false)
   const [pruneDays, setPruneDays] = useState(30)
   const [confirmModal, setConfirmModal] = useState(null)
+  const [exportingAll, setExportingAll] = useState(false)
+  const [sortOrder, setSortOrder] = useState('date_desc')
   const debounceRef = useRef(null)
 
   const onSearchChange = (e) => {
@@ -226,7 +229,42 @@ export default function Sessions() {
     })
   }
 
-  const displaySessions = debouncedQuery ? (searchResults || []) : sessions
+  const displaySessions = (() => {
+    let list = debouncedQuery ? (searchResults || []) : sessions
+    // Sort sessions by date (default: newest first)
+    if (sortOrder === 'date_desc') {
+      list = [...list].sort((a, b) => {
+        const da = a.created ? new Date(a.created).getTime() : 0
+        const db = b.created ? new Date(b.created).getTime() : 0
+        return db - da
+      })
+    } else if (sortOrder === 'date_asc') {
+      list = [...list].sort((a, b) => {
+        const da = a.created ? new Date(a.created).getTime() : 0
+        const db = b.created ? new Date(b.created).getTime() : 0
+        return da - db
+      })
+    }
+    return list
+  })()
+
+  const handleExportAll = async () => {
+    setExportingAll(true)
+    try {
+      const data = await api.exportAllSessions()
+      const blob = new Blob([JSON.stringify(data.sessions, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `all-sessions-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Export all failed:', e)
+    } finally {
+      setExportingAll(false)
+    }
+  }
 
   // Compute stats
   const totalSessions = sessions.length
@@ -293,6 +331,11 @@ export default function Sessions() {
           <button className="btn btn-sm" onClick={() => refetch()}>
             <RefreshCw size={14} /> Refresh
             <Tooltip text="Reload the sessions list from the server." />
+          </button>
+          <button className="btn btn-sm" onClick={handleExportAll} disabled={exportingAll}>
+            {exportingAll ? <Loader2 size={14} className="spin" /> : <FileDown size={14} />}
+            {' '}Export All
+            <Tooltip text="Download all sessions as a single JSON file. Contains every session's metadata and full message history." />
           </button>
         </div>
       </div>
@@ -375,6 +418,19 @@ export default function Sessions() {
       </div>
 
       <div className="table-container">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 8, padding: '0 4px' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sort by:</span>
+          <select
+            className="form-select"
+            style={{ fontSize: 12, padding: '4px 8px', width: 'auto' }}
+            value={sortOrder}
+            onChange={e => setSortOrder(e.target.value)}
+          >
+            <option value="date_desc">Newest first</option>
+            <option value="date_asc">Oldest first</option>
+          </select>
+          <Tooltip text="Sort sessions by creation date. Default is newest first (most recent activity)." />
+        </div>
         <table>
           <thead>
             <tr>
@@ -382,12 +438,16 @@ export default function Sessions() {
               <th>Model <Tooltip text="AI model used for this session's conversations." /></th>
               <th>Platform <Tooltip text="Communication channel where the conversation took place (CLI, Telegram, Discord, WhatsApp, etc.)." /></th>
               <th>Messages <Tooltip text="Total number of messages (user + assistant + tool results) exchanged in this session." /></th>
+              <th>Last Activity <Tooltip text="When this session was last active, based on its creation date." /></th>
               {debouncedQuery && <th>Match</th>}
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {displaySessions.map(s => (
+            {displaySessions.map(s => {
+              const msgCount = s.messages_count || 0
+              const badgeColor = msgCount > 50 ? '#ef4444' : msgCount > 20 ? '#f59e0b' : msgCount > 5 ? '#3b82f6' : 'var(--text-muted)'
+              return (
               <tr key={s.id}>
                 <td>
                   <a href={`#/sessions/${s.id}`} style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
@@ -401,7 +461,18 @@ export default function Sessions() {
                 </td>
                 <td>{s.model}</td>
                 <td><SourceBadge platform={s.platform} /></td>
-                <td>{s.messages_count}</td>
+                <td>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+                    background: `${badgeColor}22`, color: badgeColor,
+                  }}>
+                    {msgCount}
+                  </span>
+                </td>
+                <td style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                  {s.created ? new Date(s.created).toLocaleDateString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                </td>
                 {debouncedQuery && (
                   <td>
                     {s.snippet ? (
@@ -428,9 +499,10 @@ export default function Sessions() {
                   </div>
                 </td>
               </tr>
-            ))}
+              )
+            })}
             {displaySessions.length === 0 && (
-              <tr><td colSpan={debouncedQuery ? 6 : 5} className="empty-state">
+              <tr><td colSpan={debouncedQuery ? 7 : 6} className="empty-state">
                 {debouncedQuery ? 'No matching sessions found' : 'No sessions found'}
               </td></tr>
             )}

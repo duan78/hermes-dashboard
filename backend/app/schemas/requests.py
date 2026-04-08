@@ -244,3 +244,17 @@ class ProviderTestRequest(BaseModel):
 
 class CustomPromptRequest(BaseModel):
     content: str = Field("", description="Custom prompt content (JSON or text)")
+
+
+# ── Personalities ──
+
+class PersonalityCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, description="Personality name (unique key)")
+    system_prompt: str = Field(..., min_length=1, description="System prompt for this personality")
+    description: str = Field("", description="Optional description")
+    tone: str = Field("", description="Optional tone")
+    style: str = Field("", description="Optional style")
+
+
+class PersonalityDeleteRequest(BaseModel):
+    name: str = Field(..., min_length=1, description="Personality name to delete")

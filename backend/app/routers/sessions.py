@@ -238,3 +238,39 @@ async def export_session(session_id: str):
     if session_file.exists():
         return {"format": "json", "data": session_file.read_text()}
     raise HTTPException(404, f"Session {session_id} not found")
+
+
+@router.post("/export-all")
+async def export_all_sessions():
+    """Export all sessions as a single JSON array."""
+    sessions_dir = hermes_path("sessions")
+    if not sessions_dir.exists():
+        return {"sessions": [], "count": 0}
+
+    all_sessions = []
+    seen_ids = set()
+
+    for f in sorted(sessions_dir.glob("session_*.json"), reverse=True):
+        try:
+            data = json.loads(f.read_text())
+            sid = data.get("session_id", f.stem.replace("session_", ""))
+            if sid in seen_ids:
+                continue
+            seen_ids.add(sid)
+
+            # Load messages from JSONL
+            jsonl_file = hermes_path("sessions", f"{sid}.jsonl")
+            messages = []
+            if jsonl_file.exists():
+                for line in jsonl_file.read_text(errors="replace").strip().split("\n"):
+                    if line.strip():
+                        try:
+                            messages.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+            data["messages"] = messages
+            all_sessions.append(data)
+        except (json.JSONDecodeError, Exception):
+            continue
+
+    return {"sessions": all_sessions, "count": len(all_sessions)}
