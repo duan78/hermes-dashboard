@@ -8,7 +8,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
+from ..schemas.requests import ClaudeCodeSessionRequest, ClaudeCodeSendRequest, ClaudeCodeNewRequest
 
 logger = logging.getLogger(__name__)
 
@@ -211,41 +212,34 @@ async def session_output(session: str = "", lines: int = 50):
 
 
 @router.post("/stop")
-async def stop_session(body: dict = Body(...)):
+async def stop_session(body: ClaudeCodeSessionRequest):
     """Send Ctrl+C to a Claude Code session."""
-    session = body.get("session", "")
-    if not session:
-        raise HTTPException(400, "session required")
-    _validate_session_name(session)
-    await _run(["tmux", "send-keys", "-t", session, "C-c"])
-    logger.info("Stopped Claude Code session: %s", session)
-    return {"status": "stopped", "session": session}
+    _validate_session_name(body.session)
+    await _run(["tmux", "send-keys", "-t", body.session, "C-c"])
+    logger.info("Stopped Claude Code session: %s", body.session)
+    return {"status": "stopped", "session": body.session}
 
 
 @router.post("/send")
-async def send_to_session(body: dict = Body(...)):
+async def send_to_session(body: ClaudeCodeSendRequest):
     """Send text to a Claude Code session."""
-    session = body.get("session", "")
-    message = body.get("message", "")
-    if not session or not message:
-        raise HTTPException(400, "session and message required")
-    _validate_session_name(session)
-    if len(message) > MAX_MSG_LEN:
+    _validate_session_name(body.session)
+    if len(body.message) > MAX_MSG_LEN:
         raise HTTPException(400, f"Message too long (max {MAX_MSG_LEN} chars)")
-    await _run(["tmux", "send-keys", "-t", session, "-l", "--", message])
-    await _run(["tmux", "send-keys", "-t", session, "Enter"])
-    logger.info("Sent message to Claude Code session: %s", session)
-    return {"status": "sent", "session": session}
+    await _run(["tmux", "send-keys", "-t", body.session, "-l", "--", body.message])
+    await _run(["tmux", "send-keys", "-t", body.session, "Enter"])
+    logger.info("Sent message to Claude Code session: %s", body.session)
+    return {"status": "sent", "session": body.session}
 
 
 @router.post("/new")
-async def new_session(body: dict = Body(...)):
+async def new_session(body: ClaudeCodeNewRequest):
     """Create a new Claude Code tmux session."""
-    name = body.get("name", "claude-session")
+    name = body.name
     if not name.startswith("claude-"):
         name = f"claude-{name}"
     _validate_session_name(name)
-    workdir = body.get("workdir", "")
+    workdir = body.workdir
     if workdir:
         workdir = _validate_workdir(workdir)
 
@@ -260,15 +254,12 @@ async def new_session(body: dict = Body(...)):
 
 
 @router.delete("/session")
-async def kill_session(body: dict = Body(...)):
+async def kill_session(body: ClaudeCodeSessionRequest):
     """Kill a tmux session."""
-    session = body.get("session", "")
-    if not session:
-        raise HTTPException(400, "session required")
-    _validate_session_name(session)
-    await _run(["tmux", "kill-session", "-t", session])
-    logger.info("Killed Claude Code session: %s", session)
-    return {"status": "killed", "session": session}
+    _validate_session_name(body.session)
+    await _run(["tmux", "kill-session", "-t", body.session])
+    logger.info("Killed Claude Code session: %s", body.session)
+    return {"status": "killed", "session": body.session}
 
 
 @router.get("/session/{session_id}/messages")

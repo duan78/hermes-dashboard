@@ -4,10 +4,11 @@ import re
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Body, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 import httpx
 from ..config import HERMES_HOME
+from ..schemas.requests import TranscriptUpdateRequest, CrossvalStatusRequest
 
 router = APIRouter(prefix="/api/fine-tune", tags=["fine-tune"])
 
@@ -153,9 +154,8 @@ async def list_pairs(
 
 
 @router.put("/pairs/{base_name}")
-async def update_pair(base_name: str, body: dict = Body(...)):
+async def update_pair(base_name: str, body: TranscriptUpdateRequest):
     """Update the transcript of a pair."""
-    transcript = body.get("transcript", "")
     entries = _read_metadata()
     target = None
     for e in entries:
@@ -168,7 +168,7 @@ async def update_pair(base_name: str, body: dict = Body(...)):
     tf = Path(target["transcript_file"])
     if not tf.exists():
         raise HTTPException(404, "Transcript file not found on disk")
-    tf.write_text(transcript)
+    tf.write_text(body.transcript)
     target["transcript_length"] = len(transcript)
     _write_metadata(entries)
     return {"status": "updated"}
@@ -450,19 +450,18 @@ async def crossval_pairs(
 
 
 @router.put("/crossval/pairs/{index}/status")
-async def crossval_update_status(index: int, body: dict = Body(...)):
+async def crossval_update_status(index: int, body: CrossvalStatusRequest):
     """Update the status of a cross-validation pair by index (0-based)."""
-    new_status = body.get("status")
-    if new_status not in ("validated", "needs_review"):
+    if body.status not in ("validated", "needs_review"):
         raise HTTPException(400, "Status must be 'validated' or 'needs_review'")
 
     entries = _read_crossval()
     if index < 0 or index >= len(entries):
         raise HTTPException(404, f"Index {index} out of range (0-{len(entries)-1})")
 
-    entries[index]["status"] = new_status
+    entries[index]["status"] = body.status
     _write_crossval(entries)
-    return {"status": "updated", "index": index, "new_status": new_status}
+    return {"status": "updated", "index": index, "new_status": body.status}
 
 
 @router.get("/crossval/review-stats")

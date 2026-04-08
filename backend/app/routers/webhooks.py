@@ -1,6 +1,6 @@
 import asyncio
 import re
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from ..utils import run_hermes
 from ..schemas.requests import WebhookCreateRequest, WebhookDeleteRequest
 

@@ -151,17 +151,6 @@ class ModelSwitchRequest(BaseModel):
     provider: Optional[str] = Field(None, description="Provider name")
 
 
-# ── Platforms / Pairing ──
-
-class PairingActionRequest(BaseModel):
-    code: str = Field(..., min_length=1, description="Pairing code")
-
-
-class PlatformConfigRequest(BaseModel):
-    platform: str = Field(..., min_length=1, description="Platform name")
-    config: dict = Field(default_factory=dict, description="Platform configuration")
-
-
 # ── Skills ──
 
 class SkillActionRequest(BaseModel):
@@ -171,14 +160,55 @@ class SkillActionRequest(BaseModel):
 # ── Claude Code ──
 
 class ClaudeCodeSessionRequest(BaseModel):
-    session_id: str = Field(..., min_length=1, description="Session ID")
+    session: str = Field(..., min_length=1, description="Tmux session name")
 
 
 class ClaudeCodeSendRequest(BaseModel):
-    session_id: str = Field(..., min_length=1, description="Session ID")
+    session: str = Field(..., min_length=1, description="Tmux session name")
     message: str = Field(..., min_length=1, description="Message to send")
 
 
 class ClaudeCodeNewRequest(BaseModel):
-    prompt: str = Field("", description="Initial prompt")
-    working_dir: str = Field("", description="Working directory")
+    name: str = Field("claude-session", description="Session name")
+    workdir: str = Field("", description="Working directory")
+
+
+# ── Platforms / Pairing ──
+
+class PairingApproveRequest(BaseModel):
+    code: str = Field(..., min_length=1, description="Pairing code to approve")
+
+
+class PairingRevokeRequest(BaseModel):
+    user_id: str = Field(..., min_length=1, description="User ID to revoke")
+
+
+class PlatformConfigureRequest(BaseModel):
+    platform: str = Field(..., min_length=1, description="Platform name")
+    vars: dict = Field(default_factory=dict, description="Env vars to set")
+
+
+# ── Fine-tune ──
+
+class TranscriptUpdateRequest(BaseModel):
+    transcript: str = Field("", description="Transcript content")
+
+
+class CrossvalStatusRequest(BaseModel):
+    status: str = Field(..., description="New status: 'validated' or 'needs_review'")
+
+
+# ── Config (flexible YAML endpoints) ──
+
+class YamlSaveRequest(BaseModel):
+    yaml: str = Field(..., min_length=1, description="YAML content to save")
+
+
+class MoaConfigUpdateRequest(BaseModel):
+    """Flexible MOA config update — accepts any valid MOA fields."""
+    model_config = {"extra": "allow"}
+
+
+class MoaProvidersUpdateRequest(BaseModel):
+    """Providers dict — validated in the router."""
+    model_config = {"extra": "allow"}

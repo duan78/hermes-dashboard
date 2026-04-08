@@ -3,7 +3,7 @@ import logging
 import subprocess
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from ..utils import run_hermes, hermes_path
 from ..schemas import CronCreateRequest
 from ..schemas.cron import CronJob, CronJobActionResponse, CronJobCreateResponse, SystemCronResponse

@@ -4,7 +4,7 @@ import stat
 import tempfile
 import logging
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from ..utils import run_hermes
 from ..config import HERMES_HOME
 from ..schemas.requests import ToolEnvRequest, ToolToggleRequest

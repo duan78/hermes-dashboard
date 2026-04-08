@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from ..config import HERMES_HOME, HERMES_MEMORY_PATH
 from ..utils import hermes_path
 from ..schemas.requests import (

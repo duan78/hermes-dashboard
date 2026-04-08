@@ -4,13 +4,13 @@ import os
 import re
 
 import yaml
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from pathlib import Path
 from ..utils import hermes_path, mask_secrets, run_hermes
 from ..config import HERMES_HOME
 from ..schemas import ConfigSetRequest
 from ..schemas.config import ConfigSetResponse
-from ..schemas.requests import ConfigValueUpdateRequest, MoaProviderTestRequest
+from ..schemas.requests import ConfigValueUpdateRequest, MoaProviderTestRequest, YamlSaveRequest, MoaConfigUpdateRequest, MoaProvidersUpdateRequest
 
 logger = logging.getLogger(__name__)
 
@@ -30,21 +30,18 @@ async def get_config():
 
 
 @router.put("")
-async def save_config(body: dict = Body(...)):
+async def save_config(body: YamlSaveRequest):
     """Save config.yaml from raw YAML string."""
     logger.info("Saving config.yaml")
-    yaml_str = body.get("yaml", "")
-    if not yaml_str:
-        raise HTTPException(400, "Missing 'yaml' field")
     try:
-        parsed = yaml.safe_load(yaml_str)
+        parsed = yaml.safe_load(body.yaml)
         if not isinstance(parsed, dict):
             raise ValueError("Config must be a YAML mapping")
     except yaml.YAMLError as e:
         raise HTTPException(400, f"Invalid YAML: {e}")
 
     config_path = hermes_path("config.yaml")
-    config_path.write_text(yaml_str)
+    config_path.write_text(body.yaml)
     return {"status": "saved"}
 
 
@@ -100,7 +97,7 @@ def _deep_merge(original, incoming):
 
 
 @router.put("/structured")
-async def save_structured_config(body: dict = Body(...)):
+async def save_structured_config(body: MoaConfigUpdateRequest):
     """Save config from structured JSON, preserving unchanged secrets."""
     logger.info("Saving structured config")
     config_path = hermes_path("config.yaml")
@@ -108,7 +105,7 @@ async def save_structured_config(body: dict = Body(...)):
         raise HTTPException(404, "config.yaml not found")
 
     original = yaml.safe_load(config_path.read_text()) or {}
-    merged = _deep_merge(original, body)
+    merged = _deep_merge(original, body.model_dump())
 
     yaml_str = yaml.dump(merged, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
@@ -179,7 +176,7 @@ async def get_moa_config():
 
 
 @router.put("/moa")
-async def save_moa_config(body: dict = Body(...)):
+async def save_moa_config(body: MoaConfigUpdateRequest):
     """Save the MOA configuration section."""
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
@@ -187,8 +184,10 @@ async def save_moa_config(body: dict = Body(...)):
 
     original = yaml.safe_load(config_path.read_text()) or {}
 
+    data = body.model_dump()
+
     # Validate reference_models is a list
-    ref_models = body.get("reference_models")
+    ref_models = data.get("reference_models")
     if ref_models is not None:
         if not isinstance(ref_models, list):
             raise HTTPException(400, "reference_models must be a list")
@@ -197,32 +196,32 @@ async def save_moa_config(body: dict = Body(...)):
 
     # Validate temperatures
     for key in ("reference_temperature", "aggregator_temperature"):
-        val = body.get(key)
+        val = data.get(key)
         if val is not None:
             try:
-                body[key] = float(val)
+                data[key] = float(val)
             except (ValueError, TypeError):
                 raise HTTPException(400, f"{key} must be a number")
-            if not (0.0 <= body[key] <= 2.0):
+            if not (0.0 <= data[key] <= 2.0):
                 raise HTTPException(400, f"{key} must be between 0.0 and 2.0")
 
     # Validate min_successful_references
-    msr = body.get("min_successful_references")
+    msr = data.get("min_successful_references")
     if msr is not None:
         try:
-            body["min_successful_references"] = int(msr)
+            data["min_successful_references"] = int(msr)
         except (ValueError, TypeError):
             raise HTTPException(400, "min_successful_references must be an integer")
 
     # Validate aggregator_provider
-    provider = body.get("aggregator_provider")
+    provider = data.get("aggregator_provider")
     if provider is not None and provider not in ("openrouter", "custom"):
         raise HTTPException(400, "aggregator_provider must be 'openrouter' or 'custom'")
 
     # Merge into existing config
     if "moa" not in original or not isinstance(original.get("moa"), dict):
         original["moa"] = {}
-    original["moa"].update(body)
+    original["moa"].update(data)
 
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
@@ -267,19 +266,17 @@ async def get_moa_providers():
 
 
 @router.put("/moa/providers")
-async def save_moa_providers(body: dict = Body(...)):
+async def save_moa_providers(body: MoaProvidersUpdateRequest):
     """Save MOA providers configuration."""
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         raise HTTPException(404, "config.yaml not found")
 
     original = yaml.safe_load(config_path.read_text()) or {}
+    data = body.model_dump()
 
-    # Validate body is a dict of providers
-    if not isinstance(body, dict):
-        raise HTTPException(400, "Providers must be a dict mapping provider_id -> config")
-
-    for pid, pcfg in body.items():
+    # Validate data is a dict of providers
+    for pid, pcfg in data.items():
         if not isinstance(pcfg, dict):
             raise HTTPException(400, f"Provider '{pid}' config must be a dict")
         if "base_url" not in pcfg:
@@ -287,7 +284,7 @@ async def save_moa_providers(body: dict = Body(...)):
         if "api_key_env" not in pcfg:
             raise HTTPException(400, f"Provider '{pid}' must have an 'api_key_env'")
 
-    original["moa_providers"] = body
+    original["moa_providers"] = data
 
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)

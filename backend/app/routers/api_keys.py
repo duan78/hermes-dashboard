@@ -5,7 +5,7 @@ import time
 import tempfile
 import logging
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 import httpx
 from ..config import HERMES_HOME
 from ..schemas import ApiKeySetRequest, ApiKeyDeleteRequest, ApiKeyTestRequest

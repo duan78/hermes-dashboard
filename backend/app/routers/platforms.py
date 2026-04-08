@@ -1,8 +1,9 @@
 import json
 import os
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from ..utils import run_hermes, hermes_path
+from ..schemas.requests import PairingApproveRequest, PairingRevokeRequest, PlatformConfigureRequest
 
 router = APIRouter(prefix="/api/platforms", tags=["platforms"])
 
@@ -116,26 +117,20 @@ async def list_pairing():
 
 
 @router.post("/pairing/approve")
-async def approve_pairing(body: dict = Body(...)):
+async def approve_pairing(body: PairingApproveRequest):
     """Approve a pairing request."""
-    code = body.get("code")
-    if not code:
-        raise HTTPException(400, "Missing 'code'")
     try:
-        output = await run_hermes("pairing", "approve", code, timeout=15)
+        output = await run_hermes("pairing", "approve", body.code, timeout=15)
         return {"status": "approved", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))
 
 
 @router.post("/pairing/revoke")
-async def revoke_pairing(body: dict = Body(...)):
+async def revoke_pairing(body: PairingRevokeRequest):
     """Revoke a pairing."""
-    user_id = body.get("user_id")
-    if not user_id:
-        raise HTTPException(400, "Missing 'user_id'")
     try:
-        output = await run_hermes("pairing", "revoke", user_id, timeout=15)
+        output = await run_hermes("pairing", "revoke", body.user_id, timeout=15)
         return {"status": "revoked", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))
@@ -158,17 +153,14 @@ async def get_platform_env_vars():
 
 
 @router.post("/configure")
-async def configure_platform(body: dict = Body(...)):
+async def configure_platform(body: PlatformConfigureRequest):
     """Write env vars for a platform to ~/.hermes/.env."""
-    platform = body.get("platform")
-    vars_map = body.get("vars", {})
-
-    if not platform or platform not in PLATFORM_ENV_VARS:
-        raise HTTPException(400, f"Unknown platform: {platform}")
+    if body.platform not in PLATFORM_ENV_VARS:
+        raise HTTPException(400, f"Unknown platform: {body.platform}")
 
     # Validate keys belong to this platform
-    allowed_keys = {v["key"] for v in PLATFORM_ENV_VARS[platform]}
-    for key in vars_map:
+    allowed_keys = {v["key"] for v in PLATFORM_ENV_VARS[body.platform]}
+    for key in body.vars:
         if key not in allowed_keys:
             raise HTTPException(400, f"Unexpected env var '{key}' for platform '{platform}'")
 
@@ -178,7 +170,7 @@ async def configure_platform(body: dict = Body(...)):
         ENV_FILE.write_text("")
 
     from dotenv import set_key
-    for key, value in vars_map.items():
+    for key, value in body.vars.items():
         set_key(str(ENV_FILE), key, value)
 
     return {"success": True}

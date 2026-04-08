@@ -3,8 +3,9 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from ..utils import run_hermes, hermes_path
+from ..schemas.requests import SkillActionRequest
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
 
@@ -465,26 +466,20 @@ def _parse_browse_table(output: str, is_search: bool = False) -> dict:
 
 
 @router.post("/install")
-async def install_skill(body: dict = Body(...)):
+async def install_skill(body: SkillActionRequest):
     """Install a skill."""
-    name = body.get("name")
-    if not name:
-        raise HTTPException(400, "Missing 'name'")
     try:
-        output = await run_hermes("skills", "install", name, timeout=60)
+        output = await run_hermes("skills", "install", body.name, timeout=60)
         return {"status": "installed", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))
 
 
 @router.post("/uninstall")
-async def uninstall_skill(body: dict = Body(...)):
+async def uninstall_skill(body: SkillActionRequest):
     """Uninstall a skill."""
-    name = body.get("name")
-    if not name:
-        raise HTTPException(400, "Missing 'name'")
     try:
-        output = await run_hermes("skills", "uninstall", name, timeout=30)
+        output = await run_hermes("skills", "uninstall", body.name, timeout=30)
         return {"status": "uninstalled", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))

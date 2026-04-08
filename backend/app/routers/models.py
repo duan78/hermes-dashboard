@@ -1,5 +1,5 @@
 import json
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from ..utils import run_hermes, hermes_path
 from ..schemas.requests import ModelSwitchRequest
 
