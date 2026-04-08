@@ -788,6 +788,235 @@ async def honcho_search(q: str = "", top_k: int = 10):
         serialized = [_serialize_message(m) for m in results]
         return {"results": serialized, "count": len(serialized)}
     except asyncio.TimeoutError:
-        raise HTTPException(504, "Honcho API timed out")
+        raise HTTPException(504, "Honcho search timed out")
     except Exception as e:
         raise HTTPException(500, f"Honcho search error: {e}")
+
+
+# ── Brain Search (unified search across all 3 memory systems) ──
+
+@router.get("/brain/search")
+async def brain_search(q: str = "", top_k: int = 5):
+    """Unified search across Memory Claw (LanceDB), Honcho, Backlog, and Wiki.
+    
+    Queries all available systems in parallel and returns merged results.
+    Each system is optional — if one is down or empty, it's simply skipped.
+    """
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(400, "Query parameter 'q' is required (min 2 chars)")
+    
+    q = q.strip()
+    top_k = min(top_k, 20)
+    results = {}
+    errors = {}
+    
+    # 1. Memory Claw (LanceDB vector search)
+    try:
+        claw_results = await asyncio.wait_for(
+            asyncio.to_thread(_brain_search_claw, q, top_k),
+            timeout=10,
+        )
+        results["claw"] = claw_results
+    except Exception as e:
+        errors["claw"] = str(e)
+        results["claw"] = []
+    
+    # 2. Honcho semantic search
+    try:
+        honcho_results = await _brain_search_honcho(q, top_k)
+        results["honcho"] = honcho_results
+    except Exception as e:
+        errors["honcho"] = str(e)
+        results["honcho"] = []
+    
+    # 3. Backlog text search
+    try:
+        backlog_results = await asyncio.to_thread(_brain_search_backlog, q, top_k)
+        results["backlog"] = backlog_results
+    except Exception as e:
+        errors["backlog"] = str(e)
+        results["backlog"] = []
+    
+    # 4. Wiki text search
+    try:
+        wiki_results = await asyncio.to_thread(_brain_search_wiki, q, top_k)
+        results["wiki"] = wiki_results
+    except Exception as e:
+        errors["wiki"] = str(e)
+        results["wiki"] = []
+    
+    total = sum(len(v) for v in results.values())
+    return {
+        "query": q,
+        "results": results,
+        "total": total,
+        "errors": errors if errors else None,
+    }
+
+
+def _brain_search_claw(q: str, top_k: int) -> list:
+    """Search Memory Claw (LanceDB) for relevant memories."""
+    global _claw_store, _claw_embedder, _claw_error
+    
+    if _claw_error or not _claw_store or not _claw_embedder:
+        return []
+    
+    try:
+        # Import and use existing claw infrastructure
+        query_embedding = _claw_embedder.embed_query(q)
+        search_results = _claw_store.search(query_embedding, top_k=top_k)
+        
+        items = []
+        for r in search_results:
+            items.append({
+                "id": r.get("id", ""),
+                "content": r.get("content", r.get("text", "")),
+                "source": r.get("source", ""),
+                "importance": r.get("importance", 0),
+                "created_at": r.get("created_at", ""),
+                "distance": r.get("distance", None),
+            })
+        return items
+    except Exception:
+        return []
+
+
+async def _brain_search_honcho(q: str, top_k: int) -> list:
+    """Search Honcho memory for relevant context."""
+    client = _get_honcho_client()
+    if not client:
+        return []
+    
+    try:
+        honcho_results = await asyncio.wait_for(
+            asyncio.to_thread(lambda: client.search(query=q, limit=top_k)),
+            timeout=8,
+        )
+        items = []
+        for m in honcho_results:
+            items.append({
+                "id": getattr(m, "id", None),
+                "content": getattr(m, "content", ""),
+                "peer_id": getattr(m, "peer_id", None),
+                "created_at": getattr(m, "created_at", None),
+            })
+        return items
+    except Exception:
+        return []
+
+
+def _brain_search_backlog(q: str, top_k: int) -> list:
+    """Search backlog items by text matching."""
+    import json, re
+    
+    backlog_path = hermes_path("backlog.json")
+    if not backlog_path.exists():
+        return []
+    
+    try:
+        with open(backlog_path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+    
+    items = data.get("items", [])
+    if not items:
+        return []
+    
+    # Simple relevance scoring based on word overlap
+    q_words = set(re.findall(r"\w+", q.lower()))
+    if not q_words:
+        return []
+    
+    scored = []
+    for item in items:
+        text = f"{item.get('title', '')} {item.get('description', '')}".lower()
+        text_words = set(re.findall(r"\w+", text))
+        overlap = len(q_words & text_words)
+        if overlap > 0:
+            scored.append((item, overlap))
+    
+    scored.sort(key=lambda x: x[1], reverse=True)
+    
+    results = []
+    for item, score in scored[:top_k]:
+        results.append({
+            "id": item.get("id", ""),
+            "title": item.get("title", ""),
+            "description": item.get("description", "")[:200],
+            "category": item.get("category", ""),
+            "status": item.get("status", ""),
+            "priority": item.get("priority", ""),
+            "score": score,
+        })
+    return results
+
+
+def _brain_search_wiki(q: str, top_k: int) -> list:
+    """Search wiki pages by text matching."""
+    import json, re, os
+    
+    wiki_root = Path(os.path.expanduser("~/wiki"))
+    if not wiki_root.exists():
+        return []
+    
+    q_words = set(re.findall(r"\w+", q.lower()))
+    if not q_words:
+        return []
+    
+    # Search in wiki index and page files
+    scored = []
+    
+    # Read index.md for page list
+    index_path = wiki_root / "index.md"
+    if index_path.exists():
+        content = index_path.read_text(errors="ignore")
+        lines = content.splitlines()
+        for line in lines:
+            # Wiki index format: - [Page Title](path)
+            match = re.match(r"-\s+\[([^\]]+)\]\(([^)]+)\)", line)
+            if match:
+                title, rel_path = match.groups()
+                full_path = wiki_root / rel_path
+                if not full_path.exists():
+                    full_path = wiki_root / (rel_path + ".md")
+                
+                score = len(q_words & set(re.findall(r"\w+", title.lower())))
+                score += len(q_words & set(re.findall(r"\w+", rel_path.lower())))
+                
+                if score > 0:
+                    scored.append({
+                        "title": title,
+                        "path": rel_path,
+                        "content_preview": "",
+                        "score": score,
+                    })
+    
+    # Search in individual page files
+    for md_file in wiki_root.rglob("*.md"):
+        if md_file.name in ("index.md", "log.md", "SCHEMA.md"):
+            continue
+        try:
+            content = md_file.read_text(errors="ignore")[:1000]
+            text_words = set(re.findall(r"\w+", content.lower()))
+            overlap = len(q_words & text_words)
+            if overlap > 1:
+                rel = str(md_file.relative_to(wiki_root))
+                title = md_file.stem
+                # Check if already scored from index
+                existing = next((s for s in scored if s["path"] == rel or s["path"] == rel.replace(".md", "")), None)
+                if existing:
+                    existing["score"] += overlap
+                    existing["content_preview"] = content[:200].replace("\n", " ").strip()
+                else:
+                    scored.append({
+                        "title": title,
+                        "path": rel,
+                        "content_preview": content[:200].replace("\n", " ").strip(),
+                        "score": overlap,
+                    })
+        except (OSError, IOError):
+            continue
+    
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return scored[:top_k]
