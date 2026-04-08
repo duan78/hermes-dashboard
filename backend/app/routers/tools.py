@@ -2,10 +2,13 @@ import os
 import re
 import stat
 import tempfile
+import logging
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Body
 from ..utils import run_hermes
 from ..config import HERMES_HOME
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tools", tags=["tools"])
 
@@ -115,8 +118,8 @@ def _load_yaml_config() -> dict:
     if cfg_path.exists():
         try:
             return yaml.safe_load(cfg_path.read_text()) or {}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error loading config.yaml: %s", e)
     return {}
 
 

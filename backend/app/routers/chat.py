@@ -54,8 +54,8 @@ def _load_gateway_url() -> str:
             url = gw.get("url") or gw.get("api_url") or ""
             if url:
                 return url.rstrip("/")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error loading gateway URL from config: %s", e)
     return "http://localhost:8000"
 
 
@@ -73,8 +73,8 @@ def _load_api_key() -> str:
             cfg = yaml.safe_load(config_path.read_text())
             model_cfg = cfg.get("model", {})
             return model_cfg.get("api_key", "")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error loading API key from config: %s", e)
     return ""
 
 
@@ -91,8 +91,8 @@ def _load_model() -> str:
         try:
             cfg = yaml.safe_load(config_path.read_text())
             return cfg.get("model", {}).get("default", "gpt-4o")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error loading model from config: %s", e)
     return "gpt-4o"
 
 
@@ -115,7 +115,8 @@ def _save_message_to_session(session_id: str, role: str, content: str):
     if meta_path.exists():
         try:
             meta = json.loads(meta_path.read_text())
-        except Exception:
+        except Exception as e:
+            logger.debug("Error reading session metadata for %s: %s", session_id, e)
             meta = {}
     else:
         meta = {
@@ -179,8 +180,8 @@ async def chat_send(request: Request):
                 cfg = yaml.safe_load(config_path.read_text())
                 model_cfg = cfg.get("model", {})
                 base_url = model_cfg.get("base_url", base_url)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Error reading base_url from config for fallback: %s", e)
         chat_url = f"{base_url}/chat/completions"
         payload = {"model": model, "messages": api_messages}
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
@@ -220,8 +221,8 @@ async def chat_models():
             for m in model_cfg.get("available", []):
                 if m != default_model:
                     models.append({"id": m, "name": m, "default": False})
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error loading models from config: %s", e)
     if not models:
         models.append({"id": "gpt-4o", "name": "gpt-4o", "default": True})
     return {"models": models}
@@ -248,6 +249,7 @@ async def chat_sessions():
                 "preview": data.get("preview", ""),
             })
         except Exception:
+            logger.debug("Skipping session file in chat_sessions listing")
             continue
     return sessions
 
@@ -362,8 +364,8 @@ async def chat_stream(request: Request):
                     model_cfg = cfg.get("model", {})
                     provider = model_cfg.get("provider", "openai")
                     base_url = model_cfg.get("base_url", base_url)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Error reading config for stream fallback: %s", e)
 
             chat_url = f"{base_url}/chat/completions"
             payload = {

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -62,7 +63,8 @@ async def _run(cmd: list, timeout: int = 10) -> str:
     except asyncio.TimeoutError:
         proc.kill()
         return ""
-    except Exception:
+    except Exception as e:
+        logger.warning("Error running command %s: %s", cmd, e)
         return ""
 
 
@@ -128,8 +130,8 @@ async def active_sessions():
                 if pid:
                     try:
                         workdir = os.readlink(f"/proc/{pid}/cwd")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Could not read cwd for pid %s: %s", pid, e)
                 break
 
         sessions.append({
@@ -174,8 +176,8 @@ async def session_history(limit: int = 30, project: str = ""):
             try:
                 with open(f) as fh:
                     line_count = sum(1 for _ in fh)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not count lines in %s: %s", f, e)
 
             subagents = 0
             sub_dir = f.parent / f.stem / "subagents"
@@ -249,7 +251,7 @@ async def new_session(body: dict = Body(...)):
 
     await _run(["tmux", "new-session", "-d", "-s", name])
     if workdir:
-        await _run(["tmux", "send-keys", "-t", name, "-l", "--", f"cd {workdir}"])
+        await _run(["tmux", "send-keys", "-t", name, "-l", "--", f"cd {shlex.quote(workdir)}"])
         await _run(["tmux", "send-keys", "-t", name, "Enter"])
     await _run(["tmux", "send-keys", "-t", name, "-l", "--", "/root/.local/bin/claude"])
     await _run(["tmux", "send-keys", "-t", name, "Enter"])
@@ -314,7 +316,8 @@ async def session_messages(session_id: str, limit: int = 30):
                         "content": text,
                         "type": msg_type,
                     })
-            except Exception:
+            except Exception as e:
+                logger.debug("Skipping malformed line in session %s: %s", session_id, e)
                 continue
 
     # Return last N messages

@@ -416,8 +416,8 @@ def _get_honcho_api_key():
             line = line.strip()
             if line.startswith("HONCHO_API_KEY="):
                 return line.split("=", 1)[1].strip()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Error reading HONCHO_API_KEY from .env: %s", e)
     return None
 
 
@@ -432,8 +432,8 @@ def _get_honcho_provider():
             memory = cfg.get("memory", {})
             if isinstance(memory, dict):
                 return memory.get("provider")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Error reading memory provider from config: %s", e)
     return None
 
 
@@ -450,8 +450,8 @@ def _get_honcho_workspace_id():
                 wid = honcho.get("workspace_id", "").strip()
                 if wid:
                     return wid
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Error reading honcho workspace_id from config: %s", e)
     return "hermes"
 
 
@@ -621,7 +621,8 @@ async def honcho_profile():
             try:
                 card = await asyncio.wait_for(asyncio.to_thread(p.get_card), timeout=5)
                 peer_info["card"] = card
-            except Exception:
+            except Exception as e:
+                logger.debug("Failed to get peer card: %s", e)
                 peer_info["card"] = None
             peers_data.append(peer_info)
 
@@ -660,7 +661,8 @@ async def honcho_memories(limit: int = 50):
                     "short": getattr(summaries, "short_summary", None),
                     "long": getattr(summaries, "long_summary", None),
                 }
-            except Exception:
+            except Exception as e:
+                logger.debug("Failed to get session summary: %s", e)
                 s_dict["summary"] = None
             sessions_data.append(s_dict)
 

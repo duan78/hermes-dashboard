@@ -164,9 +164,14 @@ async def wiki_pages(type: str = Query(default=None, description="Filter by type
 @router.get("/page/{page_path:path}")
 async def get_wiki_page(page_path: str):
     """Get a specific wiki page content."""
-    full_path = WIKI_PATH / page_path
+    full_path = (WIKI_PATH / page_path).resolve()
+    # Validate path stays within WIKI_PATH
+    if not str(full_path).startswith(str(WIKI_PATH.resolve())):
+        raise HTTPException(403, "Access denied")
     if not full_path.exists() or not full_path.suffix == ".md":
-        full_path = WIKI_PATH / (page_path + ".md")
+        full_path = (WIKI_PATH / (page_path + ".md")).resolve()
+        if not str(full_path).startswith(str(WIKI_PATH.resolve())):
+            raise HTTPException(403, "Access denied")
     if not full_path.exists():
         raise HTTPException(404, f"Page not found: {page_path}")
 

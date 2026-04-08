@@ -1,9 +1,12 @@
 import asyncio
+import logging
 import os
 import sys
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from ..config import HERMES_HOME
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["terminal"])
 
@@ -59,8 +62,8 @@ async def terminal_ws(websocket: WebSocket):
                     await websocket.send_text(text)
                 except OSError:
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Error in terminal read_output: %s", e)
         finally:
             try:
                 os.close(master_fd)
@@ -94,12 +97,12 @@ async def terminal_ws(websocket: WebSocket):
                         TIOCSWINSZ = 0x5414  # Linux
                         winsize = struct.pack("HHHH", rows, cols, 0, 0)
                         fcntl.ioctl(master_fd, TIOCSWINSZ, winsize)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Terminal resize failed: %s", e)
         except WebSocketDisconnect:
             pass
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Error in terminal write_input: %s", e)
 
     read_task = asyncio.create_task(read_output())
     write_task = asyncio.create_task(write_input())
@@ -115,11 +118,12 @@ async def terminal_ws(websocket: WebSocket):
             try:
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=3)
-            except Exception:
+            except Exception as e:
+                logger.debug("Failed to terminate terminal process: %s", e)
                 try:
                     process.kill()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to kill terminal process: %s", e)
         try:
             os.close(master_fd)
         except OSError:
