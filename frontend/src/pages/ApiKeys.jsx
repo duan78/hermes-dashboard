@@ -161,6 +161,7 @@ export default function ApiKeys() {
         <button className="btn" onClick={fetchKeys} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <RefreshCw size={14} className={loading ? 'spin' : ''} />
           Refresh
+          <Tooltip text="Reload all API keys and their status from the server." />
         </button>
       </div>
 
@@ -168,15 +169,15 @@ export default function ApiKeys() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
         <div className="card" style={{ padding: '12px 16px', textAlign: 'center' }}>
           <div style={{ fontSize: 24, fontWeight: 700 }}>{counts.total}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total Keys</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total Keys <Tooltip text="Total number of API keys and credentials tracked by the system across all categories." /></div>
         </div>
         <div className="card" style={{ padding: '12px 16px', textAlign: 'center' }}>
           <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>{counts.set}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Configured</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Configured <Tooltip text="Keys that have a value set in the environment. These are ready to use." /></div>
         </div>
         <div className="card" style={{ padding: '12px 16px', textAlign: 'center' }}>
           <div style={{ fontSize: 24, fontWeight: 700, color: '#ef4444' }}>{counts.missing}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Missing</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Missing <Tooltip text="Keys that are required but not yet configured. Features depending on these keys may not work." /></div>
         </div>
       </div>
 
@@ -192,6 +193,7 @@ export default function ApiKeys() {
           style={{ width: '100%', paddingLeft: 36, boxSizing: 'border-box' }}
           aria-label="Search API keys"
         />
+        <Tooltip text="Filter API keys by name, label, or description. Useful for quickly finding a specific key." />
       </div>
 
       {/* Categories */}

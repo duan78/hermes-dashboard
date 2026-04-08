@@ -5,6 +5,7 @@ import {
   DollarSign, Info, Cpu, Server, Activity, Plug, CreditCard
 } from 'lucide-react'
 import { api } from '../api'
+import Tooltip from '../components/Tooltip'
 import './moa.css'
 
 const DEFAULT_CONFIG = {
@@ -255,7 +256,7 @@ export default function MoaConfig() {
         <div className="moa-title">
           <Layers size={24} />
           <div>
-            <h2>Mixture of Agents (MoA)</h2>
+            <h2>Mixture of Agents (MoA) <Tooltip text="MoA is a 2-layer architecture: multiple reference models generate diverse responses in parallel, then an aggregator model synthesizes them into a single high-quality answer. This improves accuracy and reduces bias from any single model." /></h2>
             <p className="moa-subtitle">
               Multi-model collaborative reasoning with multi-provider support
             </p>
@@ -264,19 +265,23 @@ export default function MoaConfig() {
         <div className="moa-actions">
           <button className="btn btn-sm" onClick={loadConfig} disabled={saving}>
             <RefreshCw size={14} /> Refresh
+            <Tooltip text="Reload the MOA configuration from the server." />
           </button>
           {!editing ? (
             <button className="btn btn-primary" onClick={() => setEditing(true)}>
               <Settings size={14} /> Edit
+              <Tooltip text="Enter edit mode to modify the MOA configuration: add/remove reference models, change aggregator, and adjust parameters." />
             </button>
           ) : (
             <>
               <button className="btn" onClick={handleCancel} disabled={saving}>
                 <X size={14} /> Cancel
+                <Tooltip text="Discard all unsaved changes and exit edit mode." />
               </button>
               <button className="btn btn-primary" onClick={activeTab === 'providers' ? handleSaveProviders : handleSave} disabled={saving}>
                 {saving ? <RefreshCw size={14} className="spin" /> : <Save size={14} />}
                 {saving ? 'Saving...' : 'Save'}
+                <Tooltip text="Save all changes to the MOA configuration. Changes require a Hermes restart to take effect in active sessions." />
               </button>
             </>
           )}
@@ -286,15 +291,15 @@ export default function MoaConfig() {
       {/* Stats bar */}
       <div className="moa-stats-bar">
         <div className="moa-stat-card">
-          <div className="moa-stat-label"><Brain size={13} /> Reference Models</div>
+          <div className="moa-stat-label"><Brain size={13} /> Reference Models <Tooltip text="Models that generate diverse initial responses in parallel. More models provide broader perspectives but increase latency and cost." /></div>
           <div className="moa-stat-value">{refModels.length}</div>
         </div>
         <div className="moa-stat-card">
-          <div className="moa-stat-label"><Cpu size={13} /> Aggregator</div>
+          <div className="moa-stat-label"><Cpu size={13} /> Aggregator <Tooltip text="The final model that synthesizes all reference responses into one coherent answer." /></div>
           <div className="moa-stat-value">{cfg.aggregator_model || '—'}</div>
         </div>
         <div className="moa-stat-card">
-          <div className="moa-stat-label"><Server size={13} /> Provider</div>
+          <div className="moa-stat-label"><Server size={13} /> Provider <Tooltip text="The API provider routing the aggregator model's requests." /></div>
           <div className="moa-stat-value">
             <span className={`moa-provider-badge ${cfg.aggregator_provider}`}>
               {cfg.aggregator_provider === 'custom' ? 'Z.AI (Custom)' : 'OpenRouter'}
@@ -302,11 +307,11 @@ export default function MoaConfig() {
           </div>
         </div>
         <div className="moa-stat-card">
-          <div className="moa-stat-label"><Plug size={13} /> Providers</div>
+          <div className="moa-stat-label"><Plug size={13} /> Providers <Tooltip text="Number of configured OpenAI-compatible providers available for reference models." /></div>
           <div className="moa-stat-value">{providerIds.length}</div>
         </div>
         <div className="moa-stat-card">
-          <div className="moa-stat-label"><DollarSign size={13} /> Est. Cost / Call</div>
+          <div className="moa-stat-label"><DollarSign size={13} /> Est. Cost / Call <Tooltip text="Approximate cost per MOA call based on model pricing. Free models cost $0." /></div>
           <div className="moa-stat-value">
             {cost.totalCost === 0 ? '~$0.00' : `~$${cost.totalCost.toFixed(2)}`}
             <small style={{ display: 'block', color: 'var(--text-muted)', fontSize: 10 }}>
@@ -338,6 +343,7 @@ export default function MoaConfig() {
             <h3 className="moa-section-title">
               <Brain size={16} /> Reference Models
               <span className="moa-section-desc">Generate diverse initial responses in parallel</span>
+              <Tooltip text="Each reference model receives the same prompt and generates an independent response. The aggregator then merges all responses into one final answer. Using diverse models improves overall quality." />
             </h3>
             <div className="moa-model-list">
               {refModels.map((entry, i) => {
@@ -425,6 +431,7 @@ export default function MoaConfig() {
             <h3 className="moa-section-title">
               <Cpu size={16} /> Aggregator Model
               <span className="moa-section-desc">Synthesizes reference responses into final output</span>
+              <Tooltip text="The aggregator receives all reference model responses and merges them into a single, coherent final answer. Use a strong model with a low temperature for best results." />
             </h3>
             <div className="moa-fields">
               <div className="moa-field">
@@ -476,6 +483,7 @@ export default function MoaConfig() {
             >
               <Settings size={16} /> Advanced Settings
               {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              <Tooltip text="Fine-tune temperature and reliability thresholds. Higher reference temperature produces more diverse outputs; lower aggregator temperature gives more focused synthesis." />
             </h3>
             {showAdvanced && (
               <div className="moa-fields">
@@ -568,10 +576,12 @@ export default function MoaConfig() {
               <h3 className="moa-section-title" style={{ marginBottom: 0 }}>
                 <Plug size={16} /> MOA Providers
                 <span className="moa-section-desc">OpenAI-compatible endpoints for reference models</span>
+                <Tooltip text="Providers are OpenAI-compatible API endpoints. Each provider can host multiple models. Add providers like NVIDIA, Cerebras, or custom endpoints to diversify your reference model pool." />
               </h3>
               {editing && (
                 <button className="btn btn-primary btn-sm" onClick={() => setShowAddProvider(true)}>
                   <Plus size={14} /> Add Provider
+                  <Tooltip text="Add a new OpenAI-compatible API provider. You'll need a base URL and an API key environment variable." />
                 </button>
               )}
             </div>
@@ -688,6 +698,7 @@ export default function MoaConfig() {
                     <span className={`moa-status-indicator ${statusClass}`}>
                       <span className="moa-status-dot" />
                       {statusText}
+                      <Tooltip text={statusClass === 'ok' ? 'Provider is reachable and the API key is valid.' : statusClass === 'missing' ? 'API key is not configured. Set it in the env vars to enable this provider.' : statusClass === 'error' ? 'Connection test failed. Check the API key and base URL.' : 'Provider is configured but has not been tested yet.'} />
                     </span>
                   </div>
 
@@ -733,6 +744,7 @@ export default function MoaConfig() {
                     >
                       {isTesting ? <RefreshCw size={13} className="spin" /> : <Activity size={13} />}
                       {isTesting ? 'Testing...' : 'Test'}
+                      <Tooltip text="Send a test request to verify the provider's API key and connectivity." />
                     </button>
                     {editing && (
                       <button
@@ -741,6 +753,7 @@ export default function MoaConfig() {
                         style={{ color: 'var(--danger, #e55)' }}
                       >
                         <Trash2 size={13} /> Remove
+                        <Tooltip text="Remove this provider from the MOA configuration. Save to apply." />
                       </button>
                     )}
                   </div>
@@ -772,6 +785,7 @@ export default function MoaConfig() {
           <h3 className="moa-section-title">
             <CreditCard size={16} /> Cost Estimation
             <span className="moa-section-desc">Estimated cost per MOA call</span>
+            <Tooltip text="Approximate cost breakdown per MOA call. Each reference model generates a separate API call. Free models (marked :free) cost nothing. Actual costs depend on token usage." />
           </h3>
 
           <div className="moa-cost-summary">

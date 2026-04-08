@@ -291,6 +291,7 @@ export default function CronJobs() {
         </button>
         <button className="btn btn-primary" onClick={() => setShowCreate(!showCreate)} style={{ marginLeft: 8 }}>
           <Plus size={14} /> New Job
+          <Tooltip text="Create a new scheduled task. Define a cron schedule and a prompt for the AI agent to execute." />
         </button>
       </div>
 
@@ -387,12 +388,15 @@ export default function CronJobs() {
                       <button className="btn btn-sm" onClick={() => toggle(job)} disabled={pauseMutation.isPending || resumeMutation.isPending}>
                         {job.enabled ? <Pause size={12} /> : <Play size={12} />}
                         {job.enabled ? 'Pause' : 'Resume'}
+                        <Tooltip text={job.enabled ? 'Temporarily stop this job from running on schedule. It can be resumed later.' : 'Resume this paused job so it runs on its defined schedule again.'} />
                       </button>
                       <button className="btn btn-sm" onClick={() => runNow(job.id)} disabled={runMutation.isPending}>
                         <PlayCircle size={12} /> Run
+                        <Tooltip text="Manually trigger this job now, regardless of its schedule. The AI agent will execute the prompt immediately." />
                       </button>
                       <button className="btn btn-sm btn-danger" onClick={() => remove(job.id)} aria-label="Delete cron job">
                         <Trash2 size={12} />
+                        <Tooltip text="Permanently delete this scheduled job. This action cannot be undone." />
                       </button>
                     </div>
                   </td>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import Tooltip from '../components/Tooltip'
 import './terminal.css'
 
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -216,13 +217,16 @@ export default function TerminalPage() {
           <line x1="12" y1="19" x2="20" y2="19" />
         </svg>
         Terminal
+        <Tooltip text="Interactive terminal connected to the server via WebSocket. Type commands and they execute remotely in real-time. Auto-reconnects on disconnect." />
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className={`badge ${connected ? 'badge-success' : reconnecting ? 'badge-warning' : 'badge-error'}`}>
             <span className="badge-dot" />
             {connected ? 'Connected' : reconnecting ? 'Reconnecting...' : 'Disconnected'}
+            <Tooltip text={connected ? 'WebSocket connection to the server is active. Commands will execute immediately.' : reconnecting ? 'Connection lost. Automatically retrying with exponential backoff.' : 'Not connected to the server. Click Reconnect or wait for auto-retry.'} />
           </span>
           <button className="btn btn-sm" onClick={reconnect}>
             Reconnect
+            <Tooltip text="Force an immediate reconnection attempt. Resets the backoff timer and tries to establish a fresh WebSocket connection." />
           </button>
         </div>
       </div>

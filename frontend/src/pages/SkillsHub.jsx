@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../api'
 import { formatSize } from '../utils/format'
+import Tooltip from '../components/Tooltip'
 import './skills-hub.css'
 
 // ── Source badge colors ──
@@ -40,18 +41,20 @@ function SkillCard({ skill, onClick, installed }) {
         {installed && (
           <span className="sh-badge" style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--success)', marginLeft: 'auto', fontSize: 10 }}>
             <CheckCircle size={10} /> installed
+            <Tooltip text="This skill is already installed on the agent." />
           </span>
         )}
       </div>
       <div className="sh-card-desc">{desc.slice(0, 120)}{desc.length > 120 ? '...' : ''}</div>
       <div className="sh-card-footer">
         {skill.category ? (
-          <span className="sh-badge">{skill.category}</span>
+          <span className="sh-badge">{skill.category} <Tooltip text={`This skill belongs to the "${skill.category}" category.`} /></span>
         ) : (
-          <span className="sh-badge muted">uncategorized</span>
+          <span className="sh-badge muted">uncategorized <Tooltip text="This skill has no category assigned." /></span>
         )}
         <span className="sh-card-files">
           <FileText size={11} /> {skill.files_count || 0}
+          <Tooltip text="Number of files included in this skill package." />
         </span>
       </div>
     </button>
@@ -82,6 +85,7 @@ function RegistrySkillCard({ skill, onClick, isInstalled }) {
         {skill.trust && (
           <span className="sh-trust-badge">
             <Shield size={11} /> {skill.trust}
+            <Tooltip text={`Trust level: ${skill.trust}. Indicates the review status and reliability of this skill.`} />
           </span>
         )}
       </div>
@@ -134,6 +138,7 @@ function SkillDrawer({ skill, onClose, isInstalled, onInstall, installing, insta
                 ) : (
                   <><Download size={14} /> Install</>
                 )}
+                <Tooltip text="Download and install this skill into the agent. It will be available in conversations immediately after installation." />
               </button>
             )}
             {installResult === 'success' && !isInstalled && (
@@ -160,7 +165,7 @@ function SkillDrawer({ skill, onClose, isInstalled, onInstall, installing, insta
 
         {displayContent ? (
           <div className="sh-drawer-section">
-            <h3 className="sh-section-title">Documentation</h3>
+            <h3 className="sh-section-title">Documentation <Tooltip text="The SKILL.md file content, which describes how to use this skill, its parameters, and examples." /></h3>
             <div className="sh-markdown">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {displayContent}
@@ -176,7 +181,7 @@ function SkillDrawer({ skill, onClose, isInstalled, onInstall, installing, insta
         {skill.file_tree && Object.keys(skill.file_tree).length > 0 && (
           <div className="sh-drawer-section">
             <h3 className="sh-section-title">
-              <Folder size={14} /> Files
+              <Folder size={14} /> Files <Tooltip text="All files included in this skill package. Each file serves a specific purpose in the skill's functionality." />
             </h3>
             <div className="sh-file-tree">
               {Object.entries(skill.file_tree).map(([dir, files]) => (
@@ -221,6 +226,7 @@ function RegistryInspectDrawer({ skill, inspectOutput, onClose, isInstalled, onI
               {skill.trust && (
                 <span className="sh-trust-badge">
                   <Shield size={12} /> {skill.trust}
+                  <Tooltip text={`Trust level: ${skill.trust}. Indicates review status and reliability.`} />
                 </span>
               )}
             </div>
@@ -241,6 +247,7 @@ function RegistryInspectDrawer({ skill, inspectOutput, onClose, isInstalled, onI
                 ) : (
                   <><Download size={14} /> Install</>
                 )}
+                <Tooltip text="Download and install this skill from the online registry. The installed skill will appear in the Installed tab." />
               </button>
             )}
             {installResult === 'success' && !isInstalled && (
@@ -258,7 +265,7 @@ function RegistryInspectDrawer({ skill, inspectOutput, onClose, isInstalled, onI
 
         <div className="sh-drawer-section">
           <h3 className="sh-section-title">
-            <FileText size={14} /> Skill Preview
+            <FileText size={14} /> Skill Preview <Tooltip text="A preview of the skill content fetched from the registry. Review before deciding to install." />
           </h3>
           {loadingInspect ? (
             <div className="spinner" style={{ margin: '20px auto' }} />
@@ -285,9 +292,11 @@ function Pagination({ page, totalPages, onPageChange }) {
         onClick={() => onPageChange(page - 1)}
       >
         <ChevronLeft size={14} /> Prev
+        <Tooltip text="Go to the previous page of results." />
       </button>
       <span className="sh-pagination-info">
         Page {page} / {totalPages}
+        <Tooltip text={`You are on page ${page} of ${totalPages} pages of results.`} />
       </span>
       <button
         className="btn btn-sm"
@@ -295,6 +304,7 @@ function Pagination({ page, totalPages, onPageChange }) {
         onClick={() => onPageChange(page + 1)}
       >
         Next <ChevronRight size={14} />
+        <Tooltip text="Go to the next page of results." />
       </button>
     </div>
   )
@@ -461,6 +471,7 @@ export default function SkillsHub() {
       <div className="page-title">
         <Puzzle size={28} />
         Skills Hub
+        <Tooltip text="Browse, install, and manage AI agent skills. Skills are reusable prompt templates and tool configurations that extend what the agent can do." />
         <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
           {activeTab === 'installed' ? `(${data.total} installed)` : `(${regTotal} available)`}
         </span>
@@ -476,12 +487,14 @@ export default function SkillsHub() {
           onClick={() => setActiveTab('installed')}
         >
           <Puzzle size={15} /> Installed
+          <Tooltip text="View and manage skills currently installed on this agent. Click a skill card to see its documentation and file contents." />
         </button>
         <button
           className={`sh-tab ${activeTab === 'browse' ? 'active' : ''}`}
           onClick={() => setActiveTab('browse')}
         >
           <Globe size={15} /> Browse Online
+          <Tooltip text="Search and browse skills from online registries (Official, GitHub, LobeHub, Skills.sh). Click a skill to preview and install it." />
         </button>
       </div>
 
@@ -495,6 +508,7 @@ export default function SkillsHub() {
             <div className="sh-stat">
               <span className="sh-stat-val">{data.total}</span>
               <span className="sh-stat-label">Total Skills</span>
+              <Tooltip text="Total number of skills installed on this agent." />
             </div>
             {sortedCats.map(([cat, count]) => (
               <div
@@ -504,6 +518,7 @@ export default function SkillsHub() {
               >
                 <span className="sh-stat-val">{count}</span>
                 <span className="sh-stat-label">{cat}</span>
+                <Tooltip text={`Click to filter skills in the "${cat}" category. Click again to clear the filter.`} />
               </div>
             ))}
           </div>
@@ -519,6 +534,7 @@ export default function SkillsHub() {
                 onChange={e => setSearch(e.target.value)}
                 aria-label="Search installed skills"
               />
+              <Tooltip text="Search installed skills by name, description, or tags. Results update as you type." />
               {search && (
                 <button className="sh-search-clear" onClick={() => setSearch('')}>
                   <X size={14} />
@@ -528,6 +544,7 @@ export default function SkillsHub() {
             {categoryFilter && (
               <button className="btn btn-sm" onClick={() => setCategoryFilter('')}>
                 <Filter size={12} /> Clear filter: {categoryFilter}
+                <Tooltip text="Remove the category filter and show all installed skills." />
               </button>
             )}
           </div>
@@ -575,6 +592,7 @@ export default function SkillsHub() {
                   >
                     <span className="sh-stat-val" style={{ color: style.color }}>{count}</span>
                     <span className="sh-stat-label">{style.label}</span>
+                    <Tooltip text={`${count} skills available from ${style.label}. Click to filter by this source.`} />
                   </div>
                 )
               })}
@@ -592,6 +610,7 @@ export default function SkillsHub() {
                 onChange={e => handleRegSearch(e.target.value)}
                 aria-label="Search online skills"
               />
+              <Tooltip text="Search skills across all online registries. Results are debounced to avoid excessive API calls." />
               {regQuery && (
                 <button className="sh-search-clear" onClick={() => handleRegSearch('')}>
                   <X size={14} />
@@ -603,6 +622,7 @@ export default function SkillsHub() {
               value={regSource}
               onChange={e => handleRegSourceChange(e.target.value)}
             >
+              <Tooltip text="Filter skills by their source registry. Official skills are vetted, while community sources may have varying quality." />
               <option value="all">All Sources</option>
               <option value="official">Official</option>
               <option value="github">GitHub</option>

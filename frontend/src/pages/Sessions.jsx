@@ -76,6 +76,7 @@ function SessionDetail({ sessionId, onBack }) {
           <button className="btn btn-sm" onClick={handleExport} disabled={exporting}>
             {exporting ? <Loader2 size={13} className="spin" /> : <Download size={13} />}
             {' '}Export
+            <Tooltip text="Download this session as a JSON file containing all messages and metadata." />
           </button>
         </div>
       </div>
@@ -286,10 +287,12 @@ export default function Sessions() {
           {!showPrune && (
             <button className="btn btn-sm btn-danger" onClick={() => setShowPrune(true)}>
               <Scissors size={14} /> Prune
+              <Tooltip text="Remove old sessions in bulk. Specify a number of days and all sessions older than that will be permanently deleted." />
             </button>
           )}
           <button className="btn btn-sm" onClick={() => refetch()}>
             <RefreshCw size={14} /> Refresh
+            <Tooltip text="Reload the sessions list from the server." />
           </button>
         </div>
       </div>
@@ -416,9 +419,11 @@ export default function Sessions() {
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-sm" onClick={() => navigate(`/sessions/${s.id}`)}>
                       <MessageSquare size={12} /> View
+                      <Tooltip text="Open the full message history for this session." />
                     </button>
                     <button className="btn btn-sm btn-danger" onClick={() => deleteSession(s.id)} aria-label="Delete session">
                       <Trash2 size={12} />
+                      <Tooltip text="Permanently delete this session and all its messages. This cannot be undone." />
                     </button>
                   </div>
                 </td>

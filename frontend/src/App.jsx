@@ -42,6 +42,7 @@ const ClaudeCodePage = lazy(() => import('./pages/ClaudeCode'))
 const WikiPage = lazy(() => import('./pages/Wiki'))
 const MoaConfig = lazy(() => import('./pages/MoaConfig'))
 const Backlog = lazy(() => import('./pages/Backlog'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -180,6 +181,7 @@ function App() {
             <Route path="/wiki" element={<WikiPage />} />
             <Route path="/moa" element={<MoaConfig />} />
             <Route path="/backlog" element={<Backlog />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </main>
