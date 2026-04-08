@@ -2,6 +2,7 @@ import asyncio
 import re
 from fastapi import APIRouter, HTTPException, Body
 from ..utils import run_hermes
+from ..schemas.requests import WebhookCreateRequest, WebhookDeleteRequest
 
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
 
@@ -49,17 +50,11 @@ async def list_webhooks():
 
 
 @router.post("/create")
-async def create_webhook(body: dict = Body(...)):
+async def create_webhook(body: WebhookCreateRequest):
     """Create a new webhook."""
-    url = body.get("url", "").strip()
-    events = body.get("events", [])
-
-    if not url:
-        raise HTTPException(400, "Missing 'url'")
-
-    args = ["webhook", "add", url]
-    if events:
-        args.extend(["--events", ",".join(events)])
+    args = ["webhook", "add", body.url]
+    if body.events:
+        args.extend(["--events", ",".join(body.events)])
 
     try:
         output = await run_hermes(*args, timeout=15)
@@ -69,14 +64,10 @@ async def create_webhook(body: dict = Body(...)):
 
 
 @router.delete("/delete")
-async def delete_webhook(body: dict = Body(...)):
+async def delete_webhook(body: WebhookDeleteRequest):
     """Delete a webhook."""
-    url = body.get("url", "").strip()
-    if not url:
-        raise HTTPException(400, "Missing 'url'")
-
     try:
-        output = await run_hermes("webhook", "remove", url, timeout=15)
+        output = await run_hermes("webhook", "remove", body.url, timeout=15)
         return {"status": "deleted", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))

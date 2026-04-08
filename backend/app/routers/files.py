@@ -7,6 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from ..config import HERMES_HOME
+from ..schemas.requests import FileWriteRequest
 
 logger = logging.getLogger(__name__)
 
@@ -144,13 +145,9 @@ async def read_file(path: str = Query(..., description="Relative file path under
 
 
 @router.put("/write")
-async def write_file(body: dict):
+async def write_file(body: FileWriteRequest):
     """Write content to a file."""
-    rel_path = body.get("path", "")
-    content = body.get("content", "")
-
-    if not rel_path:
-        raise HTTPException(400, "path is required")
+    rel_path = body.path
 
     logger.info("Writing file: %s", rel_path)
 
@@ -164,7 +161,7 @@ async def write_file(body: dict):
     target.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        target.write_text(content)
+        target.write_text(body.content)
     except PermissionError:
         raise HTTPException(403, "Permission denied")
 

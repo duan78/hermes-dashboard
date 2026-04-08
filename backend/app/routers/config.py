@@ -10,6 +10,7 @@ from ..utils import hermes_path, mask_secrets, run_hermes
 from ..config import HERMES_HOME
 from ..schemas import ConfigSetRequest
 from ..schemas.config import ConfigSetResponse
+from ..schemas.requests import ConfigValueUpdateRequest, MoaProviderTestRequest
 
 logger = logging.getLogger(__name__)
 
@@ -115,17 +116,12 @@ async def save_structured_config(body: dict = Body(...)):
 
 
 @router.post("/update")
-async def update_config_value(body: dict = Body(...)):
+async def update_config_value(body: ConfigValueUpdateRequest):
     """Update a single config value using dot-notation key path.
 
     Example body: {"key": "agent.max_turns", "value": 120}
     Supports nested keys like 'tts.edge.voice', 'browser.camofox.managed_persistence'.
     """
-    key = body.get("key")
-    value = body.get("value")
-    if not key:
-        raise HTTPException(400, "Missing 'key' field")
-
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         raise HTTPException(404, "config.yaml not found")
@@ -133,7 +129,7 @@ async def update_config_value(body: dict = Body(...)):
     original = yaml.safe_load(config_path.read_text()) or {}
 
     # Navigate to the parent dict and set the value
-    parts = key.split(".")
+    parts = body.key.split(".")
     if len(parts) < 2:
         raise HTTPException(400, "Key must be a dot-notation path (e.g. 'agent.max_turns')")
 
@@ -144,14 +140,14 @@ async def update_config_value(body: dict = Body(...)):
         target = target[part]
 
     # Preserve masked secrets
-    if _is_masked(value):
+    if _is_masked(body.value):
         raise HTTPException(400, "Cannot set a masked secret value")
 
-    target[parts[-1]] = value
+    target[parts[-1]] = body.value
 
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
-    return {"status": "saved", "key": key}
+    return {"status": "saved", "key": body.key}
 
 
 # ── MOA Configuration ──
@@ -299,11 +295,9 @@ async def save_moa_providers(body: dict = Body(...)):
 
 
 @router.post("/moa/providers/test")
-async def test_moa_provider(body: dict = Body(...)):
+async def test_moa_provider(body: MoaProviderTestRequest):
     """Test connection to a specific MOA provider."""
-    provider_id = body.get("provider_id")
-    if not provider_id:
-        raise HTTPException(400, "Missing 'provider_id'")
+    provider_id = body.provider
 
     # Load provider config from config.yaml
     config_path = hermes_path("config.yaml")

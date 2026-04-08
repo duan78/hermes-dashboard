@@ -10,6 +10,10 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, HTTPException, Body
 from ..config import HERMES_HOME, HERMES_MEMORY_PATH
 from ..utils import hermes_path
+from ..schemas.requests import (
+    ContentSaveRequest, MemoryFileSaveRequest, MemoryFileCreateRequest,
+    MemoryFileDeleteRequest, VectorStoreRequest, VectorDeleteRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,12 +87,11 @@ async def get_soul():
 
 
 @router.put("/soul")
-async def save_soul(body: dict = Body(...)):
+async def save_soul(body: ContentSaveRequest):
     """Save SOUL.md."""
-    content = body.get("content", "")
-    logger.info("Saving SOUL.md (%d chars)", len(content))
+    logger.info("Saving SOUL.md (%d chars)", len(body.content))
     path = hermes_path("SOUL.md")
-    path.write_text(content)
+    path.write_text(body.content)
     return {"status": "saved"}
 
 
@@ -102,11 +105,10 @@ async def get_memory():
 
 
 @router.put("/memory")
-async def save_memory(body: dict = Body(...)):
+async def save_memory(body: ContentSaveRequest):
     """Save MEMORY.md."""
-    content = body.get("content", "")
     path = hermes_path("memories", "MEMORY.md")
-    path.write_text(content)
+    path.write_text(body.content)
     return {"status": "saved"}
 
 
@@ -139,13 +141,12 @@ async def read_memory_file(filename: str):
 
 
 @router.put("/files/{filename}")
-async def save_memory_file(filename: str, body: dict = Body(...)):
+async def save_memory_file(filename: str, body: ContentSaveRequest):
     """Save a memory file."""
     if "/" in filename or ".." in filename:
         raise HTTPException(400, "Invalid filename")
-    content = body.get("content", "")
     path = hermes_path("memories", filename)
-    path.write_text(content)
+    path.write_text(body.content)
     return {"status": "saved"}
 
 
@@ -215,10 +216,9 @@ async def read_file(path: str):
 
 
 @router.post("/save")
-async def save_file(body: dict = Body(...)):
+async def save_file(body: MemoryFileSaveRequest):
     """Save (create or overwrite) a file within ~/.hermes/."""
-    path_str = body.get("path", "").strip()
-    content = body.get("content", "")
+    path_str = body.path.strip()
     if not path_str:
         raise HTTPException(400, "path is required")
     resolved = _resolve_path(path_str)
@@ -226,14 +226,14 @@ async def save_file(body: dict = Body(...)):
         raise HTTPException(400, "Only .md files are allowed")
     # Create parent dirs if needed
     resolved.parent.mkdir(parents=True, exist_ok=True)
-    resolved.write_text(content)
+    resolved.write_text(body.content)
     return {"status": "saved", "path": path_str}
 
 
 @router.post("/create")
-async def create_file(body: dict = Body(...)):
+async def create_file(body: MemoryFileCreateRequest):
     """Create a new empty .md file in ~/.hermes/memories/."""
-    name = body.get("name", "").strip()
+    name = body.name.strip()
     if not name:
         raise HTTPException(400, "name is required")
     # Sanitize
@@ -258,9 +258,9 @@ async def create_file(body: dict = Body(...)):
 
 
 @router.delete("/delete")
-async def delete_file(body: dict = Body(...)):
+async def delete_file(body: MemoryFileDeleteRequest):
     """Delete a file within ~/.hermes/. Cannot delete SOUL.md."""
-    path_str = body.get("path", "").strip()
+    path_str = body.path.strip()
     if not path_str:
         raise HTTPException(400, "path is required")
     resolved = _resolve_path(path_str)
@@ -342,19 +342,16 @@ async def vector_search(q: str = "", top_k: int = 10):
 
 
 @router.post("/vector/store")
-async def vector_store(body: dict = Body(...)):
+async def vector_store(body: VectorStoreRequest):
     """Store a new vector memory manually."""
-    text = body.get("text", "").strip()
-    if not text:
-        raise HTTPException(400, "text is required")
     mem = _get_hermes_memory()
     if not mem:
         _vm_unavailable()
     try:
         memory_id = await mem.store(
-            text=text,
-            source=body.get("source", "manual"),
-            metadata=body.get("metadata"),
+            text=body.text,
+            source=body.source,
+            metadata=body.metadata,
         )
         return {"status": "stored", "id": memory_id}
     except Exception as e:
@@ -362,16 +359,13 @@ async def vector_store(body: dict = Body(...)):
 
 
 @router.delete("/vector/delete")
-async def vector_delete(body: dict = Body(...)):
+async def vector_delete(body: VectorDeleteRequest):
     """Delete a vector memory by ID."""
-    memory_id = body.get("memory_id", "").strip()
-    if not memory_id:
-        raise HTTPException(400, "memory_id is required")
     mem = _get_hermes_memory()
     if not mem:
         _vm_unavailable()
     try:
-        deleted = await mem.delete(memory_id)
+        deleted = await mem.delete(body.memory_id)
         if not deleted:
             raise HTTPException(404, f"Memory '{memory_id}' not found")
         return {"status": "deleted", "id": memory_id}

@@ -120,32 +120,29 @@ async def list_sessions():
                 continue
             seen_ids.add(sid)
 
-            # Count actual messages from JSONL if available
+            created_at = data.get("created_at", "")
+            preview = data.get("preview", "")
             msg_count = data.get("message_count", 0)
+
+            # Read JSONL once for both message count and preview extraction
             jsonl_path = hermes_path("sessions", f"{sid}.jsonl")
             if jsonl_path.exists():
                 try:
-                    lines = jsonl_path.read_text(errors="replace").strip().split("\n")
+                    jsonl_text = jsonl_path.read_text(errors="replace").strip()
+                    lines = jsonl_text.split("\n")
                     msg_count = sum(1 for l in lines if l.strip())
-                except Exception as e:
-                    logger.debug("Skipping message count for session %s: %s", sid, e)
 
-            # Build a useful preview/title
-            preview = data.get("preview", "")
-            created_at = data.get("created_at", "")
-            if not preview:
-                # Use first user message from JSONL as preview
-                if jsonl_path.exists():
-                    try:
-                        for line in jsonl_path.read_text(errors="replace").strip().split("\n"):
+                    if not preview:
+                        for line in lines:
                             if not line.strip():
                                 continue
                             msg = json.loads(line)
                             if msg.get("role") == "user" and msg.get("content"):
                                 preview = msg["content"][:80]
                                 break
-                    except Exception as e:
-                        logger.debug("Skipping preview extraction for session %s: %s", sid, e)
+                except Exception as e:
+                    logger.debug("Skipping JSONL read for session %s: %s", sid, e)
+
             if not preview and created_at:
                 preview = created_at
 

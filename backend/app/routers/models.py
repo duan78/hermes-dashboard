@@ -1,6 +1,7 @@
 import json
 from fastapi import APIRouter, HTTPException, Body
 from ..utils import run_hermes, hermes_path
+from ..schemas.requests import ModelSwitchRequest
 
 router = APIRouter(prefix="/api/models", tags=["models"])
 
@@ -43,16 +44,12 @@ async def list_available_models():
 
 
 @router.post("/switch")
-async def switch_model(body: dict = Body(...)):
+async def switch_model(body: ModelSwitchRequest):
     """Switch model."""
-    model = body.get("model")
-    provider = body.get("provider")
-    if not model:
-        raise HTTPException(400, "Missing 'model'")
     try:
-        args = ["model", "--set", model]
-        if provider:
-            args += ["--provider", provider]
+        args = ["model", "--set", body.model]
+        if body.provider:
+            args += ["--provider", body.provider]
         output = await run_hermes(*args, timeout=30)
         return {"status": "switched", "output": output}
     except RuntimeError as e:

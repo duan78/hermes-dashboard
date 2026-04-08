@@ -114,6 +114,20 @@ SENSITIVE_LIMITS = {
 }
 
 MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
+RATE_CLEANUP_INTERVAL = 300  # Clean stale buckets every 5 minutes
+_last_rate_cleanup = 0.0
+
+
+def _cleanup_stale_buckets():
+    """Remove empty buckets to prevent unbounded memory growth."""
+    global _last_rate_cleanup
+    now = time.time()
+    if now - _last_rate_cleanup < RATE_CLEANUP_INTERVAL:
+        return
+    _last_rate_cleanup = now
+    stale_keys = [k for k, v in _rate_windows.items() if not v]
+    for k in stale_keys:
+        del _rate_windows[k]
 
 
 def _check_rate_limit(ip: str, path: str) -> tuple[bool, int, int]:
@@ -139,6 +153,7 @@ def _check_rate_limit(ip: str, path: str) -> tuple[bool, int, int]:
         return False, 0, retry_after
 
     bucket.append(now)
+    _cleanup_stale_buckets()
     return True, limit - len(bucket), 0
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Body
 from ..utils import run_hermes
 from ..config import HERMES_HOME
+from ..schemas.requests import ToolEnvRequest, ToolToggleRequest
 
 logger = logging.getLogger(__name__)
 
@@ -306,35 +307,27 @@ async def get_tool_config():
 
 
 @router.post("/config/set-env")
-async def set_tool_env(body: dict = Body(...)):
+async def set_tool_env(body: ToolEnvRequest):
     """Set an environment variable in ~/.hermes/.env and optionally update config.yaml."""
-    key = body.get("key")
-    value = body.get("value", "")
-    config_key = body.get("config_key")
-    config_value = body.get("config_value")
-
-    if not key:
-        raise HTTPException(400, "Missing 'key'")
-
     try:
-        _save_env_value(key, value)
+        _save_env_value(body.key, body.value)
     except Exception as e:
         raise HTTPException(500, f"Failed to save env var: {e}")
 
     # If a config key was provided, update config.yaml too
-    if config_key and config_value:
+    if body.config_key and body.config_value:
         try:
             config = _load_yaml_config()
-            parts = config_key.split(".")
+            parts = body.config_key.split(".")
             obj = config
             for p in parts[:-1]:
                 obj = obj.setdefault(p, {})
-            obj[parts[-1]] = config_value
+            obj[parts[-1]] = body.config_value
             _save_yaml_config(config)
         except Exception as e:
             raise HTTPException(500, f"Env saved but config update failed: {e}")
 
-    return {"status": "ok", "key": key}
+    return {"status": "ok", "key": body.key}
 
 
 @router.get("/platform/{platform}")
@@ -348,28 +341,20 @@ async def list_tools_platform(platform: str):
 
 
 @router.post("/enable")
-async def enable_tool(body: dict = Body(...)):
+async def enable_tool(body: ToolToggleRequest):
     """Enable a tool for a platform."""
-    tool = body.get("tool")
-    platform = body.get("platform", "cli")
-    if not tool:
-        raise HTTPException(400, "Missing 'tool'")
     try:
-        output = await run_hermes("tools", "enable", tool, "--platform", platform, timeout=15)
+        output = await run_hermes("tools", "enable", body.tool, "--platform", body.platform, timeout=15)
         return {"status": "enabled", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))
 
 
 @router.post("/disable")
-async def disable_tool(body: dict = Body(...)):
+async def disable_tool(body: ToolToggleRequest):
     """Disable a tool for a platform."""
-    tool = body.get("tool")
-    platform = body.get("platform", "cli")
-    if not tool:
-        raise HTTPException(400, "Missing 'tool'")
     try:
-        output = await run_hermes("tools", "disable", tool, "--platform", platform, timeout=15)
+        output = await run_hermes("tools", "disable", body.tool, "--platform", body.platform, timeout=15)
         return {"status": "disabled", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))
