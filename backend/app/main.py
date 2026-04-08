@@ -11,7 +11,7 @@ import fcntl
 import termios
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -91,7 +91,7 @@ app = FastAPI(
 # CORS for frontend dev
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", f"http://127.0.0.1:{PORT}"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -280,7 +280,7 @@ app.include_router(backlog.router)
 from .websocket_hub import ws_hub_handler, poll_bridge
 
 @app.websocket("/ws/hub")
-async def dashboard_hub_ws(websocket):
+async def dashboard_hub_ws(websocket: WebSocket):
     """WebSocket endpoint for real-time dashboard events."""
     await ws_hub_handler(websocket)
 
