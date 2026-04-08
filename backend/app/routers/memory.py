@@ -8,7 +8,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException
-from ..config import HERMES_HOME, HERMES_MEMORY_PATH
+from ..config import HERMES_HOME
 from ..utils import hermes_path
 from ..schemas.requests import (
     ContentSaveRequest, MemoryFileSaveRequest, MemoryFileCreateRequest,
@@ -19,39 +19,68 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
 
-# ── Vector memory (hermes-memory / LanceDB) ──
-_hermes_memory = None
-_hermes_memory_error = None
+# ── Vector memory (memory-claw / LanceDB) ──
+_claw_store = None
+_claw_embedder = None
+_claw_error = None
 
-def _get_hermes_memory():
-    global _hermes_memory, _hermes_memory_error
-    if _hermes_memory is not None:
-        return _hermes_memory
-    if _hermes_memory_error is not None:
-        return None
+# Path to memory-claw source (for direct import, not from venv)
+_HERMES_AGENT_PATH = "/root/.hermes/hermes-agent"
+_MEMORY_CLAW_DB_PATH = str(HERMES_HOME / "memory-claw")
+
+
+def _get_claw():
+    """Lazy-load MemoryStore + MistralEmbedder from memory-claw plugin."""
+    global _claw_store, _claw_embedder, _claw_error
+    if _claw_store is not None:
+        return _claw_store, _claw_embedder
+    if _claw_error is not None:
+        return None, None
     try:
-        sys.path.insert(0, HERMES_MEMORY_PATH)
-        from hermes_memory import HermesMemory
-        _hermes_memory = HermesMemory()
-        return _hermes_memory
+        # Add hermes-agent source to sys.path for plugin imports
+        if _HERMES_AGENT_PATH not in sys.path:
+            sys.path.insert(0, _HERMES_AGENT_PATH)
+
+        # Ensure MISTRAL_API_KEY is available (may be in ~/.hermes/.env)
+        import os
+        api_key = os.environ.get("MISTRAL_API_KEY", "")
+        if not api_key:
+            env_path = HERMES_HOME / ".env"
+            if env_path.exists():
+                for line in env_path.read_text().splitlines():
+                    line = line.strip()
+                    if line.startswith("MISTRAL_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip().strip("\"'")
+                        os.environ["MISTRAL_API_KEY"] = api_key
+                        break
+
+        from plugins.memory.memory_claw.store import MemoryStore
+        from plugins.memory.memory_claw.embedder import MistralEmbedder
+
+        _claw_store = MemoryStore(_MEMORY_CLAW_DB_PATH)
+        _claw_store.open()
+        _claw_embedder = MistralEmbedder(api_key=api_key)
+        logger.info("memory-claw: loaded store from %s", _MEMORY_CLAW_DB_PATH)
+        return _claw_store, _claw_embedder
     except Exception as e:
-        _hermes_memory_error = str(e)
-        return None
+        _claw_error = str(e)
+        logger.warning("memory-claw: failed to load: %s", e)
+        return None, None
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
 
 @router.get("/vector/available")
 async def vector_available():
-    """Check if vector memory (hermes-memory / LanceDB) is available."""
-    mem = _get_hermes_memory()
-    if mem:
+    """Check if vector memory (memory-claw / LanceDB) is available."""
+    store, embedder = _get_claw()
+    if store:
         return {"available": True}
-    return {"available": False, "error": _hermes_memory_error or "hermes-memory not installed"}
+    return {"available": False, "error": _claw_error or "memory-claw not available"}
 
 
 def _vm_unavailable():
-    raise HTTPException(503, f"Vector memory unavailable: {_hermes_memory_error or 'import failed'}")
+    raise HTTPException(503, f"Vector memory unavailable: {_claw_error or 'import failed'}")
 
 # Directories to scan for .md files
 _HERMES_ROOT = hermes_path()
@@ -272,35 +301,50 @@ async def delete_file(body: MemoryFileDeleteRequest):
     return {"status": "deleted", "path": path_str}
 
 
-# ── Vector Memory endpoints ──
+# ── Vector Memory endpoints (memory-claw backend) ──
 
 @router.get("/vector/stats")
 async def vector_stats():
     """Return vector memory statistics."""
-    mem = _get_hermes_memory()
-    if not mem:
-        if _hermes_memory_error:
+    store, embedder = _get_claw()
+    if not store:
+        if _claw_error:
             _vm_unavailable()
         return {"total_memories": 0, "db_size_mb": 0, "sources": {}, "oldest": None, "newest": None}
     try:
-        stats = await asyncio.to_thread(mem.stats)
-        # Get source breakdown from list
-        items = await asyncio.to_thread(lambda: mem.list(limit=10000))
+        stats = await asyncio.to_thread(store.get_stats)
+        total = stats.get("total", 0)
+
+        # Compute db_size_mb from the LanceDB directory
+        db_size_mb = 0.0
+        db_path = Path(_MEMORY_CLAW_DB_PATH)
+        if db_path.exists():
+            try:
+                db_size_mb = sum(
+                    f.stat().st_size for f in db_path.rglob("*") if f.is_file()
+                ) / (1024 * 1024)
+            except Exception:
+                pass
+
+        # Get source breakdown and timestamps by listing all memories
         sources = {}
         oldest = None
         newest = None
-        for item in items:
-            src = item.get("source", "unknown")
-            sources[src] = sources.get(src, 0) + 1
-            ts = item.get("created_at")
-            if ts:
-                if oldest is None or ts < oldest:
-                    oldest = ts
-                if newest is None or ts > newest:
-                    newest = ts
+        if total > 0:
+            items = await asyncio.to_thread(lambda: store.search([0.0] * 1024, limit=min(total, 10000)))
+            for item in items:
+                src = item.get("source", "unknown") or "unknown"
+                sources[src] = sources.get(src, 0) + 1
+                ts = item.get("created_at", "")
+                if ts:
+                    if oldest is None or ts < oldest:
+                        oldest = ts
+                    if newest is None or ts > newest:
+                        newest = ts
+
         return {
-            "total_memories": stats.get("total_memories", len(items)),
-            "db_size_mb": stats.get("db_size_mb", 0),
+            "total_memories": total,
+            "db_size_mb": round(db_size_mb, 2),
             "sources": sources,
             "oldest": oldest,
             "newest": newest,
@@ -312,16 +356,32 @@ async def vector_stats():
 @router.get("/vector/list")
 async def vector_list(limit: int = 50, source: str = "all"):
     """List vector memories."""
-    mem = _get_hermes_memory()
-    if not mem:
-        if _hermes_memory_error:
+    store, embedder = _get_claw()
+    if not store:
+        if _claw_error:
             _vm_unavailable()
         return {"memories": []}
     try:
-        items = await asyncio.to_thread(lambda: mem.list(limit=min(limit, 500)))
+        # Use zero-vector search to list all memories
+        items = await asyncio.to_thread(lambda: store.search([0.0] * 1024, limit=min(limit, 500)))
         if source != "all":
             items = [m for m in items if m.get("source") == source]
-        return {"memories": items}
+        # Map claw fields → frontend-expected fields
+        memories = []
+        for item in items:
+            memories.append({
+                "id": item.get("id", ""),
+                "text": item.get("text", ""),
+                "score": item.get("score"),
+                "source": item.get("source", ""),
+                "created_at": item.get("created_at", ""),
+                "importance": item.get("importance"),
+                "category": item.get("category", ""),
+                "tier": item.get("tier", ""),
+                "tags": item.get("tags", []),
+                "hit_count": item.get("hit_count", 0),
+            })
+        return {"memories": memories}
     except Exception as e:
         raise HTTPException(500, f"List error: {e}")
 
@@ -331,12 +391,32 @@ async def vector_search(q: str = "", top_k: int = 10):
     """Semantic search in vector memory."""
     if not q:
         raise HTTPException(400, "Query parameter 'q' is required")
-    mem = _get_hermes_memory()
-    if not mem:
+    store, embedder = _get_claw()
+    if not store or not embedder:
         _vm_unavailable()
     try:
-        results = await mem.search(query=q, top_k=min(top_k, 50))
-        return {"results": results}
+        vector = await asyncio.to_thread(lambda: embedder.embed(q))
+        if not vector:
+            raise HTTPException(502, "Failed to generate embedding for query")
+        results = await asyncio.to_thread(lambda: store.search(vector, limit=min(top_k, 50)))
+        # Map fields for frontend
+        mapped = []
+        for item in results:
+            mapped.append({
+                "id": item.get("id", ""),
+                "text": item.get("text", ""),
+                "score": item.get("score"),
+                "source": item.get("source", ""),
+                "created_at": item.get("created_at", ""),
+                "importance": item.get("importance"),
+                "category": item.get("category", ""),
+                "tier": item.get("tier", ""),
+                "tags": item.get("tags", []),
+                "hit_count": item.get("hit_count", 0),
+            })
+        return {"results": mapped}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Search error: {e}")
 
@@ -344,16 +424,27 @@ async def vector_search(q: str = "", top_k: int = 10):
 @router.post("/vector/store")
 async def vector_store(body: VectorStoreRequest):
     """Store a new vector memory manually."""
-    mem = _get_hermes_memory()
-    if not mem:
+    store, embedder = _get_claw()
+    if not store or not embedder:
         _vm_unavailable()
     try:
-        memory_id = await mem.store(
-            text=body.text,
-            source=body.source,
-            metadata=body.metadata,
+        vector = await asyncio.to_thread(lambda: embedder.embed(body.text))
+        if not vector:
+            raise HTTPException(502, "Failed to generate embedding for text")
+        memory_id = await asyncio.to_thread(
+            lambda: store.add(
+                text=body.text,
+                vector=vector,
+                importance=0.5,
+                category="fact",
+                source=body.source or "manual",
+            )
         )
+        if not memory_id:
+            raise HTTPException(500, "Failed to store memory in LanceDB")
         return {"status": "stored", "id": memory_id}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Store error: {e}")
 
@@ -361,14 +452,14 @@ async def vector_store(body: VectorStoreRequest):
 @router.delete("/vector/delete")
 async def vector_delete(body: VectorDeleteRequest):
     """Delete a vector memory by ID."""
-    mem = _get_hermes_memory()
-    if not mem:
+    store, embedder = _get_claw()
+    if not store:
         _vm_unavailable()
     try:
-        deleted = await mem.delete(body.memory_id)
+        deleted = await asyncio.to_thread(lambda: store.delete(body.memory_id))
         if not deleted:
-            raise HTTPException(404, f"Memory '{memory_id}' not found")
-        return {"status": "deleted", "id": memory_id}
+            raise HTTPException(404, f"Memory '{body.memory_id}' not found")
+        return {"status": "deleted", "id": body.memory_id}
     except HTTPException:
         raise
     except Exception as e:
@@ -378,16 +469,21 @@ async def vector_delete(body: VectorDeleteRequest):
 @router.get("/vector/usage")
 async def vector_usage():
     """Estimate Mistral embedding API usage."""
-    mem = _get_hermes_memory()
-    if not mem:
-        if _hermes_memory_error:
+    store, embedder = _get_claw()
+    if not store:
+        if _claw_error:
             _vm_unavailable()
         return {"estimated_embed_calls": 0, "estimated_tokens": 0}
     try:
-        items = await asyncio.to_thread(lambda: mem.list(limit=10000))
-        total_chars = sum(len(m.get("text", "")) for m in items)
+        stats = await asyncio.to_thread(store.get_stats)
+        total = stats.get("total", 0)
+        # Estimate tokens from listing all memory texts
+        total_chars = 0
+        if total > 0:
+            items = await asyncio.to_thread(lambda: store.search([0.0] * 1024, limit=min(total, 10000)))
+            total_chars = sum(len(m.get("text", "")) for m in items)
         return {
-            "estimated_embed_calls": len(items),
+            "estimated_embed_calls": total,
             "estimated_tokens": int(total_chars * 1.3),
         }
     except Exception as e:
@@ -416,7 +512,11 @@ def _get_honcho_api_key():
 
 
 def _get_honcho_provider():
-    """Read memory.provider from ~/.hermes/config.yaml."""
+    """Read memory.provider from ~/.hermes/config.yaml.
+    
+    Supports both string ("honcho") and list (["honcho", "memory_claw"]) formats.
+    Returns True if 'honcho' is in the provider list, False otherwise.
+    """
     config_path = hermes_path("config.yaml")
     if not config_path.exists():
         return None
@@ -425,7 +525,10 @@ def _get_honcho_provider():
         if isinstance(cfg, dict):
             memory = cfg.get("memory", {})
             if isinstance(memory, dict):
-                return memory.get("provider")
+                provider = memory.get("provider")
+                if isinstance(provider, list):
+                    return "honcho" in provider
+                return provider == "honcho"
     except Exception as e:
         logger.debug("Error reading memory provider from config: %s", e)
     return None
@@ -537,7 +640,7 @@ async def honcho_status():
     """Check if Honcho memory is configured and functional."""
     provider = _get_honcho_provider()
     api_key = _get_honcho_api_key()
-    config_ok = provider == "honcho"
+    config_ok = provider is True
     key_ok = bool(api_key)
 
     if not config_ok or not key_ok:
