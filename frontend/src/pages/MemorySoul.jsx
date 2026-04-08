@@ -366,9 +366,11 @@ function HonchoTab({ showToast }) {
       {stats && (
         <div className="vector-stats-bar">
           <div className="vector-stat-card">
-            <div className="vector-stat-label">
-              <Database size={13} /> Sessions
-            </div>
+            <Tooltip text="Nombre de sessions de conversation résumées par Honcho. Chaque session correspond à une période d'échanges entre toi et l'agent IA.">
+              <div className="vector-stat-label">
+                <Database size={13} /> Sessions
+              </div>
+            </Tooltip>
             <div className="vector-stat-value">
               <span className="vector-status-indicator">
                 <span className={`vector-status-dot ${stats.total_sessions > 0 ? 'active' : 'inactive'}`} />
@@ -377,25 +379,31 @@ function HonchoTab({ showToast }) {
             </div>
           </div>
           <div className="vector-stat-card">
-            <div className="vector-stat-label">
-              <User size={13} /> Peers
-            </div>
+            <Tooltip text="Nombre de personnes connues par Honcho. Un peer = une identité avec sa fiche personnelle (nom, préférences, habitudes). Toi et l'agent sont des peers.">
+              <div className="vector-stat-label">
+                <User size={13} /> Peers
+              </div>
+            </Tooltip>
             <div className="vector-stat-value">
               {stats.total_peers}
             </div>
           </div>
           <div className="vector-stat-card">
-            <div className="vector-stat-label">
-              <Cpu size={13} /> Configuration
-            </div>
+            <Tooltip text="Features avancées de Honcho. reasoning = raisonnement, peer_card = génération auto des fiches, summary = résumé auto, dream = consolidation nocturne. None = non activé.">
+              <div className="vector-stat-label">
+                <Cpu size={13} /> Configuration
+              </div>
+            </Tooltip>
             <div className="vector-stat-value" style={{ fontSize: 12 }}>
               {stats.configuration ? stats.configuration.slice(0, 60) + (stats.configuration.length > 60 ? '...' : '') : '—'}
             </div>
           </div>
           <div className="vector-stat-card">
-            <div className="vector-stat-label">
-              <BarChart3 size={13} /> Workspace
-            </div>
+            <Tooltip text="Espace de travail Honcho. Contient les metadata globales du workspace. 'hermes' est ton workspace actuel.">
+              <div className="vector-stat-label">
+                <BarChart3 size={13} /> Workspace
+              </div>
+            </Tooltip>
             <div className="vector-stat-value" style={{ fontSize: 12 }}>
               {stats.metadata && Object.keys(stats.metadata).length > 0
                 ? Object.entries(stats.metadata).slice(0, 3).map(([k, v]) => (
@@ -411,37 +419,45 @@ function HonchoTab({ showToast }) {
 
       {/* Section navigation */}
       <div className="memory-tabs" style={{ marginBottom: 16 }}>
-        <button
-          className={`memory-tab ${activeSection === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveSection('overview')}
-          style={{ fontSize: 12 }}
-        >
-          <User size={13} /> Profile
-        </button>
-        <button
-          className={`memory-tab ${activeSection === 'memories' ? 'active' : ''}`}
-          onClick={() => setActiveSection('memories')}
-          style={{ fontSize: 12 }}
-        >
-          <Database size={13} /> Sessions ({stats?.total_sessions || 0})
-        </button>
-        <button
-          className={`memory-tab ${activeSection === 'search' ? 'active' : ''}`}
-          onClick={() => setActiveSection('search')}
-          style={{ fontSize: 12 }}
-        >
-          <Search size={13} /> Search
-        </button>
+        <Tooltip text="Fiches d'identité des peers (toi et l'agent) : nom, localisation, préférences, instructions. C'est le profil qui se charge au démarrage de chaque conversation.">
+          <button
+            className={`memory-tab ${activeSection === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveSection('overview')}
+            style={{ fontSize: 12 }}
+          >
+            <User size={13} /> Profile
+          </button>
+        </Tooltip>
+        <Tooltip text="Historique des sessions de conversation avec leur résumé auto-généré. Les sessions actives sont toujours en cours d'enregistrement.">
+          <button
+            className={`memory-tab ${activeSection === 'memories' ? 'active' : ''}`}
+            onClick={() => setActiveSection('memories')}
+            style={{ fontSize: 12 }}
+          >
+            <Database size={13} /> Sessions ({stats && stats.total_sessions ? stats.total_sessions : 0})
+          </button>
+        </Tooltip>
+        <Tooltip text="Recherche sémantique dans les mémoires Honcho. Tape un mot ou une phrase pour retrouver des infos d'une conversation passée.">
+          <button
+            className={`memory-tab ${activeSection === 'search' ? 'active' : ''}`}
+            onClick={() => setActiveSection('search')}
+            style={{ fontSize: 12 }}
+          >
+            <Search size={13} /> Search
+          </button>
+        </Tooltip>
       </div>
 
       {/* Profile section */}
       {activeSection === 'overview' && profile && (
         <div className="vector-memory-list">
           <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
-            <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
-              <Cpu size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-              Workspace Configuration
-            </h3>
+            <Tooltip text="Paramètres de configuration Honcho. reasoning=None signifie que la fonction de raisonnement n'est pas activée. peer_card=None = pas de génération auto des cartes, summary=None = pas de résumé automatique, dream=None = pas de consolidation nocturne.">
+              <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
+                <Cpu size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                Workspace Configuration
+              </h3>
+            </Tooltip>
             <pre style={{
               fontSize: 12,
               background: 'var(--bg-secondary)',
@@ -457,10 +473,12 @@ function HonchoTab({ showToast }) {
 
           {profile.metadata && Object.keys(profile.metadata).length > 0 && (
             <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
-              <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
-                <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                Metadata
-              </h3>
+              <Tooltip text="Métadonnées globales du workspace Honcho. Peut contenir des informations supplémentaires ajoutées manuellement.">
+                <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
+                  <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                  Metadata
+                </h3>
+              </Tooltip>
               <pre style={{
                 fontSize: 12,
                 background: 'var(--bg-secondary)',
@@ -476,17 +494,21 @@ function HonchoTab({ showToast }) {
           )}
 
           <div style={{ padding: '12px 0' }}>
-            <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
-              <User size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-              Peers ({profile.total_peers})
-            </h3>
+            <Tooltip text="Liste des personnes connues par Honcho. Chaque peer a une fiche d'identité avec des faits persistants qui sont injectés dans chaque conversation.">
+              <h3 style={{ fontSize: 14, marginBottom: 8, color: 'var(--text-secondary)' }}>
+                <User size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                Peers ({profile.total_peers})
+              </h3>
+            </Tooltip>
             {profile.peers.map(peer => (
               <div key={peer.id} className="vector-memory-item" style={{ marginBottom: 8 }}>
                 <div className="vector-memory-header">
                   <div className="vector-memory-meta">
-                    <span className="vector-source-badge source-conversation">
-                      {peer.id}
-                    </span>
+                    <Tooltip text={"Fiche d'identité de " + peer.id + ". Ces informations sont utilisées par l'agent pour personnaliser ses réponses."}>
+                      <span className="vector-source-badge source-conversation">
+                        {peer.id}
+                      </span>
+                    </Tooltip>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Calendar size={11} /> {formatDate(peer.created_at)}
                     </span>
@@ -515,9 +537,11 @@ function HonchoTab({ showToast }) {
       {activeSection === 'memories' && (
         <div>
           <div className="vector-search-bar">
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Recent sessions (newest first)
-            </span>
+            <Tooltip text="Liste des sessions les plus récentes, triées de la plus récente à la plus ancienne. Chaque session a un résumé généré automatiquement par Honcho.">
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Recent sessions (newest first)
+              </span>
+            </Tooltip>
             <button className="btn btn-sm" onClick={() => { loadStats(); loadMemories() }} style={{ marginLeft: 'auto' }}>
               <RefreshCw size={14} />
             </button>
@@ -527,18 +551,22 @@ function HonchoTab({ showToast }) {
               <div key={m.id} className="vector-memory-item">
                 <div className="vector-memory-header">
                   <div className="vector-memory-meta">
-                    <span className="vector-source-badge source-auto_capture">
-                      {m.is_active ? 'Active' : 'Archived'}
-                    </span>
+                    <Tooltip text="Active = cette session est toujours en cours d'enregistrement. Archived = session terminée.">
+                      <span className="vector-source-badge source-auto_capture">
+                        {m.is_active ? 'Active' : 'Archived'}
+                      </span>
+                    </Tooltip>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Calendar size={11} /> {formatDate(m.created_at)}
                     </span>
                   </div>
                 </div>
                 {m.summary && m.summary.short && (
-                  <div className="vector-memory-text">
-                    {typeof m.summary.short === 'object' ? (m.summary.short.content || '') : m.summary.short}
-                  </div>
+                  <Tooltip text={"Session " + m.id + ". Active = toujours en cours d'enregistrement. Archived = terminée. Le résumé est généré automatiquement."}>
+                    <div className="vector-memory-text">
+                      {typeof m.summary.short === 'object' ? (m.summary.short.content || '') : m.summary.short}
+                    </div>
+                  </Tooltip>
                 )}
                 {m.summary && m.summary.long && (
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
@@ -570,14 +598,16 @@ function HonchoTab({ showToast }) {
       {activeSection === 'search' && (
         <div>
           <div className="vector-search-bar">
-            <input
-              className="form-input"
-              placeholder="Semantic search in Honcho memory..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              aria-label="Search Honcho memory"
-            />
+            <Tooltip text="Recherche sémantique : tape un mot-clé ou une phrase pour chercher dans toutes les mémoires Honcho.">
+              <input
+                className="form-input"
+                placeholder="Semantic search in Honcho memory..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                aria-label="Search Honcho memory"
+              />
+            </Tooltip>
             <button className="btn btn-primary" onClick={handleSearch} disabled={searching}>
               <Search size={14} /> {searching ? 'Searching...' : 'Search'}
             </button>
@@ -592,9 +622,11 @@ function HonchoTab({ showToast }) {
               <div key={m.id} className="vector-memory-item">
                 <div className="vector-memory-header">
                   <div className="vector-memory-meta">
-                    <span className="vector-source-badge source-manual">
-                      {m.peer_id || 'unknown'}
-                    </span>
+                    <Tooltip text={"Résultat de recherche. token_count = nombre de tokens utilisés. session = session d'origine."}>
+                      <span className="vector-source-badge source-manual">
+                        {m.peer_id || 'unknown'}
+                      </span>
+                    </Tooltip>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Calendar size={11} /> {formatDate(m.created_at)}
                     </span>
