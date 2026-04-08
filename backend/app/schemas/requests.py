@@ -1,10 +1,8 @@
-"""Pydantic models for request validation on critical endpoints."""
+"""Request models for API validation."""
 
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 
-
-# ── Config ──
 
 class ConfigSetRequest(BaseModel):
     key: str = Field(..., min_length=1, description="Dot-notation config key")
@@ -15,8 +13,6 @@ class StructuredConfigRequest(BaseModel):
     """Accepts any dict for structured config updates."""
     model_config = {"extra": "allow"}
 
-
-# ── API Keys ──
 
 class ApiKeySetRequest(BaseModel):
     key: str = Field(..., min_length=1, description="Environment variable name")
@@ -31,15 +27,11 @@ class ApiKeyTestRequest(BaseModel):
     key: str = Field(..., min_length=1, description="API key name to test")
 
 
-# ── Cron ──
-
 class CronCreateRequest(BaseModel):
     schedule: str = Field(..., min_length=1, description="Cron schedule expression")
     prompt: str = Field(..., min_length=1, description="Prompt to execute")
     name: str = Field("", description="Optional job name")
 
-
-# ── MCP ──
 
 class McpAddRequest(BaseModel):
     name: str = Field(..., min_length=1, description="Server name")
