@@ -264,6 +264,14 @@ export const api = {
   mcpAdd: (body) => request('/mcp/add', { method: 'POST', body: JSON.stringify(body) }),
   mcpTest: (name) => request('/mcp/test', { method: 'POST', body: JSON.stringify({ name }) }),
   mcpRemove: (name) => request('/mcp/remove', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  // Backlog
+  getBacklogItems: (qs) => request('/backlog' + (qs ? '?' + qs : '')),
+  backlogStats: () => request('/backlog/stats'),
+  createBacklogItem: (item) => request('/backlog', { method: 'POST', body: JSON.stringify(item) }),
+  updateBacklogItem: (id, item) => request('/backlog/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(item) }),
+  deleteBacklogItem: (id) => request('/backlog/' + encodeURIComponent(id), { method: 'DELETE' }),
+  patchBacklogStatus: (id, status) => request('/backlog/' + encodeURIComponent(id) + '/status', { method: 'PATCH', body: JSON.stringify({ status }) }),
   authPairingList: () => request('/auth-pairing/list'),
   authPairingApprove: (code) => request('/auth-pairing/approve', { method: 'POST', body: JSON.stringify({ code }) }),
   authPairingRevoke: (user) => request('/auth-pairing/revoke', { method: 'POST', body: JSON.stringify({ user }) }),

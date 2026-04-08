@@ -45,6 +45,7 @@ from .routers import (
     backup,
     claude_code,
     wiki,
+    backlog,
 )
 
 # ── Structured logging setup ──
@@ -257,6 +258,7 @@ app.include_router(profiles.router)
 app.include_router(backup.router)
 app.include_router(claude_code.router)
 app.include_router(wiki.router)
+app.include_router(backlog.router)
 
 
 # ── WebSocket Hub for real-time dashboard updates ──

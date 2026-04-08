@@ -3,7 +3,7 @@ import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
-  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText
+  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText, ClipboardList
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { ToastProvider } from './contexts/ToastContext'
@@ -41,6 +41,7 @@ const BackupRestorePage = lazy(() => import('./pages/BackupRestore'))
 const ClaudeCodePage = lazy(() => import('./pages/ClaudeCode'))
 const WikiPage = lazy(() => import('./pages/Wiki'))
 const MoaConfig = lazy(() => import('./pages/MoaConfig'))
+const Backlog = lazy(() => import('./pages/Backlog'))
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -71,6 +72,7 @@ const NAV_ITEMS = [
   { to: '/auth-pairing', icon: UserCheck, label: 'Auth & Pairing' },
   { to: '/profiles', icon: Users, label: 'Profiles' },
   { to: '/backup', icon: HardDrive, label: 'Backup' },
+  { to: '/backlog', icon: ClipboardList, label: 'Backlog' },
 ]
 
 function Spinner() {
@@ -177,6 +179,7 @@ function App() {
             <Route path="/claude-code" element={<ClaudeCodePage />} />
             <Route path="/wiki" element={<WikiPage />} />
             <Route path="/moa" element={<MoaConfig />} />
+            <Route path="/backlog" element={<Backlog />} />
           </Routes>
         </Suspense>
       </main>
