@@ -14,6 +14,8 @@ router = APIRouter(prefix="/api/gateway", tags=["gateway"])
 
 LOG_PATH = HERMES_HOME / "logs" / "gateway.log"
 
+SYSTEMCTL_ENV = {"XDG_RUNTIME_DIR": "/run/user/0"}
+
 
 def _parse_systemctl_output(output: str) -> dict:
     """Parse systemctl --user status output."""
@@ -108,6 +110,7 @@ async def gateway_status():
         "systemctl", "--user", "status", "hermes-gateway", "--no-pager",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=SYSTEMCTL_ENV,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
     output = stdout.decode(errors="replace")
@@ -119,6 +122,7 @@ async def gateway_status():
         "systemctl", "--user", "is-enabled", "hermes-gateway",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=SYSTEMCTL_ENV,
     )
     out2, _ = await asyncio.wait_for(proc2.communicate(), timeout=5)
     result["service_enabled"] = out2.decode(errors="replace").strip() == "enabled"
@@ -133,6 +137,7 @@ async def gateway_restart():
         "systemctl", "--user", "restart", "hermes-gateway",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=SYSTEMCTL_ENV,
     )
     await asyncio.wait_for(proc.communicate(), timeout=15)
 
@@ -142,6 +147,7 @@ async def gateway_restart():
         "systemctl", "--user", "status", "hermes-gateway", "--no-pager",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=SYSTEMCTL_ENV,
     )
     out, _ = await asyncio.wait_for(proc2.communicate(), timeout=10)
     status = _parse_systemctl_output(out.decode(errors="replace"))
@@ -156,6 +162,7 @@ async def gateway_stop():
         "systemctl", "--user", "stop", "hermes-gateway",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=SYSTEMCTL_ENV,
     )
     await asyncio.wait_for(proc.communicate(), timeout=15)
     return {"status": "stopped"}
@@ -168,6 +175,7 @@ async def gateway_start():
         "systemctl", "--user", "start", "hermes-gateway",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=SYSTEMCTL_ENV,
     )
     await asyncio.wait_for(proc.communicate(), timeout=15)
 
@@ -177,6 +185,7 @@ async def gateway_start():
         "systemctl", "--user", "status", "hermes-gateway", "--no-pager",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=SYSTEMCTL_ENV,
     )
     out, _ = await asyncio.wait_for(proc2.communicate(), timeout=10)
     status = _parse_systemctl_output(out.decode(errors="replace"))

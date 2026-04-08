@@ -200,7 +200,7 @@ export const api = {
   // MCP Servers
   listMcpServers: () => request('/mcp/list'),
   addMcpServer: (name, type, command, url, args) => request('/mcp/add', { method: 'POST', body: JSON.stringify({ name, type, command, url, args }) }),
-  removeMcpServer: (name) => request('/mcp/remove', { method: 'DELETE', body: JSON.stringify({ name }) }),
+  removeMcpServer: (name) => request('/mcp/remove', { method: 'POST', body: JSON.stringify({ name }) }),
   testMcpServer: (name) => request('/mcp/test', { method: 'POST', body: JSON.stringify({ name }) }),
 
   // Auth & Pairing
@@ -248,7 +248,7 @@ export const api = {
   // Aliases — pages use camelCase verbs, keep both for compat
   envVarsList: () => request('/env-vars/list'),
   envVarsRequired: () => request('/env-vars/required'),
-  envVarsSet: (key, value) => request('/env-vars/set', { method: 'POST', body: JSON.stringify({ key, value }) }),
+  envVarsSet: (key, value) => request('/env-vars/set', { method: 'PUT', body: JSON.stringify({ key, value }) }),
   envVarsDelete: (key) => request('/env-vars/delete', { method: 'DELETE', body: JSON.stringify({ key }) }),
   pluginsList: () => request('/plugins/list'),
   pluginsInstall: (url) => request('/plugins/install', { method: 'POST', body: JSON.stringify({ url }) }),

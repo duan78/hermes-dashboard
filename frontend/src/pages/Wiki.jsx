@@ -18,6 +18,13 @@ const SOURCE_LABELS = {
   transcripts: { label: 'Transcripts', icon: File, color: '#14b8a6' },
 }
 
+function authHeaders() {
+  const token = localStorage.getItem('hermes_token') || ''
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
+
 const TAG_COLORS = [
   '#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#6366f1',
   '#f97316', '#14b8a6', '#a855f7', '#3b82f6', '#ef4444', '#84cc16',
@@ -36,7 +43,7 @@ function PageModal({ page, onClose }) {
   useEffect(() => {
     setLoading(true)
     setContent(null)
-    fetch(`/api/wiki/page/${page.type}/${page.name}`)
+    fetch(`/api/wiki/page/${page.type}/${page.name}`, { headers: authHeaders() })
       .then(r => r.json())
       .then(data => { setContent(data.content); setLoading(false) })
       .catch(() => { setContent('Failed to load page.'); setLoading(false) })
@@ -111,10 +118,10 @@ export default function Wiki() {
     setLoading(true)
     try {
       const [s, p, l, src] = await Promise.all([
-        fetch('/api/wiki/stats').then(r => r.json()),
-        fetch('/api/wiki/pages').then(r => r.json()),
-        fetch('/api/wiki/log?limit=20').then(r => r.json()),
-        fetch('/api/wiki/sources').then(r => r.json()),
+        fetch('/api/wiki/stats', { headers: authHeaders() }).then(r => r.json()),
+        fetch('/api/wiki/pages', { headers: authHeaders() }).then(r => r.json()),
+        fetch('/api/wiki/log?limit=20', { headers: authHeaders() }).then(r => r.json()),
+        fetch('/api/wiki/sources', { headers: authHeaders() }).then(r => r.json()),
       ])
       setStats(s)
       setPages(p.pages || [])
