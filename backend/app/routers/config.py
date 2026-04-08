@@ -10,7 +10,11 @@ from ..utils import hermes_path, mask_secrets, run_hermes
 from ..config import HERMES_HOME
 from ..schemas import ConfigSetRequest
 from ..schemas.config import ConfigSetResponse
-from ..schemas.requests import ConfigValueUpdateRequest, MoaProviderTestRequest, YamlSaveRequest, MoaConfigUpdateRequest, MoaProvidersUpdateRequest
+from ..schemas.requests import (
+    ConfigValueUpdateRequest, MoaProviderTestRequest, YamlSaveRequest,
+    MoaConfigUpdateRequest, MoaProvidersUpdateRequest, ProviderCreateRequest,
+    ProviderUpdateRequest, ProviderTestRequest, CustomPromptRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -334,3 +338,378 @@ async def test_moa_provider(body: MoaProviderTestRequest):
     except Exception as exc:
         latency_ms = int((time.monotonic() - t0) * 1000) if 't0' in dir() else 0
         return {"status": "error", "error": str(exc), "latency_ms": latency_ms}
+
+
+# ── Provider Routing Rules ──
+
+@router.get("/providers")
+async def list_providers():
+    """List all configured providers from config.yaml providers: section."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    providers = raw.get("providers", {})
+    return {"providers": providers}
+
+
+@router.post("/providers")
+async def create_provider(body: ProviderCreateRequest):
+    """Add a new provider to config.yaml providers: section."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    original = yaml.safe_load(config_path.read_text()) or {}
+    providers = original.get("providers", {})
+    if body.name in providers:
+        raise HTTPException(409, f"Provider '{body.name}' already exists")
+    provider_cfg = {"name": body.name}
+    if body.api:
+        provider_cfg["api"] = body.api
+    if body.default_model:
+        provider_cfg["default_model"] = body.default_model
+    if body.transport:
+        provider_cfg["transport"] = body.transport
+    providers[body.name] = provider_cfg
+    original["providers"] = providers
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved", "provider": body.name}
+
+
+@router.put("/providers/{name}")
+async def update_provider(name: str, body: ProviderUpdateRequest):
+    """Update an existing provider configuration."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    original = yaml.safe_load(config_path.read_text()) or {}
+    providers = original.get("providers", {})
+    if name not in providers:
+        raise HTTPException(404, f"Provider '{name}' not found")
+    data = body.model_dump(exclude_none=True)
+    providers[name].update(data)
+    original["providers"] = providers
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved", "provider": name}
+
+
+@router.delete("/providers/{name}")
+async def delete_provider(name: str):
+    """Delete a provider from config.yaml."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    original = yaml.safe_load(config_path.read_text()) or {}
+    providers = original.get("providers", {})
+    if name not in providers:
+        raise HTTPException(404, f"Provider '{name}' not found")
+    del providers[name]
+    original["providers"] = providers
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "deleted", "provider": name}
+
+
+@router.get("/providers/active")
+async def get_active_provider():
+    """Get current active provider/model from the model: section."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    model_cfg = raw.get("model", {})
+    return {
+        "provider": model_cfg.get("provider", "auto"),
+        "model": model_cfg.get("default", ""),
+        "base_url": model_cfg.get("base_url", ""),
+        "context_length": model_cfg.get("context_length"),
+    }
+
+
+@router.put("/providers/active")
+async def set_active_provider(body: ProviderUpdateRequest):
+    """Change the active provider/model in the model: section."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    original = yaml.safe_load(config_path.read_text()) or {}
+    if "model" not in original or not isinstance(original.get("model"), dict):
+        original["model"] = {}
+    data = body.model_dump(exclude_none=True)
+    # Map frontend fields to config keys
+    if "provider" in data:
+        original["model"]["provider"] = data["provider"]
+    if "default_model" in data:
+        original["model"]["default"] = data["default_model"]
+    elif "model" in data:
+        original["model"]["default"] = data["model"]
+    if "base_url" in data:
+        original["model"]["base_url"] = data["base_url"]
+    if "context_length" in data:
+        original["model"]["context_length"] = data["context_length"]
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved"}
+
+
+@router.get("/fallback-providers")
+async def get_fallback_providers():
+    """List fallback_providers from config."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    return {"fallback_providers": raw.get("fallback_providers", [])}
+
+
+@router.put("/fallback-providers")
+async def save_fallback_providers(body: MoaProvidersUpdateRequest):
+    """Save fallback_providers list. Body must have fallback_providers: list."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    original = yaml.safe_load(config_path.read_text()) or {}
+    data = body.model_dump()
+    fb = data.get("fallback_providers")
+    if fb is not None:
+        if not isinstance(fb, list):
+            raise HTTPException(400, "fallback_providers must be a list")
+        original["fallback_providers"] = fb
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved"}
+
+
+@router.post("/providers/test")
+async def test_provider(body: ProviderTestRequest):
+    """Test connectivity to a provider endpoint."""
+    import time as _time
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    providers = raw.get("providers", {})
+    name = body.provider
+
+    # Try to find the provider config
+    pcfg = providers.get(name)
+    if not pcfg:
+        # Try using the active model section
+        model_cfg = raw.get("model", {})
+        base_url = body.base_url or model_cfg.get("base_url", "")
+        api_key_env = body.api_key_env or ""
+        model = body.model or model_cfg.get("default", "")
+    else:
+        base_url = body.base_url or pcfg.get("api", "")
+        api_key_env = body.api_key_env or pcfg.get("api_key_env", "")
+        model = body.model or pcfg.get("default_model", "")
+
+    if not base_url:
+        return {"status": "error", "error": "No base_url configured for this provider"}
+
+    # Resolve API key
+    api_key = ""
+    if api_key_env:
+        api_key = _get_env_value_from_file(api_key_env)
+    if not api_key:
+        # Try model.api_key from config
+        model_key = raw.get("model", {}).get("api_key", "")
+        if model_key and not _is_masked(model_key):
+            api_key = model_key
+
+    if not api_key:
+        return {"status": "error", "error": "No API key available for this provider"}
+
+    base_url = base_url.rstrip("/")
+    if not model:
+        return {"status": "error", "error": "No model specified for test"}
+
+    try:
+        import httpx
+        t0 = _time.monotonic()
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 1},
+            )
+            latency_ms = int((_time.monotonic() - t0) * 1000)
+            if resp.status_code == 200:
+                return {"status": "ok", "latency_ms": latency_ms, "model": model}
+            else:
+                return {"status": "error", "error": f"HTTP {resp.status_code}: {resp.text[:200]}", "latency_ms": latency_ms}
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
+# ── System Prompt Viewer ──
+
+@router.get("/prompt/system")
+async def get_system_prompt():
+    """Assemble and return the system prompt from its component parts.
+
+    Reads SOUL.md, config settings (personality, memory, model), and
+    assembles a preview of what the full system prompt looks like.
+    """
+    config_path = hermes_path("config.yaml")
+    raw = {}
+    if config_path.exists():
+        raw = yaml.safe_load(config_path.read_text()) or {}
+
+    components = {}
+
+    # 1. SOUL.md (agent identity)
+    soul_path = hermes_path("SOUL.md")
+    if soul_path.exists():
+        soul_content = soul_path.read_text()
+        components["soul_md"] = {
+            "source": "SOUL.md",
+            "content": soul_content,
+            "length": len(soul_content),
+            "exists": True,
+        }
+    else:
+        components["soul_md"] = {"source": "SOUL.md", "content": "", "length": 0, "exists": False}
+
+    # 2. Personality
+    personality = ""
+    display_cfg = raw.get("display", {})
+    agent_cfg = raw.get("agent", {})
+    if isinstance(display_cfg, dict):
+        personality = display_cfg.get("personality", "default")
+    personalities = {}
+    if isinstance(agent_cfg, dict):
+        personalities = agent_cfg.get("personalities", {})
+    personality_prompt = ""
+    if personality and personality != "default" and isinstance(personalities, dict):
+        personality_prompt = personalities.get(personality, "")
+    components["personality"] = {
+        "source": f"agent.personalities.{personality}",
+        "name": personality,
+        "content": personality_prompt,
+        "length": len(personality_prompt),
+    }
+
+    # 3. MEMORY.md
+    memory_path = hermes_path("memories", "MEMORY.md")
+    if not memory_path.exists():
+        memory_path = hermes_path("memory", "MEMORY.md")
+    memory_content = ""
+    if memory_path.exists():
+        memory_content = memory_path.read_text()
+    components["memory_md"] = {
+        "source": str(memory_path),
+        "content": memory_content,
+        "length": len(memory_content),
+        "exists": memory_path.exists(),
+    }
+
+    # 4. Model info
+    model_cfg = raw.get("model", {})
+    components["model"] = {
+        "source": "model.*",
+        "provider": model_cfg.get("provider", "auto"),
+        "model": model_cfg.get("default", ""),
+        "base_url": model_cfg.get("base_url", ""),
+        "context_length": model_cfg.get("context_length"),
+    }
+
+    # 5. Reasoning effort
+    reasoning_effort = ""
+    if isinstance(agent_cfg, dict):
+        reasoning_effort = agent_cfg.get("reasoning_effort", "medium")
+    show_reasoning = False
+    if isinstance(display_cfg, dict):
+        show_reasoning = display_cfg.get("show_reasoning", False)
+    components["reasoning"] = {
+        "source": "agent.reasoning_effort + display.show_reasoning",
+        "effort": reasoning_effort,
+        "show_reasoning": show_reasoning,
+    }
+
+    # 6. Memory config
+    memory_cfg = raw.get("memory", {})
+    components["memory_config"] = {
+        "source": "memory.*",
+        "enabled": memory_cfg.get("memory_enabled", False) if isinstance(memory_cfg, dict) else False,
+        "char_limit": memory_cfg.get("memory_char_limit", 2200) if isinstance(memory_cfg, dict) else 2200,
+    }
+
+    # 7. Custom prompt (prefill)
+    prefill_file = raw.get("prefill_messages_file", "")
+    custom_content = ""
+    if prefill_file:
+        pf_path = Path(os.path.expanduser(prefill_file))
+        if pf_path.exists():
+            try:
+                custom_content = pf_path.read_text()
+            except Exception:
+                custom_content = f"[Error reading {prefill_file}]"
+    components["custom_prompt"] = {
+        "source": prefill_file or "(none)",
+        "content": custom_content,
+        "length": len(custom_content),
+    }
+
+    # Assemble full preview
+    full_parts = []
+    if components["soul_md"]["content"]:
+        full_parts.append(components["soul_md"]["content"])
+    if personality_prompt:
+        full_parts.append(f"\n[Personality: {personality}]\n{personality_prompt}")
+    if memory_content:
+        full_parts.append(f"\n[Memory Context]\n{memory_content}")
+    if custom_content:
+        full_parts.append(f"\n[Custom Prompt]\n{custom_content}")
+
+    total_length = sum(len(p) for p in full_parts)
+    estimated_tokens = int(total_length / 3.5)
+
+    return {
+        "components": components,
+        "full_preview": "\n".join(full_parts),
+        "total_length": total_length,
+        "estimated_tokens": estimated_tokens,
+    }
+
+
+@router.get("/prompt/custom")
+async def get_custom_prompt():
+    """Read the custom prompt file (prefill_messages_file)."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    prefill_file = raw.get("prefill_messages_file", "")
+    if not prefill_file:
+        return {"content": "", "path": "", "exists": False}
+    pf_path = Path(os.path.expanduser(prefill_file))
+    if not pf_path.exists():
+        return {"content": "", "path": prefill_file, "exists": False}
+    try:
+        content = pf_path.read_text()
+        return {"content": content, "path": prefill_file, "exists": True}
+    except Exception as e:
+        raise HTTPException(500, f"Error reading custom prompt: {e}")
+
+
+@router.put("/prompt/custom")
+async def save_custom_prompt(body: CustomPromptRequest):
+    """Save the custom prompt file and update config to point to it."""
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+    original = yaml.safe_load(config_path.read_text()) or {}
+
+    # Save to ~/.hermes/custom_prompt.json
+    prompt_path = hermes_path("custom_prompt.json")
+    prompt_path.write_text(body.content)
+
+    # Update config to point to this file
+    original["prefill_messages_file"] = str(prompt_path)
+    yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    config_path.write_text(yaml_str)
+    return {"status": "saved", "path": str(prompt_path)}

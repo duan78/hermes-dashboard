@@ -230,6 +230,22 @@ export const api = {
   saveMoaProviders: (data) => request('/config/moa/providers', { method: 'PUT', body: JSON.stringify(data) }),
   testMoaProvider: (providerId) => request('/config/moa/providers/test', { method: 'POST', body: JSON.stringify({ provider_id: providerId }) }),
 
+  // Provider Routing
+  listProviders: () => request('/config/providers'),
+  createProvider: (name, api, defaultModel, transport) => request('/config/providers', { method: 'POST', body: JSON.stringify({ name, api, default_model: defaultModel, transport }) }),
+  updateProvider: (name, data) => request(`/config/providers/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteProvider: (name) => request(`/config/providers/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  getActiveProvider: () => request('/config/providers/active'),
+  setActiveProvider: (data) => request('/config/providers/active', { method: 'PUT', body: JSON.stringify(data) }),
+  getFallbackProviders: () => request('/config/fallback-providers'),
+  saveFallbackProviders: (list) => request('/config/fallback-providers', { method: 'PUT', body: JSON.stringify({ fallback_providers: list }) }),
+  testProvider: (provider, baseUrl, apiKeyEnv, model) => request('/config/providers/test', { method: 'POST', body: JSON.stringify({ provider, base_url: baseUrl, api_key_env: apiKeyEnv, model }) }),
+
+  // System Prompt Viewer
+  getSystemPrompt: () => request('/config/prompt/system'),
+  getCustomPrompt: () => request('/config/prompt/custom'),
+  saveCustomPrompt: (content) => request('/config/prompt/custom', { method: 'PUT', body: JSON.stringify({ content }) }),
+
   // Claude Code Monitor
   activeClaudeSessions: () => request('/claude-code/active'),
   claudeCodeHistory: (limit = 30, project = '') => {

@@ -4,6 +4,8 @@ import {
   Cpu, Sparkles, Terminal as TerminalIcon, Globe, Monitor,
   Zap, Database, Volume2, Shield, Archive, Layers, Code, Plug,
   Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
+  Route, FileText, Plus, Trash2, RefreshCw, Zap as TestIcon,
+  AlertTriangle,
 } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
@@ -47,7 +49,7 @@ const SECTIONS = [
       { key: 'agent.max_turns', label: 'Max Turns', type: 'number', min: 1, max: 200, desc: 'Maximum tool-calling iterations per conversation. Higher values allow complex multi-step tasks but cost more tokens. Recommended: 60 for simple tasks, 120+ for agentic workflows. Default: 60.' },
       { key: 'agent.tool_use_enforcement', label: 'Tool Enforcement', type: 'select', options: ['auto', 'strict', 'permissive'], desc: 'Forces the model to make actual tool calls instead of describing actions. "auto" enables for GPT models, "strict" forces all models, "permissive" allows descriptive responses.' },
       { key: 'agent.verbose', label: 'Verbose', type: 'toggle', desc: 'Enable verbose logging for debugging. Shows internal decision-making, tool call details, and reasoning traces in the console. Disable in production.' },
-      { key: 'agent.reasoning_effort', label: 'Reasoning Effort', type: 'select', options: ['low', 'medium', 'high'], desc: 'Controls how much "thinking" the model does before responding. "low" is faster/cheaper, "high" gives better results on complex tasks at the cost of more tokens and latency.' },
+      { key: 'agent.reasoning_effort', label: 'Reasoning Effort', type: 'select', options: ['none', 'low', 'minimal', 'medium', 'high', 'xhigh'], desc: 'Controls how much "thinking" the model does before responding. "none" disables reasoning entirely for fastest responses. "low"/"minimal" for simple tasks. "medium" balances speed and quality. "high" for complex tasks. "xhigh" for maximum reasoning depth at higher cost.' },
     ],
   },
   {
@@ -238,6 +240,9 @@ const SECTIONS = [
   },
 ]
 
+// ── Special Section IDs (rendered with custom UI) ──
+const SPECIAL_SECTIONS = ['provider_routing', 'system_prompt']
+
 // ── Widget Components ──
 
 function Toggle({ value, onChange }) {
@@ -320,6 +325,347 @@ function FieldWidget({ field, value, onChange }) {
     default:
       return <TextField value={value} onChange={onChange} />
   }
+}
+
+// ── Provider Routing Section ──
+
+function ProviderRoutingSection({ config }) {
+  const [providers, setProviders] = useState(null)
+  const [active, setActive] = useState(null)
+  const [fallbacks, setFallbacks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showAdd, setShowAdd] = useState(false)
+  const [newProv, setNewProv] = useState({ name: '', api: '', default_model: '', transport: 'chat_completions' })
+  const [testing, setTesting] = useState({})
+  const [testResults, setTestResults] = useState({})
+  const [isOpen, setIsOpen] = useState(false)
+  const { toast } = useToast()
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [p, a, f] = await Promise.all([
+        api.listProviders(),
+        api.getActiveProvider(),
+        api.getFallbackProviders(),
+      ])
+      setProviders(p.providers || {})
+      setActive(a)
+      setFallbacks(f.fallback_providers || [])
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => { load() }, [load])
+
+  const handleAdd = async () => {
+    if (!newProv.name) return
+    try {
+      await api.createProvider(newProv.name, newProv.api, newProv.default_model, newProv.transport)
+      toast.success(`Provider "${newProv.name}" added`)
+      setShowAdd(false)
+      setNewProv({ name: '', api: '', default_model: '', transport: 'chat_completions' })
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    }
+  }
+
+  const handleDelete = async (name) => {
+    try {
+      await api.deleteProvider(name)
+      toast.success(`Provider "${name}" deleted`)
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    }
+  }
+
+  const handleSetActive = async (name) => {
+    const prov = providers?.[name]
+    if (!prov) return
+    try {
+      await api.setActiveProvider({ provider: name, default_model: prov.default_model || '', base_url: prov.api || '' })
+      toast.success(`Active provider set to "${name}"`)
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    }
+  }
+
+  const handleTest = async (name) => {
+    setTesting(prev => ({ ...prev, [name]: true }))
+    setTestResults(prev => { const n = { ...prev }; delete n[name]; return n })
+    try {
+      const prov = providers[name]
+      const result = await api.testProvider(name, prov?.api, prov?.api_key_env, prov?.default_model)
+      setTestResults(prev => ({ ...prev, [name]: result }))
+      setTimeout(() => setTestResults(prev => { const n = { ...prev }; delete n[name]; return n }), 10000)
+    } catch (e) {
+      setTestResults(prev => ({ ...prev, [name]: { status: 'error', error: e.message } }))
+      setTimeout(() => setTestResults(prev => { const n = { ...prev }; delete n[name]; return n }), 10000)
+    } finally {
+      setTesting(prev => ({ ...prev, [name]: false }))
+    }
+  }
+
+  const isActive = (name) => active?.provider === name
+
+  return (
+    <div className="accordion-card">
+      <div className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+        <Route size={18} className="accordion-icon" />
+        <span className="accordion-title">Provider Routing</span>
+        <span className="field-count">{providers ? Object.keys(providers).length : 0} providers</span>
+        <Tooltip text="Configure LLM provider endpoints, switch between providers, set fallback chains. The active provider determines where all AI conversations are routed." />
+        <span className="accordion-chevron">
+          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </div>
+      {isOpen && (
+        <div className="accordion-body" style={{ padding: 0 }}>
+          {loading ? <div className="spinner" style={{ margin: 20 }} /> : (
+            <>
+              {/* Active Provider */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>Active Provider</span>
+                  <Tooltip text="The currently active provider and model. All conversations use this provider unless fallback is triggered." />
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13 }}>
+                  <span><strong>Provider:</strong> {active?.provider || 'auto'}</span>
+                  <span><strong>Model:</strong> {active?.model || 'N/A'}</span>
+                  {active?.base_url && <span style={{ color: 'var(--text-muted)' }}><strong>URL:</strong> <code style={{ fontSize: 11 }}>{active.base_url}</code></span>}
+                </div>
+              </div>
+
+              {/* Provider List */}
+              <div style={{ padding: '8px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+                    Configured Providers
+                    <Tooltip text="All provider endpoints registered in config.yaml under the 'providers' section." />
+                  </span>
+                  <button className="btn btn-sm btn-primary" onClick={() => setShowAdd(!showAdd)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Plus size={12} /> Add
+                    <Tooltip text="Register a new LLM provider endpoint." />
+                  </button>
+                </div>
+
+                {showAdd && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr auto', gap: 8, marginBottom: 12, alignItems: 'end' }}>
+                    <input className="form-input" placeholder="Name (e.g. openai)" value={newProv.name} onChange={e => setNewProv({ ...newProv, name: e.target.value })} style={{ fontSize: 12 }} />
+                    <input className="form-input" placeholder="API URL (e.g. https://api.openai.com/v1)" value={newProv.api} onChange={e => setNewProv({ ...newProv, api: e.target.value })} style={{ fontSize: 12 }} />
+                    <input className="form-input" placeholder="Default model" value={newProv.default_model} onChange={e => setNewProv({ ...newProv, default_model: e.target.value })} style={{ fontSize: 12 }} />
+                    <select className="form-select" value={newProv.transport} onChange={e => setNewProv({ ...newProv, transport: e.target.value })} style={{ fontSize: 12 }}>
+                      <option value="chat_completions">chat_completions</option>
+                      <option value="responses">responses</option>
+                    </select>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm btn-primary" onClick={handleAdd} disabled={!newProv.name}>Save</button>
+                      <button className="btn btn-sm" onClick={() => setShowAdd(false)}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {Object.entries(providers || {}).map(([name, cfg]) => {
+                  const tr = testResults[name]
+                  return (
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ fontWeight: 600, fontSize: 13, minWidth: 80 }}>
+                        {name}
+                        {isActive(name) && <span className="badge badge-success" style={{ marginLeft: 6, fontSize: 9 }}>ACTIVE</span>}
+                      </span>
+                      <code style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {cfg.api || cfg.base_url || ''}
+                      </code>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{cfg.default_model || ''}</span>
+                      {tr && (
+                        tr.status === 'ok'
+                          ? <span className="badge badge-success" style={{ fontSize: 10 }}>{tr.latency_ms}ms</span>
+                          : <Tooltip text={tr.error || 'Error'}><span className="badge badge-error" style={{ fontSize: 10, cursor: 'help' }}>Error</span></Tooltip>
+                      )}
+                      <button className="btn btn-sm" onClick={() => handleTest(name)} disabled={testing[name]} style={{ fontSize: 11, color: '#8b5cf6' }}>
+                        {testing[name] ? <RefreshCw size={12} className="spin" /> : <TestIcon size={12} />}
+                      </button>
+                      {!isActive(name) && (
+                        <button className="btn btn-sm" onClick={() => handleSetActive(name)} style={{ fontSize: 11 }}>Set Active
+                          <Tooltip text={`Switch the active provider to "${name}". This changes the default model and endpoint for all new conversations.`} />
+                        </button>
+                      )}
+                      <button className="btn btn-sm" onClick={() => handleDelete(name)} style={{ color: '#ef4444', fontSize: 11 }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )
+                })}
+
+                {/* Fallback Providers */}
+                {fallbacks.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 8 }}>
+                      Fallback Chain
+                      <Tooltip text="Providers tried in order if the active provider fails. Each entry specifies a provider and model to fall back to." />
+                    </div>
+                    {fallbacks.map((fb, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 0', color: 'var(--text-secondary)' }}>
+                        <span style={{ color: 'var(--text-muted)', width: 24 }}>#{i + 1}</span>
+                        <span>{fb.provider}</span>
+                        <code style={{ fontSize: 11 }}>{fb.model}</code>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── System Prompt Viewer Section ──
+
+function SystemPromptSection() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [savingCustom, setSavingCustom] = useState(false)
+  const { toast } = useToast()
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [promptData, customData] = await Promise.all([
+        api.getSystemPrompt(),
+        api.getCustomPrompt(),
+      ])
+      setData(promptData)
+      setCustomPrompt(customData.content || '')
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => { if (isOpen) load() }, [isOpen, load])
+
+  const handleSaveCustom = async () => {
+    try {
+      setSavingCustom(true)
+      await api.saveCustomPrompt(customPrompt)
+      toast.success('Custom prompt saved')
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setSavingCustom(false)
+    }
+  }
+
+  const comp = data?.components || {}
+
+  return (
+    <div className="accordion-card">
+      <div className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+        <FileText size={18} className="accordion-icon" />
+        <span className="accordion-title">System Prompt Viewer</span>
+        <span className="field-count">{data ? `${data.estimated_tokens || 0} tokens` : 'preview'}</span>
+        <Tooltip text="Preview the assembled system prompt from all components: SOUL.md, personality, memory context, and custom prompts. Edit the custom prefill prompt here." />
+        <span className="accordion-chevron">
+          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </div>
+      {isOpen && (
+        <div className="accordion-body" style={{ padding: 0 }}>
+          {loading ? <div className="spinner" style={{ margin: 20 }} /> : data && (
+            <>
+              {/* Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{data.total_length?.toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Characters</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{data.estimated_tokens?.toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Est. Tokens</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{Object.values(comp).filter(c => c.content && c.length > 0).length}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Components</div>
+                </div>
+              </div>
+
+              {/* Components breakdown */}
+              <div style={{ padding: '12px 16px' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+                  Components
+                  <Tooltip text="Each section that contributes to the final system prompt sent to the AI model." />
+                </div>
+                {[
+                  { key: 'soul_md', label: 'SOUL.md', icon: '🧠' },
+                  { key: 'personality', label: 'Personality', icon: '🎭' },
+                  { key: 'memory_md', label: 'Memory (MEMORY.md)', icon: '💾' },
+                  { key: 'custom_prompt', label: 'Custom Prompt', icon: '✏️' },
+                  { key: 'reasoning', label: 'Reasoning Config', icon: '⚡' },
+                  { key: 'model', label: 'Model Config', icon: '🤖' },
+                ].map(item => {
+                  const c = comp[item.key]
+                  if (!c) return null
+                  const hasContent = c.content && c.length > 0
+                  return (
+                    <details key={item.key} style={{ marginBottom: 8 }}>
+                      <summary style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 13 }}>
+                        <span>{item.icon}</span>
+                        <span style={{ fontWeight: 600 }}>{item.label}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.length || 0} chars</span>
+                        {hasContent
+                          ? <span className="badge badge-success" style={{ fontSize: 9 }}>LOADED</span>
+                          : <span className="badge badge-error" style={{ fontSize: 9 }}>EMPTY</span>
+                        }
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>{c.source}</span>
+                      </summary>
+                      <div style={{ background: 'var(--bg-secondary)', borderRadius: 6, padding: 8, marginTop: 4, maxHeight: 200, overflow: 'auto' }}>
+                        <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-secondary)' }}>
+                          {hasContent ? c.content : '(empty)'}
+                        </pre>
+                      </div>
+                    </details>
+                  )
+                })}
+              </div>
+
+              {/* Custom Prompt Editor */}
+              <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>Custom Prefill Prompt</span>
+                  <Tooltip text="Additional instructions injected at the start of every API call. Use JSON format for multiple messages: [{&quot;role&quot;:&quot;system&quot;,&quot;content&quot;:&quot;...&quot;}]. Or plain text for a single system message." />
+                </div>
+                <textarea
+                  className="form-textarea"
+                  value={customPrompt}
+                  onChange={e => setCustomPrompt(e.target.value)}
+                  placeholder='Enter custom prompt text, or JSON array: [{"role":"system","content":"Always respond in French"}]'
+                  style={{ minHeight: 100, fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                  <button className="btn btn-sm btn-primary" onClick={handleSaveCustom} disabled={savingCustom}>
+                    <Save size={12} /> {savingCustom ? 'Saving...' : 'Save Custom Prompt'}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Main Component ──
@@ -469,6 +815,10 @@ export default function Config() {
           </div>
         )
       })}
+
+      {/* Special sections */}
+      <ProviderRoutingSection config={workingConfig} />
+      <SystemPromptSection />
 
     </div>
   )

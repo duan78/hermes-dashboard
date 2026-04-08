@@ -212,3 +212,35 @@ class MoaConfigUpdateRequest(BaseModel):
 class MoaProvidersUpdateRequest(BaseModel):
     """Providers dict — validated in the router."""
     model_config = {"extra": "allow"}
+
+
+# ── Provider Routing ──
+
+class ProviderCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, description="Provider name (unique key)")
+    api: str = Field("", description="API base URL")
+    default_model: str = Field("", description="Default model for this provider")
+    transport: str = Field("chat_completions", description="Transport type")
+
+
+class ProviderUpdateRequest(BaseModel):
+    provider: Optional[str] = Field(None, description="Provider name")
+    api: Optional[str] = Field(None, description="API base URL")
+    default_model: Optional[str] = Field(None, description="Default model name")
+    model: Optional[str] = Field(None, description="Model name (alias for default_model)")
+    transport: Optional[str] = Field(None, description="Transport type")
+    base_url: Optional[str] = Field(None, description="Base URL (alias for api)")
+    context_length: Optional[int] = Field(None, description="Context length")
+
+
+class ProviderTestRequest(BaseModel):
+    provider: str = Field(..., min_length=1, description="Provider name to test")
+    base_url: Optional[str] = Field(None, description="Override base URL")
+    api_key_env: Optional[str] = Field(None, description="API key env var name")
+    model: Optional[str] = Field(None, description="Override model name")
+
+
+# ── System Prompt ──
+
+class CustomPromptRequest(BaseModel):
+    content: str = Field("", description="Custom prompt content (JSON or text)")
