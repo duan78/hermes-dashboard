@@ -303,6 +303,30 @@ def _extract_audio_ref(audio_path: str) -> dict:
     return {"date": "", "base_name": p.stem}
 
 
+def _build_duration_lookup() -> dict:
+    """Build audio_path -> estimated_duration_sec lookup from training metadata."""
+    lookup = {}
+    if not _METADATA_FILE.exists():
+        return lookup
+    for line in _METADATA_FILE.read_text(errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            meta = json.loads(line)
+            duration = meta.get("estimated_duration_sec", 0)
+            if not duration:
+                continue
+            # Index both audio_file and source_audio for cross-referencing
+            for key in ("audio_file", "source_audio"):
+                audio_path = meta.get(key, "")
+                if audio_path:
+                    lookup[audio_path] = duration
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return lookup
+
+
 @router.get("/crossval/stats")
 async def crossval_stats():
     """Cross-validation statistics."""
@@ -311,6 +335,7 @@ async def crossval_stats():
         return {
             "total": 0, "validated": 0, "needs_review": 0,
             "errors": 0, "validated_duration_sec": 0,
+            "needs_review_duration_sec": 0,
             "score_distribution": {}, "avg_min_similarity": 0,
         }
 
@@ -318,9 +343,14 @@ async def crossval_stats():
     needs_review = 0
     errors = 0
     sims = []
+    validated_dur = 0
+    review_dur = 0
 
     # Build histogram buckets 0.0-0.1, 0.1-0.2, ..., 0.9-1.0
     buckets = {f"{i/10:.1f}-{(i+1)/10:.1f}": 0 for i in range(10)}
+
+    # Build duration lookup from training metadata
+    dur_lookup = _build_duration_lookup()
 
     for e in entries:
         st = e.get("status", "error")
@@ -338,6 +368,14 @@ async def crossval_stats():
             key = f"{bucket_idx/10:.1f}-{(bucket_idx+1)/10:.1f}"
             buckets[key] += 1
 
+        # Accumulate duration
+        audio_path = e.get("audio_path", "")
+        dur = dur_lookup.get(audio_path, 0)
+        if st == "validated":
+            validated_dur += dur
+        elif st == "needs_review":
+            review_dur += dur
+
     avg_sim = round(sum(sims) / len(sims), 4) if sims else 0
 
     return {
@@ -345,7 +383,8 @@ async def crossval_stats():
         "validated": validated,
         "needs_review": needs_review,
         "errors": errors,
-        "validated_duration_sec": 0,
+        "validated_duration_sec": round(validated_dur, 1),
+        "needs_review_duration_sec": round(review_dur, 1),
         "score_distribution": buckets,
         "avg_min_similarity": avg_sim,
         "providers": {

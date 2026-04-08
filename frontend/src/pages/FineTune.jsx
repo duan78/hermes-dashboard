@@ -563,10 +563,20 @@ function CrossValidationTab({ showToast }) {
             <div className="ft-stat-card">
               <div className="ft-stat-label"><ShieldCheck size={13} /> Validated</div>
               <div className="ft-stat-value" style={{ color: '#34d399' }}>{stats.validated}</div>
+              {stats.validated_duration_sec > 0 && (
+                <div className="ft-stat-sub" style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                  <Clock size={10} /> {formatDuration(stats.validated_duration_sec)}
+                </div>
+              )}
             </div>
             <div className="ft-stat-card">
               <div className="ft-stat-label"><AlertCircle size={13} /> Needs Review</div>
               <div className="ft-stat-value" style={{ color: '#fbbf24' }}>{stats.needs_review}</div>
+              {stats.needs_review_duration_sec > 0 && (
+                <div className="ft-stat-sub" style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                  <Clock size={10} /> {formatDuration(stats.needs_review_duration_sec)}
+                </div>
+              )}
             </div>
             <div className="ft-stat-card">
               <div className="ft-stat-label"><BarChart3 size={13} /> Avg Similarity</div>
