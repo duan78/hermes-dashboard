@@ -72,9 +72,81 @@ class BacklogItemUpdate(BaseModel):
     status: Optional[str] = None
     blocked_reason: Optional[str] = None
     done_date: Optional[str] = None
+    result: Optional[str] = None
 
 class StatusPatch(BaseModel):
     status: str
+
+
+# ── Tmux helpers ──
+
+def _tmux_session_exists(session_name: str) -> bool:
+    """Check if a tmux session exists."""
+    result = subprocess.run(
+        ["tmux", "has-session", "-t", session_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    return result.returncode == 0
+
+
+def _get_tmux_output(session_name: str, lines: int = 500) -> str:
+    """Capture the current visible output of a tmux session."""
+    # Use capture-pane to get the visible buffer
+    result = subprocess.run(
+        ["tmux", "capture-pane", "-t", session_name, "-p", "-S", f"-{lines}"],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return ""
+
+
+def _get_tmux_scrollback(session_name: str, lines: int = 2000) -> str:
+    """Capture the scrollback history of a tmux session."""
+    result = subprocess.run(
+        ["tmux", "capture-pane", "-t", session_name, "-p", "-S", f"-{lines}"],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return ""
+
+
+def _detect_claude_done(output: str) -> bool:
+    """Detect if Claude Code has finished and returned to prompt."""
+    if not output:
+        return False
+    lines = output.strip().split("\n")
+    # Check last few lines for Claude's idle prompt indicators
+    for line in lines[-10:]:
+        stripped = line.strip()
+        # Claude Code shows a prompt like "❯" or "> " or "? for shortcuts" when idle
+        if re.search(r'[❯>]\s*$', stripped):
+            return True
+        if re.search(r'\?\s*for\s+shortcuts', stripped):
+            return True
+    return False
+
+
+def _update_item_status(item_id: str, status: str, result: str = None):
+    """Helper to update an item's status and optionally capture result."""
+    data = _read_backlog()
+    items = data.get("items", [])
+    for i, item in enumerate(items):
+        if item.get("id") == item_id:
+            items[i]["status"] = status
+            if status == "done":
+                items[i]["done_date"] = datetime.now().isoformat()
+            else:
+                items[i]["done_date"] = None
+            if result is not None:
+                items[i]["result"] = result
+            data["items"] = items
+            _write_backlog(data)
+            logger.info("Item %s status -> %s (result captured: %s)", item_id, status, result is not None)
+            return items[i]
+    return None
 
 
 # ── Endpoints ──
@@ -232,7 +304,13 @@ async def run_backlog_item(item_id: str):
         raise HTTPException(404, "Backlog item not found")
 
     if target_item.get("status") == "done":
-        raise HTTPException(400, "Task already done")
+        # Allow re-running by resetting to pending first
+        items[target_index]["status"] = "pending"
+        items[target_index]["done_date"] = None
+        items[target_index]["result"] = None
+        data["items"] = items
+        _write_backlog(data)
+        logger.info("Resetting done task %s for re-run", item_id)
 
     # Build task prompt
     title = target_item.get("title", "")
@@ -258,13 +336,10 @@ async def run_backlog_item(item_id: str):
     subprocess.run(["tmux", "new-session", "-d", "-s", session_name])
 
     # Send Claude Code launch command
-    subprocess.run(["tmux", "send-keys", "-t", session_name, "/root/.local/bin/claude", "Enter"])
+    subprocess.run(["tmux", "send-keys", "-t", session_name, "/root/.local/bin/claude -p \"" + task_prompt.replace('"', '\\"') + "\"", "Enter"])
 
     # Wait for Claude Code to start
-    time.sleep(3)
-
-    # Send the task prompt
-    subprocess.run(["tmux", "send-keys", "-t", session_name, task_prompt, "Enter"])
+    time.sleep(2)
 
     # Update item status to in-progress
     items[target_index]["status"] = "in-progress"
@@ -286,3 +361,129 @@ async def get_session_status(item_id: str):
     )
     running = result.returncode == 0
     return {"session": session_name, "running": running}
+
+
+@router.get("/{item_id}/check")
+async def check_backlog_completion(item_id: str):
+    """Check if a running Claude Code session has completed for this item."""
+    session_name = "task-" + item_id
+
+    data = _read_backlog()
+    items = data.get("items", [])
+    target_item = None
+    target_index = -1
+    for i, item in enumerate(items):
+        if item.get("id") == item_id:
+            target_item = item
+            target_index = i
+            break
+
+    if target_item is None:
+        raise HTTPException(404, "Backlog item not found")
+
+    current_status = target_item.get("status", "pending")
+
+    # Already done?
+    if current_status == "done":
+        return {"item_id": item_id, "status": "done", "session_exists": False, "completed": True, "output": ""}
+
+    # Check if tmux session exists
+    session_exists = _tmux_session_exists(session_name)
+
+    if not session_exists:
+        # Session gone — mark as done if still in-progress
+        if current_status == "in-progress":
+            _update_item_status(item_id, "done", result="Session ended (tmux session no longer exists)")
+            return {"item_id": item_id, "status": "done", "session_exists": False, "completed": True, "output": ""}
+        return {"item_id": item_id, "status": current_status, "session_exists": False, "completed": False, "output": ""}
+
+    # Session exists — check if Claude has finished
+    output = _get_tmux_output(session_name)
+    claude_done = _detect_claude_done(output)
+
+    if claude_done and current_status == "in-progress":
+        # Capture the last portion of output as the result
+        full_output = _get_tmux_scrollback(session_name, 500)
+        # Extract the meaningful result (last 2000 chars)
+        result_text = full_output[-2000:] if len(full_output) > 2000 else full_output
+        _update_item_status(item_id, "done", result=result_text)
+        return {"item_id": item_id, "status": "done", "session_exists": True, "completed": True, "output": output}
+
+    return {
+        "item_id": item_id,
+        "status": current_status,
+        "session_exists": True,
+        "completed": claude_done,
+        "claude_idle": claude_done,
+        "output": output,
+    }
+
+
+@router.get("/{item_id}/output")
+async def get_backlog_output(item_id: str, lines: int = Query(200, ge=1, le=5000)):
+    """Get the live output from a Claude Code tmux session."""
+    session_name = "task-" + item_id
+
+    if not _tmux_session_exists(session_name):
+        # Try to return cached result from backlog item
+        data = _read_backlog()
+        items = data.get("items", [])
+        for item in items:
+            if item.get("id") == item_id:
+                cached = item.get("result", "")
+                return {
+                    "item_id": item_id,
+                    "session": session_name,
+                    "running": False,
+                    "output": cached,
+                    "cached": True,
+                }
+        raise HTTPException(404, "No session found and item not in backlog")
+
+    output = _get_tmux_output(session_name, lines)
+    return {
+        "item_id": item_id,
+        "session": session_name,
+        "running": True,
+        "output": output,
+        "cached": False,
+    }
+
+
+@router.post("/{item_id}/complete")
+async def force_complete_item(item_id: str, capture_lines: int = Query(200, ge=1, le=5000)):
+    """Force-mark a backlog item as done and capture the session output as result."""
+    session_name = "task-" + item_id
+
+    data = _read_backlog()
+    items = data.get("items", [])
+    target_item = None
+    for i, item in enumerate(items):
+        if item.get("id") == item_id:
+            target_item = item
+            break
+
+    if target_item is None:
+        raise HTTPException(404, "Backlog item not found")
+
+    # Capture output if session exists
+    result_text = ""
+    if _tmux_session_exists(session_name):
+        result_text = _get_tmux_scrollback(session_name, capture_lines)
+        # Take last 3000 chars as result
+        if len(result_text) > 3000:
+            result_text = "...(truncated)...\n" + result_text[-3000:]
+    else:
+        result_text = "Session already ended. No live output captured."
+
+    updated = _update_item_status(item_id, "done", result=result_text)
+
+    # Optionally kill the tmux session
+    if _tmux_session_exists(session_name):
+        subprocess.run(
+            ["tmux", "kill-session", "-t", session_name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+    return {"ok": True, "item_id": item_id, "item": updated}
