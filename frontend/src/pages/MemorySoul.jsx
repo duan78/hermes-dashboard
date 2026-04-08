@@ -537,12 +537,15 @@ function HonchoTab({ showToast }) {
                 </div>
                 {m.summary && m.summary.short && (
                   <div className="vector-memory-text">
-                    {m.summary.short}
+                    {typeof m.summary.short === 'object' ? (m.summary.short.content || '') : m.summary.short}
                   </div>
                 )}
-                {m.summary && m.summary.long && m.summary.long !== m.summary.short && (
+                {m.summary && m.summary.long && (
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
-                    {m.summary.long.length > 300 ? m.summary.long.slice(0, 300) + '...' : m.summary.long}
+                    {(() => {
+                      var longText = typeof m.summary.long === 'object' ? (m.summary.long.content || '') : m.summary.long
+                      return longText.length > 300 ? longText.slice(0, 300) + '...' : longText
+                    })()}
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
