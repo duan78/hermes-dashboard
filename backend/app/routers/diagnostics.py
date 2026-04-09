@@ -9,6 +9,8 @@ from ..utils import hermes_path
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
 
+SYSTEMCTL_ENV = {"XDG_RUNTIME_DIR": "/run/user/0"}
+
 
 def _parse_doctor_output(raw: str) -> dict:
     """Parse hermes doctor output into structured checks."""
@@ -89,18 +91,37 @@ async def quick_diagnostics():
     log_path = hermes_path("logs", "gateway.log")
     sessions_dir = hermes_path("sessions")
 
-    # Gateway running
+    # Gateway running — try systemctl first, fall back to process check
     proc = await asyncio.create_subprocess_exec(
         "systemctl", "--user", "is-active", "hermes-gateway",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=SYSTEMCTL_ENV,
     )
-    out, _ = await proc.communicate()
+    out, err = await proc.communicate()
     gw_active = out.decode().strip() == "active"
+    gw_method = "systemctl"
+
+    if not gw_active:
+        # Fallback: check if the gateway process is running directly
+        pgrep = await asyncio.create_subprocess_exec(
+            "pgrep", "-f", "hermes_cli.main gateway run",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        pgrep_out, _ = await pgrep.communicate()
+        if pgrep.returncode == 0 and pgrep_out.decode().strip():
+            gw_active = True
+            gw_method = "process"
+
     checks.append({
         "name": "Gateway Running",
         "status": "pass" if gw_active else "fail",
-        "message": "Gateway service is active" if gw_active else "Gateway service is not running",
+        "message": (
+            "Gateway service is active" if gw_method == "systemctl"
+            else "Gateway process is running (detected via pgrep)" if gw_active
+            else "Gateway service is not running"
+        ),
     })
 
     # Config file exists

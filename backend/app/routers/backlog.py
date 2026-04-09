@@ -323,29 +323,109 @@ def _get_tmux_scrollback(session_name: str, lines: int = 2000) -> str:
     return ""
 
 
-def _detect_claude_done(output: str) -> bool:
-    """Detect if Claude Code has finished and returned to prompt.
+def _is_claude_running(session_name: str) -> bool:
+    """Check if Claude Code process is still running inside a tmux session.
 
-    IMPORTANT: Only returns True if Claude has actually produced work output.
-    A bare prompt (just the task text echoed back with > prefixes) means
-    Claude hasn't started yet — do NOT mark as done in that case.
+    This is the MOST RELIABLE way to detect if Claude is done:
+    - Get the shell PID from tmux
+    - Walk the process tree to find any 'claude' or 'node' child
+    - If none found, Claude has exited = task is done
     """
+    try:
+        # Get the PID of the first pane's shell
+        result = subprocess.run(
+            ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_pid}"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return False
+
+        pane_pid = result.stdout.strip().split("\n")[0].strip()
+        if not pane_pid.isdigit():
+            return False
+
+        # Check if 'claude' or 'node' process exists as child of this shell
+        # Use pgrep with parent PID to find child processes
+        check = subprocess.run(
+            ["pgrep", "-P", pane_pid],
+            capture_output=True, text=True, timeout=5
+        )
+        if check.returncode != 0 or not check.stdout.strip():
+            # No child processes = Claude is not running = done
+            return False
+
+        child_pids = check.stdout.strip().split("\n")
+        for cpid in child_pids:
+            cpid = cpid.strip()
+            if not cpid.isdigit():
+                continue
+            # Check the command name of this child
+            try:
+                with open(f"/proc/{cpid}/comm", "r") as f:
+                    comm = f.read().strip()
+                if comm in ("claude", "node", "python3", "python"):
+                    return True
+                # Also check children of children (claude spawns node)
+                sub_check = subprocess.run(
+                    ["pgrep", "-P", cpid],
+                    capture_output=True, text=True, timeout=5
+                )
+                if sub_check.returncode == 0:
+                    for sub_pid in sub_check.stdout.strip().split("\n"):
+                        sub_pid = sub_pid.strip()
+                        if not sub_pid.isdigit():
+                            continue
+                        try:
+                            with open(f"/proc/{sub_pid}/comm", "r") as f:
+                                sub_comm = f.read().strip()
+                            if sub_comm in ("claude", "node", "python3", "python"):
+                                return True
+                        except (FileNotFoundError, PermissionError):
+                            pass
+            except (FileNotFoundError, PermissionError):
+                pass
+
+        return False
+    except Exception as e:
+        logger.warning("Error checking Claude process in %s: %s", session_name, e)
+        return False  # Assume not running on error = conservative
+
+
+def _detect_claude_done(session_name: str, output: str = "") -> bool:
+    """Detect if Claude Code has finished its task.
+
+    Uses a multi-signal approach for reliability:
+    1. Process check: if 'claude'/'node' is NOT running in the pane = done
+    2. Output markers: look for completion signals in scrollback
+
+    This avoids false positives from prompt echo and false negatives
+    when the ✻ marker scrolled out of the visible buffer.
+    """
+    # Signal 1: Process-based detection (most reliable)
+    if not _is_claude_running(session_name):
+        # Claude process exited — but verify it actually ran (not just launched)
+        # by checking for any output beyond the initial prompt
+        if output:
+            # Check there's actual content (more than just the echoed prompt)
+            lines = output.strip().split("\n")
+            non_prompt_lines = [l for l in lines if not l.strip().startswith(">") and l.strip()]
+            if len(non_prompt_lines) > 3:
+                return True
+
+    # Signal 2: Output-based detection (fallback)
     if not output:
         return False
 
-    # Must have the completion marker "✻" somewhere (Claude prints this when done)
-    has_completion = "✻" in output
-    if not has_completion:
-        return False
-
-    lines = output.strip().split("\n")
-    # Check last few lines for Claude's idle prompt indicators
-    for line in lines[-10:]:
-        stripped = line.strip()
-        if re.search(r'[❯>]\s*$', stripped):
-            return True
-        if re.search(r'\?\s*for\s+shortcuts', stripped):
-            return True
+    # Look for completion marker or "Brewed for" in the output
+    has_completion = "✻" in output or "Brewed for" in output
+    if has_completion:
+        lines = output.strip().split("\n")
+        for line in lines[-10:]:
+            stripped = line.strip()
+            if re.search(r'[❯>]\s*$', stripped):
+                return True
+            if re.search(r'\?\s*for\s+shortcuts', stripped):
+                return True
     return False
 
 
@@ -566,7 +646,7 @@ async def auto_check_inprogress():
 
             # Session exists — check if Claude is idle
             output = _get_tmux_output(session_name)
-            claude_done = _detect_claude_done(output)
+            claude_done = _detect_claude_done(session_name, output)
 
             if claude_done:
                 scrollback = _get_tmux_scrollback(session_name, 2000)

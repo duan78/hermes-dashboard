@@ -31,7 +31,6 @@ from .routers import (
     insights,
     chat,
     files,
-    terminal,
     api_keys,
     fine_tune,
     gateway,
@@ -259,7 +258,6 @@ app.include_router(platforms.router)
 app.include_router(insights.router)
 app.include_router(chat.router)
 app.include_router(files.router)
-app.include_router(terminal.router)
 app.include_router(api_keys.router)
 app.include_router(fine_tune.router)
 app.include_router(gateway.router)
