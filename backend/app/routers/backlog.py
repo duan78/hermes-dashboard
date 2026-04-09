@@ -324,14 +324,24 @@ def _get_tmux_scrollback(session_name: str, lines: int = 2000) -> str:
 
 
 def _detect_claude_done(output: str) -> bool:
-    """Detect if Claude Code has finished and returned to prompt."""
+    """Detect if Claude Code has finished and returned to prompt.
+
+    IMPORTANT: Only returns True if Claude has actually produced work output.
+    A bare prompt (just the task text echoed back with > prefixes) means
+    Claude hasn't started yet — do NOT mark as done in that case.
+    """
     if not output:
         return False
+
+    # Must have the completion marker "✻" somewhere (Claude prints this when done)
+    has_completion = "✻" in output
+    if not has_completion:
+        return False
+
     lines = output.strip().split("\n")
     # Check last few lines for Claude's idle prompt indicators
     for line in lines[-10:]:
         stripped = line.strip()
-        # Claude Code shows a prompt like "❯" or "> " or "? for shortcuts" when idle
         if re.search(r'[❯>]\s*$', stripped):
             return True
         if re.search(r'\?\s*for\s+shortcuts', stripped):

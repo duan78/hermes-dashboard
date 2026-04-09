@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from ..config import HERMES_HOME
 from ..utils import hermes_path
 
@@ -12,6 +12,57 @@ ENV_PATH = HERMES_HOME / ".env"
 SENSITIVE_KEYS = re.compile(
     r"(key|token|secret|password|api|auth|credential|private)", re.IGNORECASE
 )
+
+# ── Allowlist for env-vars/set ──────────────────────────────────────────
+# Keys explicitly allowed.  Covers all REQUIRED_VARS, PLATFORM_ENV_VARS,
+# and common Hermes config keys used across the codebase.
+_ALLOWED_KEYS: set[str] = {
+    # Required API keys
+    "TELEGRAM_BOT_TOKEN", "OPENAI_API_KEY", "MISTRAL_API_KEY",
+    "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "DEEPGRAM_API_KEY",
+    "GOOGLE_API_KEY", "GROQ_API_KEY",
+    # Platform vars (telegram / discord / whatsapp / signal / slack / matrix / dingtalk / feishu)
+    "TELEGRAM_ALLOWED_USERS",
+    "DISCORD_BOT_TOKEN", "DISCORD_HOME_CHANNEL",
+    "WHATSAPP_MODE", "WHATSAPP_ENABLED",
+    "SIGNAL_ACCOUNT", "SIGNAL_HTTP_URL",
+    "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",
+    "MATRIX_PASSWORD", "MATRIX_ENCRYPTION", "MATRIX_HOME_ROOM",
+    "DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET",
+    "FEISHU_APP_ID", "FEISHU_APP_SECRET",
+    # Hermes core config
+    "HERMES_HOME", "HERMES_DASHBOARD_TOKEN", "HERMES_BIN",
+    "HERMES_PYTHON", "HERMES_AGENT_DIR", "HERMES_MEMORY_PATH",
+    "DASHBOARD_TOKEN",
+    # General safe env name pattern: uppercase letters, digits, underscores,
+    # ending with a known suffix — allows user-defined keys like MY_CUSTOM_KEY
+    # without letting through dangerous names like PATH, HOME, LD_PRELOAD, etc.
+}
+
+# Safe suffixes for user-defined keys
+_SAFE_KEY_RE = re.compile(r'^[A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_URL|_ID|_MODE|_ENABLED|_PATH|_DIR|_HOST|_PORT|_USER|_PASS(?:WORD)?|_CONFIG)$')
+# Keys that must NEVER be overwritten
+_BLOCKED_KEYS = frozenset({
+    "PATH", "HOME", "USER", "SHELL", "LD_PRELOAD", "LD_LIBRARY_PATH",
+    "PYTHONPATH", "PYTHONHOME", "HOSTNAME", "LANG", "TERM",
+    "PWD", "OLDPWD", "DISPLAY", "XAUTHORITY", "SSH_AUTH_SOCK",
+})
+
+
+def _validate_env_key(key: str) -> None:
+    """Raise 400 if *key* is not allowed via the allowlist."""
+    if key in _BLOCKED_KEYS:
+        raise HTTPException(400, f"Key '{key}' is blocked for security reasons")
+    if key in _ALLOWED_KEYS:
+        return
+    if _SAFE_KEY_RE.match(key):
+        return
+    raise HTTPException(
+        400,
+        f"Key '{key}' is not in the allowed list. "
+        "Allowed: known Hermes keys, or names matching "
+        "PREFIX_{KEY,TOKEN,SECRET,URL,ID,MODE,ENABLED,PATH,DIR,HOST,PORT,USER,PASS,CONFIG}.",
+    )
 
 REQUIRED_VARS = [
     {"key": "TELEGRAM_BOT_TOKEN", "description": "Telegram bot token for DM communication", "category": "Messaging"},
@@ -73,7 +124,9 @@ async def set_env_var(request: Request):
     key = body.get("key", "").strip()
     value = body.get("value", "")
     if not key:
-        return {"error": "Key is required"}
+        raise HTTPException(400, "Key is required")
+
+    _validate_env_key(key)
 
     # Read existing lines
     lines = []
@@ -104,7 +157,9 @@ async def delete_env_var(request: Request):
     body = await request.json()
     key = body.get("key", "").strip()
     if not key:
-        return {"error": "Key is required"}
+        raise HTTPException(400, "Key is required")
+
+    _validate_env_key(key)
 
     if not ENV_PATH.exists():
         return {"status": "deleted"}

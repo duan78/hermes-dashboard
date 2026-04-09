@@ -17,4 +17,22 @@ export default defineConfig({
     outDir: '../backend/static',
     emptyOutDir: true,
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    css: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'text-summary', 'html'],
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/test/**', 'src/main.jsx'],
+      thresholds: {
+        lines: 30,
+        functions: 30,
+        branches: 20,
+        statements: 30,
+      },
+    },
+  },
 })

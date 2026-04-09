@@ -268,7 +268,7 @@ Long-lived WebSocket connections are allowed. While useful for terminal, this co
 | 2 | HIGH | Remove `raw_yaml` from config GET response | 1 | config.py |
 | 3 | HIGH | Remove `raw_value` from env_vars list response | 1 | env_vars.py |
 | 4 | HIGH | Add rate limiting to sensitive endpoints | ~10 | main.py + routers |
-| 5 | HIGH | Restrict env-vars/set to known keys | 3 | env_vars.py |
+| 5 | HIGH | Restrict env-vars/set to known keys (allowlist) | ✅ done | env_vars.py |
 | 6 | HIGH | Validate workdir in claude_code new_session | 3 | claude_code.py |
 | 7 | MEDIUM | Remove hermes_home from health response | 1 | main.py |
 | 8 | MEDIUM | Add resolved path check in backup restore | 2 | backup.py |
