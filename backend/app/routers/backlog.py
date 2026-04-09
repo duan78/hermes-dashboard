@@ -1,12 +1,15 @@
 import json
+import os
 import re
 import fcntl
 import subprocess
 import time
 import logging
 from datetime import datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
@@ -76,6 +79,213 @@ class BacklogItemUpdate(BaseModel):
 
 class StatusPatch(BaseModel):
     status: str
+
+
+class AutofeedCandidate(BaseModel):
+    title: str
+    description: str = ""
+    category: str = ""
+    priority: str = ""
+    source: str = ""
+
+class AutofeedRequest(BaseModel):
+    candidates: list[AutofeedCandidate]
+    context: str = ""  # Optional session context for better LLM validation
+
+
+# ── LLM helpers for auto-feed ──
+
+VALID_CATEGORIES = ["voice-cloning", "fine-tune", "infrastructure", "dashboard", "seo", "devops", "other"]
+VALID_PRIORITIES = ["haute", "normale", "bassee"]
+MIN_TITLE_LENGTH = 10
+MIN_DESCRIPTION_LENGTH = 20
+SIMILARITY_THRESHOLD = 0.65  # Reject if >65% similar to existing title
+
+
+def _load_llm_config():
+    """Load LLM config from config.yaml for direct API calls."""
+    import yaml
+    config_path = Path(os.path.expanduser("~/.hermes/config.yaml"))
+    if not config_path.exists():
+        return None
+    try:
+        cfg = yaml.safe_load(config_path.read_text())
+        model_cfg = cfg.get("model", {})
+        return {
+            "api_key": model_cfg.get("api_key", ""),
+            "base_url": model_cfg.get("base_url", "https://api.openai.com/v1"),
+            "model": model_cfg.get("default", "gpt-4o"),
+        }
+    except Exception as e:
+        logger.warning("Error loading LLM config: %s", e)
+        return None
+
+
+async def _llm_validate_candidates(candidates: list[dict], existing_items: list[dict], context: str = "") -> list[dict]:
+    """Use LLM to validate, categorize, and enrich candidates in one batch call.
+
+    Returns a list of validated/enriched candidates. Items rejected by the LLM
+    get is_valid=false.
+    """
+    llm_cfg = _load_llm_config()
+    if not llm_cfg or not llm_cfg.get("api_key"):
+        logger.warning("No LLM config available for auto-feed validation — skipping LLM check")
+        # If no LLM, just pass through with basic defaults
+        for c in candidates:
+            c["is_valid"] = True
+            c["llm_category"] = c.get("category") or "other"
+            c["llm_priority"] = c.get("priority") or "normale"
+            c["llm_title"] = c.get("title", "")
+            c["llm_description"] = c.get("description", "")
+            c["llm_task_prompt"] = ""
+        return candidates
+
+    # Build existing titles summary for dedup context
+    existing_titles = [item.get("title", "") for item in existing_items if item.get("status") != "done"]
+    existing_summary = "\n".join(f"- {t}" for t in existing_titles[:50]) if existing_titles else "(empty backlog)"
+
+    # Build candidate summary
+    candidate_lines = []
+    for i, c in enumerate(candidates):
+        candidate_lines.append(f'{i+1}. title: "{c.get("title", "")}"\n   description: "{c.get("description", "")}"')
+    candidates_text = "\n".join(candidate_lines)
+
+    prompt = f"""You are a task quality validator for a software project backlog. Analyze each candidate task and decide if it's a REAL, ACTIONABLE task worth adding to the backlog.
+
+EXISTING BACKLOG (do not duplicate):
+{existing_summary}
+
+CANDIDATES TO VALIDATE:
+{candidates_text}
+
+RULES - reject candidates that are:
+- Too vague or generic (e.g. "check something", "improve X")
+- Already done or trivially completable (< 2 min work)
+- Duplicates or near-duplicates of existing backlog items
+- Just observations/opinions, not actionable tasks
+- Missing substance (no clear deliverable or scope)
+- Trivial config changes or one-liner fixes
+
+RULES - accept candidates that are:
+- Clear, specific, actionable tasks with defined scope
+- Real work that takes > 15 minutes
+- Bug fixes with reproduction details
+- Features with clear requirements
+- Infrastructure/maintenance tasks with impact
+
+For EACH candidate, respond in JSON array format:
+```json
+[
+  {{
+    "index": 1,
+    "is_valid": true/false,
+    "reject_reason": "why rejected" or null,
+    "title": "clean concise title (French, imperative form)",
+    "description": "detailed description with context (French)",
+    "category": "one of: {', '.join(VALID_CATEGORIES)}",
+    "priority": "one of: {', '.join(VALID_PRIORITIES)}",
+    "task_prompt": "complete instruction for an AI agent to execute this task (French, detailed)"
+  }}
+]
+```
+
+Respond ONLY with the JSON array, no other text."""
+
+    try:
+        base_url = llm_cfg["base_url"].rstrip("/")
+        url = f"{base_url}/chat/completions" if not base_url.endswith("/chat/completions") else base_url
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {llm_cfg['api_key']}",
+        }
+        payload = {
+            "model": llm_cfg["model"],
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": 4096,
+        }
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code != 200:
+                logger.error("LLM validation failed: %d %s", resp.status_code, resp.text[:200])
+                # Fallback: pass through without LLM
+                for c in candidates:
+                    c["is_valid"] = True
+                    c["llm_category"] = c.get("category") or "other"
+                    c["llm_priority"] = c.get("priority") or "normale"
+                    c["llm_title"] = c.get("title", "")
+                    c["llm_description"] = c.get("description", "")
+                    c["llm_task_prompt"] = ""
+                return candidates
+
+            content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        # Extract JSON from response (handle markdown code blocks)
+        json_match = re.search(r'\[[\s\S]*\]', content)
+        if not json_match:
+            logger.error("LLM response not valid JSON array: %s", content[:300])
+            for c in candidates:
+                c["is_valid"] = True
+                c["llm_category"] = c.get("category") or "other"
+                c["llm_priority"] = c.get("priority") or "normale"
+                c["llm_title"] = c.get("title", "")
+                c["llm_description"] = c.get("description", "")
+                c["llm_task_prompt"] = ""
+            return candidates
+
+        results = json.loads(json_match.group())
+        results_by_index = {r.get("index", i+1): r for i, r in enumerate(results)}
+
+        for i, c in enumerate(candidates):
+            idx = i + 1
+            r = results_by_index.get(idx, {})
+            c["is_valid"] = r.get("is_valid", False)
+            c["reject_reason"] = r.get("reject_reason")
+            c["llm_title"] = r.get("title", c.get("title", ""))
+            c["llm_description"] = r.get("description", c.get("description", ""))
+            c["llm_category"] = r.get("category", "other") if r.get("category") in VALID_CATEGORIES else "other"
+            c["llm_priority"] = r.get("priority", "normale") if r.get("priority") in VALID_PRIORITIES else "normale"
+            c["llm_task_prompt"] = r.get("task_prompt", "")
+
+        return candidates
+
+    except Exception as e:
+        logger.error("LLM validation error: %s", e)
+        for c in candidates:
+            c["is_valid"] = True
+            c["llm_category"] = c.get("category") or "other"
+            c["llm_priority"] = c.get("priority") or "normale"
+            c["llm_title"] = c.get("title", "")
+            c["llm_description"] = c.get("description", "")
+            c["llm_task_prompt"] = ""
+        return candidates
+
+
+def _is_duplicate(title: str, existing_items: list[dict], threshold: float = SIMILARITY_THRESHOLD) -> Optional[str]:
+    """Check if title is too similar to an existing non-done item. Returns the matching title or None."""
+    title_lower = title.lower().strip()
+    title_words = set(title_lower.split())
+    for item in existing_items:
+        if item.get("status") == "done":
+            continue
+        existing_title = item.get("title", "").lower().strip()
+        if not existing_title:
+            continue
+        # Quick slug check
+        if _slugify(title) == _slugify(existing_title):
+            return existing_title
+        # Word overlap check (fast)
+        existing_words = set(existing_title.split())
+        if len(title_words) >= 3 and len(existing_words) >= 3:
+            overlap = len(title_words & existing_words)
+            if overlap / max(len(title_words), len(existing_words)) > 0.8:
+                return existing_title
+        # SequenceMatcher for closer check
+        ratio = SequenceMatcher(None, title_lower, existing_title).ratio()
+        if ratio > threshold:
+            return existing_title
+    return None
 
 
 # ── Tmux helpers ──
@@ -186,6 +396,207 @@ async def backlog_stats():
         by_category[c] = by_category.get(c, 0) + 1
 
     return {"total": len(items), "by_status": by_status, "by_category": by_category}
+
+
+@router.post("/auto-feed")
+async def auto_feed_backlog(body: AutofeedRequest):
+    """Smart auto-feed endpoint: validates, deduplicates, categorizes candidates via LLM before adding.
+
+    Accepts a list of candidate tasks, applies quality filters, LLM validation,
+    deduplication, auto-categorization, and only creates items that pass all checks.
+    """
+    data = _read_backlog()
+    existing_items = data.get("items", [])
+
+    candidates = [c.model_dump() for c in body.candidates]
+    results = {
+        "received": len(candidates),
+        "accepted": [],
+        "rejected": [],
+        "errors": [],
+    }
+
+    # ── Stage 1: Basic quality filter (pre-LLM) ──
+    pre_filtered = []
+    for c in candidates:
+        title = c.get("title", "").strip()
+        desc = c.get("description", "").strip()
+
+        # Minimum length checks
+        if len(title) < MIN_TITLE_LENGTH:
+            results["rejected"].append({"title": title[:50], "reason": f"title too short ({len(title)}<{MIN_TITLE_LENGTH})"})
+            continue
+
+        # Title must not be all the same or just generic filler
+        generic_titles = {"todo", "task", "fix", "update", "check", "tâche", "à faire", "fix me", "do this"}
+        if title.lower().strip() in generic_titles:
+            results["rejected"].append({"title": title[:50], "reason": "title too generic"})
+            continue
+
+        pre_filtered.append(c)
+
+    logger.info("Auto-feed: %d/%d candidates passed pre-filter", len(pre_filtered), len(candidates))
+
+    if not pre_filtered:
+        return results
+
+    # ── Stage 2: Deduplication check (pre-LLM) ──
+    deduped = []
+    for c in pre_filtered:
+        dup = _is_duplicate(c.get("title", ""), existing_items)
+        if dup:
+            results["rejected"].append({"title": c.get("title", "")[:50], "reason": f"duplicate of: {dup[:50]}"})
+            continue
+        deduped.append(c)
+
+    logger.info("Auto-feed: %d/%d candidates passed dedup", len(deduped), len(pre_filtered))
+
+    if not deduped:
+        return results
+
+    # ── Stage 3: LLM validation + categorization ──
+    validated = await _llm_validate_candidates(deduped, existing_items, body.context)
+
+    # ── Stage 4: Create accepted items ──
+    now = datetime.now().isoformat()
+    for c in validated:
+        if not c.get("is_valid"):
+            results["rejected"].append({
+                "title": c.get("title", "")[:50],
+                "reason": c.get("reject_reason", "LLM rejected"),
+            })
+            continue
+
+        title = c.get("llm_title") or c.get("title", "")
+        description = c.get("llm_description") or c.get("description", "")
+        category = c.get("llm_category") or c.get("category") or "other"
+        priority = c.get("llm_priority") or c.get("priority") or "normale"
+        task_prompt = c.get("llm_task_prompt", "")
+
+        # Final duplicate check with enriched title
+        dup = _is_duplicate(title, existing_items)
+        if dup:
+            results["rejected"].append({"title": title[:50], "reason": f"post-LLM duplicate: {dup[:50]}"})
+            continue
+
+        # Create the item
+        item_id = _slugify(title)
+        existing_ids = {i.get("id") for i in existing_items}
+        if item_id in existing_ids:
+            counter = 2
+            while f"{item_id}-{counter}" in existing_ids:
+                counter += 1
+            item_id = f"{item_id}-{counter}"
+
+        new_item = {
+            "id": item_id,
+            "title": title,
+            "description": description,
+            "category": category,
+            "priority": priority,
+            "status": "pending",
+            "created": now,
+            "source": "autofeed",
+        }
+        if task_prompt:
+            new_item["task_prompt"] = task_prompt
+        if c.get("source"):
+            new_item["autofeed_source"] = c["source"]
+
+        existing_items.append(new_item)
+        results["accepted"].append({
+            "id": item_id,
+            "title": title,
+            "category": category,
+            "priority": priority,
+        })
+        logger.info("Auto-feed accepted: %s [%s/%s]", item_id, category, priority)
+
+    # Write once at the end
+    data["items"] = existing_items
+    _write_backlog(data)
+
+    logger.info("Auto-feed complete: %d accepted, %d rejected out of %d candidates",
+                len(results["accepted"]), len(results["rejected"]), results["received"])
+
+    return results
+
+
+@router.get("/auto-check")
+async def auto_check_inprogress():
+    """Scan all in-progress items and auto-mark completed ones as done.
+
+    For each in-progress item, checks the associated tmux session:
+    - Session gone → mark done with "Session tmux terminée"
+    - Session alive but Claude idle → mark done, capture last 2000 chars of scrollback
+    - Session alive and Claude working → leave as in-progress
+    """
+    data = _read_backlog()
+    items = data.get("items", [])
+
+    in_progress = [i for i in items if i.get("status") == "in-progress"]
+
+    checked = len(in_progress)
+    done = 0
+    still_running = 0
+    errors = 0
+
+    for item in in_progress:
+        item_id = item.get("id")
+        session_name = "task-" + item_id
+
+        try:
+            session_exists = _tmux_session_exists(session_name)
+
+            if not session_exists:
+                _update_item_status(item_id, "done", result="Session tmux terminée")
+                logger.info("auto-check: %s → done (tmux session gone)", item_id)
+                done += 1
+                continue
+
+            # Session exists — check if Claude is idle
+            output = _get_tmux_output(session_name)
+            claude_done = _detect_claude_done(output)
+
+            if claude_done:
+                scrollback = _get_tmux_scrollback(session_name, 2000)
+                result_text = scrollback[-2000:] if len(scrollback) > 2000 else scrollback
+                _update_item_status(item_id, "done", result=result_text)
+                logger.info("auto-check: %s → done (Claude idle)", item_id)
+                done += 1
+            else:
+                still_running += 1
+
+        except Exception as e:
+            logger.error("auto-check: error checking %s: %s", item_id, e)
+            errors += 1
+
+    return {"checked": checked, "done": done, "still_running": still_running, "errors": errors}
+
+
+@router.get("/auto-feed/history")
+async def auto_feed_history():
+    """Return stats about auto-fed items."""
+    data = _read_backlog()
+    items = data.get("items", [])
+
+    autofed = [i for i in items if i.get("source") == "autofeed" or i.get("autofeed_source")]
+    manual = [i for i in items if i.get("source") != "autofeed" and not i.get("autofeed_source")]
+
+    autofed_by_status = {}
+    autofed_by_category = {}
+    for item in autofed:
+        s = item.get("status", "unknown")
+        autofed_by_status[s] = autofed_by_status.get(s, 0) + 1
+        c = item.get("category", "unknown")
+        autofed_by_category[c] = autofed_by_category.get(c, 0) + 1
+
+    return {
+        "autofed_total": len(autofed),
+        "manual_total": len(manual),
+        "autofed_by_status": autofed_by_status,
+        "autofed_by_category": autofed_by_category,
+    }
 
 
 @router.post("")

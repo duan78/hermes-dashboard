@@ -20,7 +20,7 @@ const PRIORITY_COLORS = {
   'basse': '#22c55e',
 }
 
-const CATEGORIES = ['voice-cloning', 'fine-tune', 'infrastructure', 'dashboard', 'seo', 'other']
+const CATEGORIES = ['voice-cloning', 'fine-tune', 'infrastructure', 'dashboard', 'seo', 'devops', 'other']
 const STATUSES = ['pending', 'blocked', 'waiting-human', 'in-progress', 'done']
 const PRIORITIES = ['haute', 'normale', 'basse']
 
@@ -409,6 +409,13 @@ export default function Backlog() {
                   <span className="backlog-badge backlog-badge-category">
                     {item.category}
                   </span>
+                  {(item.source === 'autofeed' || item.autofeed_source) && (
+                    <Tooltip text={"Ajouté automatiquement par le système autofeed"}>
+                      <span className="backlog-badge" style={{ backgroundColor: '#8b5cf620', color: '#8b5cf6', borderColor: '#8b5cf640', fontSize: 11 }}>
+                        auto
+                      </span>
+                    </Tooltip>
+                  )}
                 </div>
                 <div className="backlog-item-title">{item.title}</div>
                 {desc && <div className="backlog-item-desc">{desc}</div>}
