@@ -50,15 +50,43 @@ export default function TerminalPage() {
     wsRef.current = ws
 
     ws.onopen = () => {
-      setConnected(true)
-      setReconnecting(false)
-      setError(null)
-      reconnectAttemptRef.current = 0
-      setTimeout(() => fitAddon.fit(), 100)
+      // Send auth message as first message (defense in depth)
+      const token = localStorage.getItem('hermes_token') || ''
+      ws.send(JSON.stringify({ type: 'auth', token }))
     }
+
+    let authenticated = false
 
     ws.onmessage = (event) => {
       const text = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data)
+
+      // Handle auth response
+      if (!authenticated) {
+        try {
+          const msg = JSON.parse(text)
+          if (msg.type === 'auth_ok') {
+            authenticated = true
+            setConnected(true)
+            setReconnecting(false)
+            setError(null)
+            reconnectAttemptRef.current = 0
+            setTimeout(() => fitAddon.fit(), 100)
+            return
+          }
+          if (msg.type === 'error') {
+            setError(msg.message || 'Auth failed')
+            return
+          }
+        } catch {
+          // Non-JSON before auth — probably terminal output, treat as authenticated
+          authenticated = true
+          setConnected(true)
+          setReconnecting(false)
+          setError(null)
+          reconnectAttemptRef.current = 0
+        }
+      }
+
       term.write(text)
     }
 

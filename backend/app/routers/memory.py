@@ -42,7 +42,6 @@ def _get_claw():
             sys.path.insert(0, _HERMES_AGENT_PATH)
 
         # Ensure MISTRAL_API_KEY is available (may be in ~/.hermes/.env)
-        import os
         api_key = os.environ.get("MISTRAL_API_KEY", "")
         if not api_key:
             env_path = HERMES_HOME / ".env"
@@ -862,19 +861,20 @@ def _brain_search_claw(q: str, top_k: int) -> list:
         return []
     
     try:
-        # Import and use existing claw infrastructure
-        query_embedding = _claw_embedder.embed_query(q)
-        search_results = _claw_store.search(query_embedding, top_k=top_k)
-        
+        query_embedding = _claw_embedder.embed(q)
+        if not query_embedding:
+            return []
+        search_results = _claw_store.search(query_embedding, limit=top_k)
+
         items = []
         for r in search_results:
             items.append({
                 "id": r.get("id", ""),
-                "content": r.get("content", r.get("text", "")),
+                "content": r.get("text", ""),
                 "source": r.get("source", ""),
                 "importance": r.get("importance", 0),
                 "created_at": r.get("created_at", ""),
-                "distance": r.get("distance", None),
+                "score": r.get("score"),
             })
         return items
     except Exception:

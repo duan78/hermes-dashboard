@@ -294,11 +294,101 @@ async def _stop_poll_bridge():
 
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──
 
+TERMINAL_LOG_PATH = Path("/tmp/dashboard-terminal.log")
+TERMINAL_LOG_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+TERMINAL_INACTIVITY_TIMEOUT = 30 * 60  # 30 minutes
+TERMINAL_AUTH_TIMEOUT = 10  # seconds to send initial auth message
+
+
+def _rotate_terminal_log():
+    """Rotate terminal log if it exceeds max size."""
+    try:
+        if TERMINAL_LOG_PATH.exists() and TERMINAL_LOG_PATH.stat().st_size > TERMINAL_LOG_MAX_BYTES:
+            backup = TERMINAL_LOG_PATH.with_suffix(".log.1")
+            if backup.exists():
+                backup.unlink()
+            TERMINAL_LOG_PATH.rename(backup)
+    except OSError:
+        pass
+
+
+def _log_terminal_event(entry: dict):
+    """Append a JSON-line entry to the terminal audit log."""
+    _rotate_terminal_log()
+    try:
+        with open(TERMINAL_LOG_PATH, "a") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except OSError:
+        pass
+
+
 @app.websocket("/ws/terminal")
 async def terminal_ws(websocket):
-    """WebSocket endpoint that spawns an interactive PTY shell."""
+    """WebSocket endpoint that spawns an interactive PTY shell.
+
+    Security flow:
+    1. AuthMiddleware validates bearer token before connection is accepted
+    2. First message must be {"type": "auth", "token": "..."} (defense in depth)
+    3. All input is logged to /tmp/dashboard-terminal.log
+    4. Connection closed after 30 min of inactivity
+    """
     await websocket.accept()
 
+    session_id = str(uuid.uuid4())[:8]
+    client_ip = websocket.client.host if websocket.client else "unknown"
+
+    _log_terminal_event({
+        "event": "ws_connected",
+        "session_id": session_id,
+        "ip": client_ip,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    })
+
+    # ── Step 1: Re-authenticate via initial message (defense in depth) ──
+    try:
+        auth_raw = await asyncio.wait_for(websocket.receive_text(), timeout=TERMINAL_AUTH_TIMEOUT)
+        auth_msg = json.loads(auth_raw)
+        if auth_msg.get("type") != "auth":
+            raise ValueError("First message must be auth")
+        from .auth import verify_token
+        if not verify_token(auth_msg.get("token", "")):
+            raise ValueError("Invalid token")
+    except asyncio.TimeoutError:
+        _log_terminal_event({
+            "event": "auth_timeout",
+            "session_id": session_id,
+            "ip": client_ip,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        })
+        await websocket.send_text(json.dumps({"type": "error", "message": "Auth timeout"}))
+        await websocket.close(code=4008)
+        return
+    except (json.JSONDecodeError, ValueError) as e:
+        _log_terminal_event({
+            "event": "auth_failed",
+            "session_id": session_id,
+            "ip": client_ip,
+            "reason": str(e),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        })
+        await websocket.send_text(json.dumps({"type": "error", "message": f"Auth failed: {e}"}))
+        await websocket.close(code=4008)
+        return
+    except Exception:
+        await websocket.close(code=4008)
+        return
+
+    _log_terminal_event({
+        "event": "session_started",
+        "session_id": session_id,
+        "ip": client_ip,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    })
+
+    # Send auth success so the frontend knows it can proceed
+    await websocket.send_text(json.dumps({"type": "auth_ok"}))
+
+    # ── Step 2: Spawn PTY ──
     shell = os.environ.get("SHELL", "/bin/bash")
 
     try:
@@ -328,8 +418,11 @@ async def terminal_ws(websocket):
 
     os.close(slave_fd)
 
+    last_activity = time.monotonic()
+
     async def read_pty():
         """Read PTY output and send to WebSocket."""
+        nonlocal last_activity
         loop = asyncio.get_event_loop()
         try:
             while process.returncode is None:
@@ -337,6 +430,7 @@ async def terminal_ws(websocket):
                     data = await loop.run_in_executor(None, os.read, master_fd, 4096)
                     if not data:
                         break
+                    last_activity = time.monotonic()
                     await websocket.send_text(data.decode(errors="replace"))
                 except OSError:
                     break
@@ -350,18 +444,33 @@ async def terminal_ws(websocket):
 
     async def write_pty():
         """Read WebSocket messages and write to PTY."""
+        nonlocal last_activity
         try:
             while True:
                 raw = await websocket.receive_text()
-                import json
+                last_activity = time.monotonic()
                 try:
                     msg = json.loads(raw)
                 except (json.JSONDecodeError, ValueError):
+                    # Raw text input — log it
+                    _log_terminal_event({
+                        "event": "input",
+                        "session_id": session_id,
+                        "data": raw,
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    })
                     os.write(master_fd, raw.encode())
                     continue
 
                 if msg.get("type") == "input":
-                    os.write(master_fd, msg.get("data", "").encode())
+                    input_data = msg.get("data", "")
+                    _log_terminal_event({
+                        "event": "input",
+                        "session_id": session_id,
+                        "data": input_data,
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    })
+                    os.write(master_fd, input_data.encode())
                 elif msg.get("type") == "resize":
                     nonlocal cols, rows
                     cols = msg.get("cols", cols)
@@ -374,13 +483,37 @@ async def terminal_ws(websocket):
         except Exception:
             pass
 
+    async def inactivity_watchdog():
+        """Close connection after TERMINAL_INACTIVITY_TIMEOUT of no activity."""
+        try:
+            while True:
+                await asyncio.sleep(60)  # Check every minute
+                if time.monotonic() - last_activity > TERMINAL_INACTIVITY_TIMEOUT:
+                    _log_terminal_event({
+                        "event": "inactivity_timeout",
+                        "session_id": session_id,
+                        "ip": client_ip,
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    })
+                    try:
+                        await websocket.send_text(
+                            json.dumps({"type": "error", "message": "Session timed out (30 min inactivity)"})
+                        )
+                    except Exception:
+                        pass
+                    await websocket.close(code=4008)
+                    return
+        except asyncio.CancelledError:
+            pass
+
     read_task = asyncio.create_task(read_pty())
     write_task = asyncio.create_task(write_pty())
+    watchdog_task = asyncio.create_task(inactivity_watchdog())
 
     try:
-        await asyncio.gather(read_task, write_task, return_exceptions=True)
+        await asyncio.gather(read_task, write_task, watchdog_task, return_exceptions=True)
     finally:
-        for task in [read_task, write_task]:
+        for task in [read_task, write_task, watchdog_task]:
             if not task.done():
                 task.cancel()
         if process.returncode is None:
@@ -396,6 +529,13 @@ async def terminal_ws(websocket):
             os.close(master_fd)
         except OSError:
             pass
+
+        _log_terminal_event({
+            "event": "session_ended",
+            "session_id": session_id,
+            "ip": client_ip,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        })
 
 # Serve frontend static files in production
 static_dir = Path(__file__).parent.parent / "static"
