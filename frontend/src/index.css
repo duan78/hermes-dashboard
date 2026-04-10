@@ -2,7 +2,10 @@
   --bg-primary: #0f1117;
   --bg-secondary: #1a1d27;
   --bg-tertiary: #242836;
+  --bg-card: #111119;
+  --bg-base: #0a0a0f;
   --bg-hover: #2a2e3d;
+  --bg-overlay: rgba(0,0,0,0.7);
   --text-primary: #e4e6eb;
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
@@ -567,7 +570,10 @@ pre {
   --bg-primary: #f5f6fa;
   --bg-secondary: #ffffff;
   --bg-tertiary: #ebedf2;
+  --bg-card: #ffffff;
+  --bg-base: #f5f6fa;
   --bg-hover: #e4e6ed;
+  --bg-overlay: rgba(0,0,0,0.4);
   --text-primary: #1a1d27;
   --text-secondary: #4b5060;
   --text-muted: #8b90a0;
@@ -584,6 +590,7 @@ pre {
 [data-theme="light"] .badge-info { background: rgba(59,130,246,0.1); }
 [data-theme="light"] .btn-danger { background: rgba(239,68,68,0.08); }
 [data-theme="light"] .error-box { background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.2); }
+[data-theme="light"] .wiki-schema-tag { color: #7c3aed; }
 
 /* Sidebar footer */
 .sidebar-footer {
