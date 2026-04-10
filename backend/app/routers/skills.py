@@ -310,9 +310,18 @@ async def inspect_registry_skill(skill_name: str):
 @router.get("/inspect/{skill_name}")
 async def inspect_skill(skill_name: str):
     """Get skill details including SKILL.md content."""
-    skill_dir = hermes_path("skills", skill_name)
-    if not skill_dir.exists() or not skill_dir.is_dir():
-        raise HTTPException(404, f"Skill '{skill_name}' not found")
+    skills_dir = hermes_path("skills")
+    skill_dir = skills_dir / skill_name
+    if not skill_dir.is_dir() or not (skill_dir / "SKILL.md").exists():
+        # Search in subdirectories (skills are organized by category)
+        found = None
+        for candidate in skills_dir.rglob(skill_name):
+            if candidate.is_dir() and (candidate / "SKILL.md").exists():
+                found = candidate
+                break
+        if not found:
+            raise HTTPException(404, f"Skill '{skill_name}' not found")
+        skill_dir = found
 
     result = {"name": skill_name, "files": []}
     skill_md = skill_dir / "SKILL.md"
