@@ -1,6 +1,5 @@
 """Response schemas for sessions endpoints."""
 
-from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
@@ -31,20 +30,20 @@ class SessionMessage(BaseModel):
     """A single message in a session."""
     role: str = ""
     content: str = ""
-    timestamp: Optional[str] = None
-    tool_calls: Optional[list[dict]] = None
+    timestamp: str | None = None
+    tool_calls: list[dict] | None = None
 
     model_config = {"extra": "allow"}
 
 
 class SessionDetail(BaseModel):
     """Full session detail with messages."""
-    session_id: Optional[str] = None
+    session_id: str | None = None
     model: str = "unknown"
     platform: str = "unknown"
     messages: list[SessionMessage] = Field(default_factory=list)
-    usage: Optional[dict] = None
-    token_usage: Optional[dict] = None
+    usage: dict | None = None
+    token_usage: dict | None = None
 
     model_config = {"extra": "allow"}
 
@@ -52,7 +51,7 @@ class SessionDetail(BaseModel):
 class SessionStats(BaseModel):
     """Session statistics."""
     output: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class SessionExport(BaseModel):

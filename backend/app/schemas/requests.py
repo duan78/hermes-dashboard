@@ -1,8 +1,8 @@
 """Request models for API validation."""
 
-from typing import Any, Optional
-from pydantic import BaseModel, Field
+from typing import Any
 
+from pydantic import BaseModel, Field
 
 # ── Config ──
 
@@ -105,7 +105,7 @@ class MemoryFileDeleteRequest(BaseModel):
 class VectorStoreRequest(BaseModel):
     text: str = Field(..., min_length=1, description="Text to store")
     source: str = Field("manual", description="Source label")
-    metadata: Optional[dict] = Field(None, description="Optional metadata")
+    metadata: dict | None = Field(None, description="Optional metadata")
 
 
 class VectorDeleteRequest(BaseModel):
@@ -135,8 +135,8 @@ class WebhookDeleteRequest(BaseModel):
 class ToolEnvRequest(BaseModel):
     key: str = Field(..., min_length=1, description="Environment variable name")
     value: str = Field("", description="Variable value")
-    config_key: Optional[str] = Field(None, description="Optional config.yaml key to update")
-    config_value: Optional[str] = Field(None, description="Config value if config_key set")
+    config_key: str | None = Field(None, description="Optional config.yaml key to update")
+    config_value: str | None = Field(None, description="Config value if config_key set")
 
 
 class ToolToggleRequest(BaseModel):
@@ -148,7 +148,7 @@ class ToolToggleRequest(BaseModel):
 
 class ModelSwitchRequest(BaseModel):
     model: str = Field(..., min_length=1, description="Model name to switch to")
-    provider: Optional[str] = Field(None, description="Provider name")
+    provider: str | None = Field(None, description="Provider name")
 
 
 # ── Skills ──
@@ -224,20 +224,20 @@ class ProviderCreateRequest(BaseModel):
 
 
 class ProviderUpdateRequest(BaseModel):
-    provider: Optional[str] = Field(None, description="Provider name")
-    api: Optional[str] = Field(None, description="API base URL")
-    default_model: Optional[str] = Field(None, description="Default model name")
-    model: Optional[str] = Field(None, description="Model name (alias for default_model)")
-    transport: Optional[str] = Field(None, description="Transport type")
-    base_url: Optional[str] = Field(None, description="Base URL (alias for api)")
-    context_length: Optional[int] = Field(None, description="Context length")
+    provider: str | None = Field(None, description="Provider name")
+    api: str | None = Field(None, description="API base URL")
+    default_model: str | None = Field(None, description="Default model name")
+    model: str | None = Field(None, description="Model name (alias for default_model)")
+    transport: str | None = Field(None, description="Transport type")
+    base_url: str | None = Field(None, description="Base URL (alias for api)")
+    context_length: int | None = Field(None, description="Context length")
 
 
 class ProviderTestRequest(BaseModel):
     provider: str = Field(..., min_length=1, description="Provider name to test")
-    base_url: Optional[str] = Field(None, description="Override base URL")
-    api_key_env: Optional[str] = Field(None, description="API key env var name")
-    model: Optional[str] = Field(None, description="Override model name")
+    base_url: str | None = Field(None, description="Override base URL")
+    api_key_env: str | None = Field(None, description="API key env var name")
+    model: str | None = Field(None, description="Override model name")
 
 
 # ── System Prompt ──

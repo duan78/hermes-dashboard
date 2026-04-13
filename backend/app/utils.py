@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .config import HERMES_HOME, HERMES_BIN
+from .config import HERMES_BIN, HERMES_HOME
 
 # Patterns for detecting secrets in values
 SECRET_PATTERNS = [
@@ -50,7 +50,7 @@ async def run_hermes(*args: str, timeout: int = 30) -> str:
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         raise RuntimeError(f"Command timed out: {' '.join(cmd)}")
     if proc.returncode != 0:

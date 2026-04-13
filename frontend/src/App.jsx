@@ -1,14 +1,17 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
+import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
+ LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
-  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText, ClipboardList
+ Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText, ClipboardList,
+ LogOut
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { useWebSocket } from './hooks/useWebSocket'
 import { api } from './api'
+import { withErrorBoundary } from './components/PageErrorBoundary'
+import './pages/auth.css'
 
 // Eager imports — most frequently accessed / shell pages
 import Overview from './pages/Overview'
@@ -16,7 +19,11 @@ import Config from './pages/Config'
 import Sessions from './pages/Sessions'
 import MemorySoul from './pages/MemorySoul'
 
-// Lazy imports — all other pages (23)
+// Auth pages (eager — needed before dashboard loads)
+import Login from './pages/Login'
+import Register from './pages/Register'
+
+// Lazy imports — all other pages (25)
 const Tools = lazy(() => import('./pages/Tools'))
 const Skills = lazy(() => import('./pages/Skills'))
 const CronJobs = lazy(() => import('./pages/CronJobs'))
@@ -42,7 +49,42 @@ const ClaudeCodePage = lazy(() => import('./pages/ClaudeCode'))
 const WikiPage = lazy(() => import('./pages/Wiki'))
 const MoaConfig = lazy(() => import('./pages/MoaConfig'))
 const Backlog = lazy(() => import('./pages/Backlog'))
+const UsersPage = lazy(() => import('./pages/Users'))
 const NotFound = lazy(() => import('./pages/NotFound'))
+
+// Page-level error boundaries — each page gets its own boundary
+// so a crash in one page doesn't take down the entire dashboard
+const BoundedOverview = withErrorBoundary(Overview, 'Overview')
+const BoundedGateway = withErrorBoundary(GatewayControl, 'Gateway')
+const BoundedChat = withErrorBoundary(Chat, 'Chat')
+const BoundedConfig = withErrorBoundary(Config, 'Configuration')
+const BoundedSessions = withErrorBoundary(Sessions, 'Sessions')
+const BoundedFiles = withErrorBoundary(Files, 'Files')
+const BoundedTerminal = withErrorBoundary(TerminalPage, 'Terminal')
+const BoundedTools = withErrorBoundary(Tools, 'Tools')
+const BoundedSkills = withErrorBoundary(Skills, 'Skills')
+const BoundedSkillsHub = withErrorBoundary(SkillsHub, 'Skills Hub')
+const BoundedCronJobs = withErrorBoundary(CronJobs, 'Cron Jobs')
+const BoundedMemorySoul = withErrorBoundary(MemorySoul, 'Memory & SOUL')
+const BoundedModels = withErrorBoundary(Models, 'Models')
+const BoundedPlatforms = withErrorBoundary(Platforms, 'Platforms')
+const BoundedApiKeys = withErrorBoundary(ApiKeys, 'API Keys')
+const BoundedFineTune = withErrorBoundary(FineTune, 'Fine-Tune')
+const BoundedInsights = withErrorBoundary(Insights, 'Insights')
+const BoundedDiagnostics = withErrorBoundary(Diagnostics, 'Diagnostics')
+const BoundedWebhooks = withErrorBoundary(WebhooksPage, 'Webhooks')
+const BoundedEnvVars = withErrorBoundary(EnvVarsPage, 'Environment')
+const BoundedPlugins = withErrorBoundary(PluginsPage, 'Plugins')
+const BoundedMcpServers = withErrorBoundary(McpServersPage, 'MCP Servers')
+const BoundedAuthPairing = withErrorBoundary(AuthPairingPage, 'Auth & Pairing')
+const BoundedUsers = withErrorBoundary(UsersPage, 'Users')
+const BoundedProfiles = withErrorBoundary(ProfilesPage, 'Profiles')
+const BoundedBackup = withErrorBoundary(BackupRestorePage, 'Backup')
+const BoundedClaudeCode = withErrorBoundary(ClaudeCodePage, 'Claude Code')
+const BoundedWiki = withErrorBoundary(WikiPage, 'Wiki')
+const BoundedMoa = withErrorBoundary(MoaConfig, 'MOA')
+const BoundedBacklog = withErrorBoundary(Backlog, 'Backlog')
+const BoundedNotFound = withErrorBoundary(NotFound, 'Not Found')
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -71,6 +113,7 @@ const NAV_ITEMS = [
   { to: '/plugins', icon: Puzzle, label: 'Plugins' },
   { to: '/mcp', icon: Network, label: 'MCP Servers' },
   { to: '/auth-pairing', icon: UserCheck, label: 'Auth & Pairing' },
+  { to: '/users', icon: Users, label: 'Users', adminOnly: true },
   { to: '/profiles', icon: Users, label: 'Profiles' },
   { to: '/backup', icon: HardDrive, label: 'Backup' },
   { to: '/backlog', icon: ClipboardList, label: 'Backlog' },
@@ -92,21 +135,100 @@ function Spinner() {
   )
 }
 
+function AuthGuard({ currentUser, children }) {
+  // If user has a user token or legacy token, allow access
+  const userToken = localStorage.getItem('hermes_user_token')
+  const legacyToken = localStorage.getItem('hermes_token')
+
+  // Still checking auth
+  if (currentUser === undefined) {
+    return <Spinner />
+  }
+
+  // Has user token (account-based auth)
+  if (userToken) {
+    if (!currentUser) {
+      return <Navigate to="/login" replace />
+    }
+    return children
+  }
+
+  // Has legacy token or no auth required — allow
+  if (legacyToken || currentUser === null) {
+    return children
+  }
+
+  // No token at all, not checking — redirect to login
+  return <Navigate to="/login" replace />
+}
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [features, setFeatures] = useState({})
+  const [currentUser, setCurrentUser] = useState(undefined) // undefined = loading, null = no user system
   const location = useLocation()
-  useWebSocket() // Auto-connect WebSocket for real-time cache invalidation
+
+  // Only connect WebSocket when authenticated and inside dashboard
+  useWebSocket()
 
   useEffect(() => {
     setSidebarOpen(false)
   }, [location])
 
+  // Check auth state on mount and when auth events fire
+  useEffect(() => {
+    checkAuth()
+    const onAuthRequired = () => {
+      // If we have a user token and got 401, session expired
+      if (localStorage.getItem('hermes_user_token')) {
+        setCurrentUser(null)
+      }
+    }
+    const onAuthChanged = () => {
+      checkAuth()
+    }
+    window.addEventListener('auth-required', onAuthRequired)
+    window.addEventListener('auth-changed', onAuthChanged)
+    return () => {
+      window.removeEventListener('auth-required', onAuthRequired)
+      window.removeEventListener('auth-changed', onAuthChanged)
+    }
+  }, [])
+
+  async function checkAuth() {
+    const userToken = localStorage.getItem('hermes_user_token')
+    const legacyToken = localStorage.getItem('hermes_token')
+
+    // No user token, has legacy token or nothing — skip user auth check
+    if (!userToken) {
+      setCurrentUser(null)
+      return
+    }
+
+    try {
+      const data = await api.userMe()
+      if (data.authenticated && data.user) {
+        setCurrentUser(data.user)
+        localStorage.setItem('hermes_user', JSON.stringify(data.user))
+      } else {
+        setCurrentUser(null)
+      }
+    } catch {
+      setCurrentUser(null)
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('hermes_user_token')
+    localStorage.removeItem('hermes_user')
+    setCurrentUser(null)
+    window.dispatchEvent(new CustomEvent('auth-changed'))
+  }
+
   useEffect(() => {
     api.fineTuneAvailable().then(data => {
       if (data.available) setFeatures(prev => ({ ...prev, fineTune: true }))
     }).catch(() => {})
-    // Check if MOA toolset is enabled
     api.getConfigSections().then(sections => {
       const toolsets = sections?.toolsets || []
       if (toolsets.includes('moa')) {
@@ -115,10 +237,32 @@ function App() {
     }).catch(() => {})
   }, [])
 
-  const visibleNavItems = NAV_ITEMS.filter(item => !item.feature || features[item.feature])
+  const isAdmin = currentUser && currentUser.role === 'admin'
+  const visibleNavItems = NAV_ITEMS.filter(item => {
+    if (item.feature && !features[item.feature]) return false
+    if (item.adminOnly && !isAdmin) return false
+    return true
+  })
+
+  // Auth pages rendered without dashboard chrome
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register'
+
+  if (isAuthPage) {
+    return (
+      <ToastProvider>
+        <Suspense fallback={<Spinner />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+          </Routes>
+        </Suspense>
+      </ToastProvider>
+    )
+  }
 
   return (
     <ToastProvider>
+    <AuthGuard currentUser={currentUser}>
     <div className="app-layout">
       <button className="mobile-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle menu">
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
@@ -143,6 +287,17 @@ function App() {
           ))}
         </nav>
         <div className="sidebar-footer">
+          {currentUser && (
+            <div className="sidebar-user">
+              <span className="sidebar-user-name">{currentUser.display_name || currentUser.username}</span>
+              <span className="sidebar-user-role">{currentUser.role}</span>
+            </div>
+          )}
+          {currentUser && (
+            <button className="sidebar-logout" onClick={handleLogout} title="Sign out">
+              <LogOut size={16} />
+            </button>
+          )}
           <ThemeToggle />
         </div>
       </aside>
@@ -150,42 +305,44 @@ function App() {
       <main className="main-content" role="main">
         <Suspense fallback={<Spinner />}>
           <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/gateway" element={<GatewayControl />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/chat/:id" element={<Chat />} />
-            <Route path="/config" element={<Config />} />
-            <Route path="/sessions" element={<Sessions />} />
-            <Route path="/sessions/:id" element={<Sessions />} />
-            <Route path="/files" element={<Files />} />
-            <Route path="/terminal" element={<TerminalPage />} />
-            <Route path="/tools" element={<Tools />} />
-            <Route path="/skills" element={<Skills />} />
-            <Route path="/skills-hub" element={<SkillsHub />} />
-            <Route path="/cron" element={<CronJobs />} />
-            <Route path="/memory" element={<MemorySoul />} />
-            <Route path="/models" element={<Models />} />
-            <Route path="/platforms" element={<Platforms />} />
-            <Route path="/api-keys" element={<ApiKeys />} />
-            <Route path="/fine-tune" element={<FineTune />} />
-            <Route path="/insights" element={<Insights />} />
-            <Route path="/diagnostics" element={<Diagnostics />} />
-            <Route path="/webhooks" element={<WebhooksPage />} />
-            <Route path="/env-vars" element={<EnvVarsPage />} />
-            <Route path="/plugins" element={<PluginsPage />} />
-            <Route path="/mcp" element={<McpServersPage />} />
-            <Route path="/auth-pairing" element={<AuthPairingPage />} />
-            <Route path="/profiles" element={<ProfilesPage />} />
-            <Route path="/backup" element={<BackupRestorePage />} />
-            <Route path="/claude-code" element={<ClaudeCodePage />} />
-            <Route path="/wiki" element={<WikiPage />} />
-            <Route path="/moa" element={<MoaConfig />} />
-            <Route path="/backlog" element={<Backlog />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/" element={<BoundedOverview />} />
+            <Route path="/gateway" element={<BoundedGateway />} />
+            <Route path="/chat" element={<BoundedChat />} />
+            <Route path="/chat/:id" element={<BoundedChat />} />
+            <Route path="/config" element={<BoundedConfig />} />
+            <Route path="/sessions" element={<BoundedSessions />} />
+            <Route path="/sessions/:id" element={<BoundedSessions />} />
+            <Route path="/files" element={<BoundedFiles />} />
+            <Route path="/terminal" element={<BoundedTerminal />} />
+            <Route path="/tools" element={<BoundedTools />} />
+            <Route path="/skills" element={<BoundedSkills />} />
+            <Route path="/skills-hub" element={<BoundedSkillsHub />} />
+            <Route path="/cron" element={<BoundedCronJobs />} />
+            <Route path="/memory" element={<BoundedMemorySoul />} />
+            <Route path="/models" element={<BoundedModels />} />
+            <Route path="/platforms" element={<BoundedPlatforms />} />
+            <Route path="/api-keys" element={<BoundedApiKeys />} />
+            <Route path="/fine-tune" element={<BoundedFineTune />} />
+            <Route path="/insights" element={<BoundedInsights />} />
+            <Route path="/diagnostics" element={<BoundedDiagnostics />} />
+            <Route path="/webhooks" element={<BoundedWebhooks />} />
+            <Route path="/env-vars" element={<BoundedEnvVars />} />
+            <Route path="/plugins" element={<BoundedPlugins />} />
+            <Route path="/mcp" element={<BoundedMcpServers />} />
+            <Route path="/auth-pairing" element={<BoundedAuthPairing />} />
+            <Route path="/users" element={<BoundedUsers />} />
+            <Route path="/profiles" element={<BoundedProfiles />} />
+            <Route path="/backup" element={<BoundedBackup />} />
+            <Route path="/claude-code" element={<BoundedClaudeCode />} />
+            <Route path="/wiki" element={<BoundedWiki />} />
+            <Route path="/moa" element={<BoundedMoa />} />
+            <Route path="/backlog" element={<BoundedBacklog />} />
+            <Route path="*" element={<BoundedNotFound />} />
           </Routes>
         </Suspense>
       </main>
     </div>
+    </AuthGuard>
     </ToastProvider>
   )
 }

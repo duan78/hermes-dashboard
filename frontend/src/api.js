@@ -1,15 +1,34 @@
 const API_BASE = '/api';
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem('hermes_token') || '';
+  // Prefer user JWT token, fall back to legacy dashboard token
+  const userToken = localStorage.getItem('hermes_user_token') || '';
+  const legacyToken = localStorage.getItem('hermes_token') || '';
+  const token = userToken || legacyToken;
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (res.status === 401) {
+    // Clear stale user token on 401
+    if (userToken) {
+      localStorage.removeItem('hermes_user_token');
+      localStorage.removeItem('hermes_user');
+    }
     window.dispatchEvent(new CustomEvent('auth-required'));
     throw new Error('Unauthorized');
   }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || err.error || 'Request failed');
+  }
+  return res.json();
+}
+
+// Public endpoints — no auth token needed
+async function publicRequest(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || err.error || 'Request failed');
@@ -289,6 +308,18 @@ export const api = {
 
   // Backlog
   getBacklogItems: (qs) => request('/backlog' + (qs ? '?' + qs : '')),
+
+  // Leads (EasyCRM)
+  listLeads: (offset = 0, limit = 25, search = '', status = '', sort = 'created_desc') => {
+    const params = new URLSearchParams({ offset, limit, sort })
+    if (search) params.set('search', search)
+    if (status) params.set('status', status)
+    return request(`/leads?${params}`)
+  },
+  leadsStats: () => request('/leads/stats'),
+  createLead: (lead) => request('/leads', { method: 'POST', body: JSON.stringify(lead) }),
+  updateLead: (id, lead) => request(`/leads/${id}`, { method: 'PUT', body: JSON.stringify(lead) }),
+  deleteLead: (id) => request(`/leads/${id}`, { method: 'DELETE' }),
   backlogStats: () => request('/backlog/stats'),
   createBacklogItem: (item) => request('/backlog', { method: 'POST', body: JSON.stringify(item) }),
   updateBacklogItem: (id, item) => request('/backlog/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(item) }),
@@ -311,4 +342,15 @@ export const api = {
   backupCreate: (includeEnv, includeSkills) => request('/backup/create', { method: 'POST', body: JSON.stringify({ include_env: includeEnv, include_skills: includeSkills }) }),
   backupRestore: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   backupDelete: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
+
+  // User Management (auth)
+  userRegister: (username, password, displayName) => publicRequest('/users/register', { method: 'POST', body: JSON.stringify({ username, password, display_name: displayName }) }),
+  userLogin: (username, password) => publicRequest('/users/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  userMe: () => request('/users/me'),
+  userList: () => request('/users/list'),
+  userApprove: (userId) => request('/users/approve', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
+  userReject: (userId) => request('/users/reject', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
+  userChangeRole: (userId, role) => request('/users/role', { method: 'POST', body: JSON.stringify({ user_id: userId, role }) }),
+  userDelete: (userId) => request('/users/delete', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
+  userRegistrationStatus: () => publicRequest('/users/status'),
 };

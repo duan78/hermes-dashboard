@@ -1,18 +1,17 @@
 """Response schemas for gateway endpoints."""
 
-from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
 class GatewayStatus(BaseModel):
     """Gateway service status."""
     state: str = "unknown"
-    pid: Optional[int] = None
-    memory_current_mb: Optional[float] = None
-    memory_peak_mb: Optional[float] = None
-    cpu_seconds: Optional[float] = None
-    uptime: Optional[str] = None
-    tasks: Optional[int] = None
+    pid: int | None = None
+    memory_current_mb: float | None = None
+    memory_peak_mb: float | None = None
+    cpu_seconds: float | None = None
+    uptime: str | None = None
+    tasks: int | None = None
     service_loaded: bool = False
     service_enabled: bool = False
 
@@ -20,7 +19,7 @@ class GatewayStatus(BaseModel):
 class GatewayActionResponse(BaseModel):
     """Response after gateway action (restart/start/stop)."""
     status: str = ""
-    new_state: Optional[str] = None
+    new_state: str | None = None
 
 
 class LogEntry(BaseModel):
@@ -36,4 +35,4 @@ class GatewayLogsResponse(BaseModel):
     logs: list[LogEntry] = Field(default_factory=list)
     total_lines: int = 0
     filtered: int = 0
-    error: Optional[str] = None
+    error: str | None = None

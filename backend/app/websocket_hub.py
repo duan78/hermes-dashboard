@@ -8,14 +8,10 @@ WebSocket Hub + State Polling Bridge for real-time dashboard updates.
 import asyncio
 import json
 import logging
-import os
 import time
-from pathlib import Path
-from typing import Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from .config import HERMES_HOME
 from .utils import hermes_path
 
 logger = logging.getLogger(__name__)
@@ -68,7 +64,7 @@ class StatePollBridge:
     def __init__(self, hub: WebSocketHub, interval: float = 3.0):
         self.hub = hub
         self.interval = interval
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._running = False
 
         # State tracking

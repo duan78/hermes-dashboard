@@ -1,7 +1,9 @@
 import json
+
 from fastapi import APIRouter, HTTPException
-from ..utils import run_hermes, hermes_path
+
 from ..schemas.requests import ModelSwitchRequest
+from ..utils import hermes_path, run_hermes
 
 router = APIRouter(prefix="/api/models", tags=["models"])
 

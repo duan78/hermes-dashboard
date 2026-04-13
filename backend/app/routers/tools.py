@@ -1,13 +1,14 @@
+import logging
 import os
 import re
 import stat
 import tempfile
-import logging
-from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
-from ..utils import run_hermes
+
 from ..config import HERMES_HOME
 from ..schemas.requests import ToolEnvRequest, ToolToggleRequest
+from ..utils import run_hermes
 
 logger = logging.getLogger(__name__)
 
@@ -84,10 +85,8 @@ TOOL_CATEGORIES = {
         "name": "Vision",
         "icon": "eye",
         "providers": [
-            {"name": "Mistral (Pixtral)", "tag": "Pixtral Large via Mistral API", "config_key": "auxiliary.vision.provider", "config_value": "custom", "env_vars": [{"key": "MISTRAL_API_KEY", "label": "Mistral API Key", "url": "https://console.mistral.ai/api-keys/"}]},
-            {"name": "OpenRouter", "tag": "Vision via OpenRouter", "config_key": "auxiliary.vision.provider", "config_value": "openrouter", "env_vars": [{"key": "OPENROUTER_API_KEY", "label": "OpenRouter API Key", "url": "https://openrouter.ai/keys"}]},
-            {"name": "Anthropic", "tag": "Vision via Anthropic", "config_key": "auxiliary.vision.provider", "config_value": "anthropic", "env_vars": [{"key": "ANTHROPIC_API_KEY", "label": "Anthropic API Key", "url": "https://console.anthropic.com/settings/keys"}]},
-            {"name": "Nous Portal", "tag": "Vision via Nous Research", "config_key": "auxiliary.vision.provider", "config_value": "nous", "env_vars": []},
+            {"name": "Z.AI Vision MCP", "tag": "Vision via Z.AI MCP (gratuit, coding plan)", "config_key": "mcp_servers.zai-vision", "config_value": "active", "env_vars": [{"key": "Z_AI_API_KEY", "label": "Z.AI API Key", "url": "https://z.ai"}]},
+            {"name": "Mistral (Pixtral)", "tag": "Pixtral Large via Mistral API (fallback)", "config_key": "auxiliary.vision.provider", "config_value": "custom", "env_vars": [{"key": "MISTRAL_API_KEY", "label": "Mistral API Key", "url": "https://console.mistral.ai/api-keys/"}]},
         ],
     },
 }

@@ -1,11 +1,9 @@
 import logging
-import os
-import stat
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+
 from ..config import HERMES_HOME
 from ..schemas.requests import FileWriteRequest
 
@@ -57,7 +55,7 @@ def _file_entry(path: Path, rel: str):
         "path": rel,
         "is_dir": path.is_dir(),
         "size": st.st_size if st else 0,
-        "modified": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat() if st else None,
+        "modified": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat() if st else None,
     }
 
 
@@ -138,7 +136,7 @@ async def read_file(path: str = Query(..., description="Relative file path under
         "path": path,
         "name": target.name,
         "size": target.stat().st_size,
-        "modified": datetime.fromtimestamp(target.stat().st_mtime, tz=timezone.utc).isoformat(),
+        "modified": datetime.fromtimestamp(target.stat().st_mtime, tz=UTC).isoformat(),
         "extension": target.suffix.lower(),
         "content": content,
     }
@@ -169,7 +167,7 @@ async def write_file(body: FileWriteRequest):
         "status": "saved",
         "path": rel_path,
         "size": target.stat().st_size,
-        "modified": datetime.fromtimestamp(target.stat().st_mtime, tz=timezone.utc).isoformat(),
+        "modified": datetime.fromtimestamp(target.stat().st_mtime, tz=UTC).isoformat(),
     }
 
 

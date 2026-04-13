@@ -1,13 +1,12 @@
 """Response schemas for overview endpoints."""
 
-from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
 class GatewayInfo(BaseModel):
     """Gateway state info."""
     state: str = "unknown"
-    pid: Optional[int] = None
+    pid: int | None = None
     platforms: dict = Field(default_factory=dict)
 
 
@@ -26,19 +25,19 @@ class SessionsOverview(BaseModel):
 
 class OverviewStats(BaseModel):
     """Dashboard overview response."""
-    gateway: Optional[GatewayInfo] = None
-    model: Optional[ModelInfo] = None
+    gateway: GatewayInfo | None = None
+    model: ModelInfo | None = None
     sessions: SessionsOverview = Field(default_factory=SessionsOverview)
     skills_installed: int = 0
     cron_active: int = 0
     platforms: dict[str, str] = Field(default_factory=dict)
-    uptime_seconds: Optional[int] = None
+    uptime_seconds: int | None = None
 
 
 class LogResponse(BaseModel):
     """Log entries response."""
     logs: list[str] = Field(default_factory=list)
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class SystemMetrics(BaseModel):
@@ -63,7 +62,7 @@ class ChangelogResponse(BaseModel):
     """Changelog response."""
     commits: list[ChangelogCommit] = Field(default_factory=list)
     total_behind: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class VersionInfo(BaseModel):
@@ -76,7 +75,7 @@ class VersionInfo(BaseModel):
     update_available: bool = False
     commits_behind: int = 0
     raw: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class UpdateResponse(BaseModel):

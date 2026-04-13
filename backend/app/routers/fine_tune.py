@@ -1,14 +1,16 @@
+import asyncio
 import json
 import os
 import re
-import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+
+import httpx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
-import httpx
+
 from ..config import HERMES_HOME
-from ..schemas.requests import TranscriptUpdateRequest, CrossvalStatusRequest
+from ..schemas.requests import CrossvalStatusRequest, TranscriptUpdateRequest
 
 router = APIRouter(prefix="/api/fine-tune", tags=["fine-tune"])
 
@@ -590,7 +592,7 @@ async def _call_groq_review(transcriptions: dict) -> dict:
         "consensus_providers": parsed.get("consensus_providers", []),
         "providers_used": list(transcriptions.keys()),
         "model": _GROQ_REVIEW_MODEL,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 

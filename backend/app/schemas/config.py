@@ -1,6 +1,5 @@
 """Response schemas for config endpoints."""
 
-from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 

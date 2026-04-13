@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 
 from fastapi import APIRouter
+
 from ..config import HERMES_HOME
 from ..utils import hermes_path
 
@@ -66,7 +67,7 @@ async def run_diagnostics():
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         return {
             "checks": [],

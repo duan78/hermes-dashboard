@@ -1,12 +1,12 @@
 import asyncio
 import logging
 import re
-from pathlib import Path
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
+
 from ..config import HERMES_HOME
-from ..schemas.gateway import GatewayStatus, GatewayActionResponse, GatewayLogsResponse
+from ..schemas.gateway import GatewayActionResponse, GatewayLogsResponse, GatewayStatus
 
 logger = logging.getLogger(__name__)
 
@@ -268,14 +268,12 @@ async def gateway_logs_stream(level: str = Query(default="all")):
                 # Filter by level
                 if level and level.lower() != "all":
                     level_upper = level.upper()
-                    if level_upper == "ERROR" and parsed["level"] not in ("ERROR", "CRITICAL"):
-                        continue
-                    elif level_upper == "WARNING" and parsed["level"] not in ("WARNING", "ERROR", "CRITICAL"):
+                    if level_upper == "ERROR" and parsed["level"] not in ("ERROR", "CRITICAL") or level_upper == "WARNING" and parsed["level"] not in ("WARNING", "ERROR", "CRITICAL"):
                         continue
 
                 import json
                 yield f"data: {json.dumps(parsed)}\n\n"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             yield f"data: {json.dumps({'timestamp': '', 'level': 'INFO', 'logger': 'dashboard', 'message': 'keepalive'})}\n\n"
         except Exception as e:
             logger.warning("Error in log stream: %s", e)

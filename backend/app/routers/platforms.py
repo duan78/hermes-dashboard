@@ -1,9 +1,10 @@
 import json
-import os
 from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
-from ..utils import run_hermes, hermes_path
+
 from ..schemas.requests import PairingApproveRequest, PairingRevokeRequest, PlatformConfigureRequest
+from ..utils import hermes_path, run_hermes
 
 router = APIRouter(prefix="/api/platforms", tags=["platforms"])
 

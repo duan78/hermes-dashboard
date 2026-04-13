@@ -1,10 +1,11 @@
 import hmac
 import json
 import logging
-import os
 from urllib.parse import parse_qs
+
 from starlette.responses import JSONResponse
 from starlette.websockets import WebSocketClose
+
 from .config import DASHBOARD_TOKEN
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,34 @@ def verify_token(token: str) -> bool:
     if not DASHBOARD_TOKEN:
         return True  # No auth configured
     return bool(token) and hmac.compare_digest(token, DASHBOARD_TOKEN)
+
+
+def _try_parse_jwt(token: str) -> dict | None:
+    """Try to parse a JWT user token. Returns payload dict or None."""
+    try:
+        import jwt as pyjwt
+
+        from .routers.users import JWT_ALGORITHM, JWT_SECRET
+        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except Exception:
+        return None
+
+
+def _load_user_by_id(user_id: int) -> dict | None:
+    """Load user from users.json by ID."""
+    from .routers.users import USERS_FILE
+    if not USERS_FILE.exists():
+        return None
+    try:
+        with open(USERS_FILE) as f:
+            data = json.load(f)
+        for u in data.get("users", []):
+            if u.get("id") == user_id and u.get("status") == "active":
+                return u
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
 
 
 def _extract_ws_token(scope) -> str:
@@ -35,8 +64,12 @@ def _extract_ws_token(scope) -> str:
 class AuthMiddleware:
     """Pure ASGI auth middleware.
 
-    BaseHTTPMiddleware converts HTTPException(401) into 500 responses,
-    so we use a raw ASGI middleware that returns JSONResponse directly.
+    Supports two auth modes:
+    1. Legacy: single shared DASHBOARD_TOKEN (bearer token)
+    2. User accounts: JWT tokens from the registration/login system
+
+    When both are available, JWT user tokens take precedence.
+    When neither DASHBOARD_TOKEN nor users exist, auth is disabled.
     """
 
     def __init__(self, app):
@@ -51,6 +84,16 @@ class AuthMiddleware:
 
         # Allow health check without auth
         if path == "/api/health":
+            await self.app(scope, receive, send)
+            return
+
+        # Allow public auth endpoints without auth
+        public_paths = {
+            "/api/users/register",
+            "/api/users/login",
+            "/api/users/status",
+        }
+        if path in public_paths:
             await self.app(scope, receive, send)
             return
 
@@ -99,7 +142,33 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # HTTP: skip auth if no token configured
+        # HTTP: extract token
+        headers = dict(scope.get("headers", []))
+        auth_header = headers.get(b"authorization", b"").decode("utf-8", errors="replace")
+        token = ""
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+        # Try JWT user token first
+        if token:
+            jwt_payload = _try_parse_jwt(token)
+            if jwt_payload:
+                user = _load_user_by_id(int(jwt_payload.get("sub", 0)))
+                if user:
+                    # Store user info for downstream access
+                    scope["user"] = {
+                        "id": user["id"],
+                        "username": user["username"],
+                        "display_name": user.get("display_name", ""),
+                        "role": user["role"],
+                        "status": user["status"],
+                    }
+                    # Also set a state-like dict that FastAPI can access via Request
+                    await self.app(scope, receive, send)
+                    return
+
+        # Fall back to legacy DASHBOARD_TOKEN
+        # Skip auth if no token configured
         if not DASHBOARD_TOKEN:
             await self.app(scope, receive, send)
             return
@@ -109,15 +178,10 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Check Authorization header
-        headers = dict(scope.get("headers", []))
-        auth_header = headers.get(b"authorization", b"").decode("utf-8", errors="replace")
-
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            if hmac.compare_digest(token, DASHBOARD_TOKEN):
-                await self.app(scope, receive, send)
-                return
+        # Check legacy token
+        if token and hmac.compare_digest(token, DASHBOARD_TOKEN):
+            await self.app(scope, receive, send)
+            return
 
         # Return 401 JSON response directly (no HTTPException)
         response = JSONResponse(

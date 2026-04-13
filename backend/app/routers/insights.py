@@ -1,5 +1,8 @@
 import re
+from datetime import UTC
+
 from fastapi import APIRouter, Query
+
 from ..utils import run_hermes
 
 router = APIRouter(prefix="/api/insights", tags=["insights"])
@@ -137,7 +140,7 @@ async def get_insights(days: int = Query(default=7)):
 
     # Enrich with session-derived metrics
     import json
-    from pathlib import Path
+
     from ..config import HERMES_HOME
 
     sessions_dir = HERMES_HOME / "sessions"
@@ -148,9 +151,9 @@ async def get_insights(days: int = Query(default=7)):
     tokens_by_day = {}
 
     if sessions_dir.exists():
-        from datetime import datetime, timedelta, timezone as tz
+        from datetime import datetime, timedelta
 
-        cutoff = datetime.now(tz.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
 
         for f in sessions_dir.glob("session_*.json"):
             try:
@@ -160,7 +163,7 @@ async def get_insights(days: int = Query(default=7)):
                     try:
                         dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
                         if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=tz.utc)
+                            dt = dt.replace(tzinfo=UTC)
                         if dt < cutoff:
                             continue
                         hour = dt.hour

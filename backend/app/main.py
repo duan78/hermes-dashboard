@@ -1,50 +1,52 @@
 import asyncio
 import collections
 import datetime
+import fcntl
 import json
 import logging
 import os
 import struct
+import termios
 import time
 import uuid
-import fcntl
-import termios
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Response, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .auth import AuthMiddleware
-from .config import HOST, PORT, HERMES_HOME
+from .config import HERMES_HOME, HOST, PORT
 from .routers import (
-    overview,
-    config,
-    sessions,
-    memory,
-    tools,
-    skills,
-    cron,
-    models,
-    platforms,
-    insights,
-    chat,
-    files,
     api_keys,
+    auth_pairing,
+    backlog,
+    backup,
+    chat,
+    claude_code,
+    config,
+    cron,
+    diagnostics,
+    env_vars,
+    files,
     fine_tune,
     gateway,
-    diagnostics,
-    webhooks,
-    env_vars,
-    plugins_router,
+    insights,
+    leads,
     mcp,
-    auth_pairing,
+    memory,
+    models,
+    overview,
+    platforms,
+    plugins_router,
     profiles,
-    backup,
-    claude_code,
+    sessions,
+    skills,
+    tools,
+    users,
+    webhooks,
     wiki,
-    backlog,
 )
 
 # ── Structured logging setup ──
@@ -107,6 +109,8 @@ DEFAULT_WINDOW = 60  # seconds
 SENSITIVE_LIMITS = {
     "/api/chat": 20,
     "/api/auth": 10,
+    "/api/users/login": 10,
+    "/api/users/register": 5,
     "/api/files/write": 15,
     "/api/diagnostics": 10,
     "/api/overview/update": 5,
@@ -169,6 +173,13 @@ async def security_middleware(request: Request, call_next):
     # Generate request_id for correlation
     request_id = str(uuid.uuid4())[:8]
 
+    # Propagate user info from ASGI scope (set by AuthMiddleware) to request.state
+    user_info = request.scope.get("user")
+    if user_info:
+        request.state.user = user_info
+    else:
+        request.state.user = None
+
     # Body size limit (skip GET/HEAD/DELETE/OPTIONS)
     if request.method in ("POST", "PUT", "PATCH"):
         content_length = request.headers.get("content-length")
@@ -214,7 +225,7 @@ async def security_middleware(request: Request, call_next):
     if request.method in ("POST", "PUT", "DELETE", "PATCH") and path.startswith("/api/"):
         user_agent = request.headers.get("user-agent", "")
         _write_audit({
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             "request_id": request_id,
             "method": request.method,
             "path": path,
@@ -272,10 +283,13 @@ app.include_router(backup.router)
 app.include_router(claude_code.router)
 app.include_router(wiki.router)
 app.include_router(backlog.router)
+app.include_router(users.router)
+app.include_router(leads.router)
 
 
 # ── WebSocket Hub for real-time dashboard updates ──
-from .websocket_hub import ws_hub_handler, poll_bridge
+from .websocket_hub import poll_bridge, ws_hub_handler
+
 
 @app.websocket("/ws/hub")
 async def dashboard_hub_ws(websocket: WebSocket):
@@ -341,7 +355,7 @@ async def terminal_ws(websocket):
         "event": "ws_connected",
         "session_id": session_id,
         "ip": client_ip,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
     })
 
     # ── Step 1: Re-authenticate via initial message (defense in depth) ──
@@ -353,12 +367,12 @@ async def terminal_ws(websocket):
         from .auth import verify_token
         if not verify_token(auth_msg.get("token", "")):
             raise ValueError("Invalid token")
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _log_terminal_event({
             "event": "auth_timeout",
             "session_id": session_id,
             "ip": client_ip,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         })
         await websocket.send_text(json.dumps({"type": "error", "message": "Auth timeout"}))
         await websocket.close(code=4008)
@@ -369,7 +383,7 @@ async def terminal_ws(websocket):
             "session_id": session_id,
             "ip": client_ip,
             "reason": str(e),
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         })
         await websocket.send_text(json.dumps({"type": "error", "message": f"Auth failed: {e}"}))
         await websocket.close(code=4008)
@@ -382,7 +396,7 @@ async def terminal_ws(websocket):
         "event": "session_started",
         "session_id": session_id,
         "ip": client_ip,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
     })
 
     # Send auth success so the frontend knows it can proceed
@@ -457,7 +471,7 @@ async def terminal_ws(websocket):
                         "event": "input",
                         "session_id": session_id,
                         "data": raw,
-                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     })
                     os.write(master_fd, raw.encode())
                     continue
@@ -468,7 +482,7 @@ async def terminal_ws(websocket):
                         "event": "input",
                         "session_id": session_id,
                         "data": input_data,
-                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     })
                     os.write(master_fd, input_data.encode())
                 elif msg.get("type") == "resize":
@@ -493,7 +507,7 @@ async def terminal_ws(websocket):
                         "event": "inactivity_timeout",
                         "session_id": session_id,
                         "ip": client_ip,
-                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     })
                     try:
                         await websocket.send_text(
@@ -534,7 +548,7 @@ async def terminal_ws(websocket):
             "event": "session_ended",
             "session_id": session_id,
             "ip": client_ip,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         })
 
 # Serve frontend static files in production

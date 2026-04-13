@@ -1,12 +1,12 @@
 import json
 import logging
 import subprocess
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from ..utils import run_hermes, hermes_path
+
 from ..schemas import CronCreateRequest
 from ..schemas.cron import CronJob, CronJobActionResponse, CronJobCreateResponse, SystemCronResponse
+from ..utils import hermes_path, run_hermes
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ async def list_system_crons():
     for name, kind in checks:
         try:
             status = subprocess.check_output(
-                ["systemctl", f"is-active", f"{name}.{kind}"],
+                ["systemctl", "is-active", f"{name}.{kind}"],
                 text=True, timeout=5
             ).strip()
         except Exception:

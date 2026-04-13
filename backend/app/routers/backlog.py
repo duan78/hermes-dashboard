@@ -1,18 +1,17 @@
+import fcntl
 import json
+import logging
 import os
 import re
-import fcntl
 import subprocess
 import time
-import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ def _read_backlog():
     """Read the backlog file with file locking."""
     if not BACKLOG_FILE.exists():
         return {"version": 1, "created": datetime.now().strftime("%Y-%m-%d"), "items": []}
-    with open(BACKLOG_FILE, "r") as f:
+    with open(BACKLOG_FILE) as f:
         fcntl.flock(f.fileno(), fcntl.LOCK_SH)
         try:
             data = json.load(f)
@@ -68,14 +67,14 @@ class BacklogItemCreate(BaseModel):
     blocked_reason: str = ""
 
 class BacklogItemUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    category: Optional[str] = None
-    priority: Optional[str] = None
-    status: Optional[str] = None
-    blocked_reason: Optional[str] = None
-    done_date: Optional[str] = None
-    result: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    category: str | None = None
+    priority: str | None = None
+    status: str | None = None
+    blocked_reason: str | None = None
+    done_date: str | None = None
+    result: str | None = None
 
 class StatusPatch(BaseModel):
     status: str
@@ -100,6 +99,16 @@ VALID_PRIORITIES = ["haute", "normale", "bassee"]
 MIN_TITLE_LENGTH = 10
 MIN_DESCRIPTION_LENGTH = 20
 SIMILARITY_THRESHOLD = 0.65  # Reject if >65% similar to existing title
+RECENTLY_DONE_DAYS = 7       # Also dedup against items done in the last N days
+
+# Noise patterns to reject at the API level (source/reason-based filtering)
+NOISE_SOURCE_PATTERNS = re.compile(
+    r'(?:timeout|timed?\s*out|rate[\s-]?limit|429|too many requests|'
+    r'cerebras.*(?:error|unavail)|mistral.*failed|'
+    r'autofeed.*(?:start|end|noise|log)|direct[\s-]?write|'
+    r'api.*(?:unreach|error|down)|connection refused)',
+    re.IGNORECASE
+)
 
 
 def _load_llm_config():
@@ -158,20 +167,28 @@ EXISTING BACKLOG (do not duplicate):
 CANDIDATES TO VALIDATE:
 {candidates_text}
 
-RULES - reject candidates that are:
-- Too vague or generic (e.g. "check something", "improve X")
-- Already done or trivially completable (< 2 min work)
+RULES - BE STRICT. Reject candidates that are:
+- Too vague or generic (e.g. "check something", "improve X", "verify Y")
+- Already done or trivially completable (< 15 min work)
 - Duplicates or near-duplicates of existing backlog items
 - Just observations/opinions, not actionable tasks
 - Missing substance (no clear deliverable or scope)
 - Trivial config changes or one-liner fixes
+- Investigation/exploration tasks with no concrete deliverable
+- Tasks based on transient noise (timeouts, rate limits, temporary API errors)
+- Tasks about documentation unless there's a clear functional gap
+- Tasks about auditing/reviewing code without a specific bug or incident
+- Tasks proposing to add monitoring/logging without a specific incident triggering it
 
-RULES - accept candidates that are:
-- Clear, specific, actionable tasks with defined scope
-- Real work that takes > 15 minutes
-- Bug fixes with reproduction details
-- Features with clear requirements
-- Infrastructure/maintenance tasks with impact
+RULES - accept ONLY candidates that are:
+- Clear, specific, actionable tasks with defined scope and deliverable
+- Real work that takes > 30 minutes
+- Bug fixes with concrete reproduction details and evidence of user impact
+- Features with clear requirements from actual user requests
+- Critical infrastructure issues (service down, data loss risk, security vulnerability)
+- Tasks where NOT doing them causes real problems (not just "nice to have")
+
+When in doubt, REJECT. A noisy backlog is worse than a small one.
 
 For EACH candidate, respond in JSON array format:
 ```json
@@ -262,16 +279,28 @@ Respond ONLY with the JSON array, no other text."""
         return candidates
 
 
-def _is_duplicate(title: str, existing_items: list[dict], threshold: float = SIMILARITY_THRESHOLD) -> Optional[str]:
-    """Check if title is too similar to an existing non-done item. Returns the matching title or None."""
+def _is_duplicate(title: str, existing_items: list[dict], threshold: float = SIMILARITY_THRESHOLD) -> str | None:
+    """Check if title is too similar to an existing item. Returns the matching title or None.
+
+    Checks both active items AND recently-done items (within RECENTLY_DONE_DAYS)
+    to prevent re-creating tasks that were just completed.
+    """
     title_lower = title.lower().strip()
     title_words = set(title_lower.split())
+    cutoff_date = (datetime.now() - timedelta(days=RECENTLY_DONE_DAYS)).isoformat()
+
     for item in existing_items:
-        if item.get("status") == "done":
-            continue
+        status = item.get("status", "")
         existing_title = item.get("title", "").lower().strip()
         if not existing_title:
             continue
+
+        # Skip done items that are older than the cutoff
+        if status == "done":
+            done_date = item.get("done_date", "")
+            if not done_date or done_date < cutoff_date:
+                continue
+
         # Quick slug check
         if _slugify(title) == _slugify(existing_title):
             return existing_title
@@ -361,7 +390,7 @@ def _is_claude_running(session_name: str) -> bool:
                 continue
             # Check the command name of this child
             try:
-                with open(f"/proc/{cpid}/comm", "r") as f:
+                with open(f"/proc/{cpid}/comm") as f:
                     comm = f.read().strip()
                 if comm in ("claude", "node", "python3", "python"):
                     return True
@@ -376,7 +405,7 @@ def _is_claude_running(session_name: str) -> bool:
                         if not sub_pid.isdigit():
                             continue
                         try:
-                            with open(f"/proc/{sub_pid}/comm", "r") as f:
+                            with open(f"/proc/{sub_pid}/comm") as f:
                                 sub_comm = f.read().strip()
                             if sub_comm in ("claude", "node", "python3", "python"):
                                 return True
@@ -453,9 +482,9 @@ def _update_item_status(item_id: str, status: str, result: str = None):
 
 @router.get("")
 async def list_backlog_items(
-    status: Optional[str] = Query(None),
-    category: Optional[str] = Query(None),
-    priority: Optional[str] = Query(None),
+    status: str | None = Query(None),
+    category: str | None = Query(None),
+    priority: str | None = Query(None),
 ):
     """List all backlog items, with optional filtering."""
     data = _read_backlog()
@@ -506,11 +535,12 @@ async def auto_feed_backlog(body: AutofeedRequest):
         "errors": [],
     }
 
-    # ── Stage 1: Basic quality filter (pre-LLM) ──
+    # ── Stage 1: Basic quality + noise filter (pre-LLM) ──
     pre_filtered = []
     for c in candidates:
         title = c.get("title", "").strip()
         desc = c.get("description", "").strip()
+        source = c.get("source", "")
 
         # Minimum length checks
         if len(title) < MIN_TITLE_LENGTH:
@@ -522,6 +552,19 @@ async def auto_feed_backlog(body: AutofeedRequest):
         if title.lower().strip() in generic_titles:
             results["rejected"].append({"title": title[:50], "reason": "title too generic"})
             continue
+
+        # v3: Reject candidates based on noisy source/reason patterns
+        if source and NOISE_SOURCE_PATTERNS.search(source):
+            results["rejected"].append({"title": title[:50], "reason": f"noisy source: {source[:50]}"})
+            continue
+
+        # v3: Reject candidates whose description is primarily about transient errors
+        if desc and NOISE_SOURCE_PATTERNS.search(desc):
+            # Only reject if the entire task is about a transient issue
+            transient_keywords = ['timeout', 'rate limit', '429', 'too many requests', 'connection refused']
+            if any(kw in desc.lower() for kw in transient_keywords):
+                results["rejected"].append({"title": title[:50], "reason": "transient issue (timeout/rate-limit)"})
+                continue
 
         pre_filtered.append(c)
 

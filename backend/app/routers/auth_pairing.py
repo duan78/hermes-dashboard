@@ -1,7 +1,7 @@
 import re
 
 from fastapi import APIRouter, Request
-from ..config import HERMES_HOME
+
 from ..utils import run_hermes
 
 router = APIRouter(prefix="/api/auth-pairing", tags=["auth-pairing"])

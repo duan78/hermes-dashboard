@@ -2,20 +2,28 @@ import copy
 import logging
 import os
 import re
+from pathlib import Path
 
 import yaml
 from fastapi import APIRouter, HTTPException
-from pathlib import Path
-from ..utils import hermes_path, mask_secrets, run_hermes
+
 from ..config import HERMES_HOME
 from ..schemas import ConfigSetRequest
 from ..schemas.config import ConfigSetResponse
 from ..schemas.requests import (
-    ConfigValueUpdateRequest, MoaProviderTestRequest, YamlSaveRequest,
-    MoaConfigUpdateRequest, MoaProvidersUpdateRequest, ProviderCreateRequest,
-    ProviderUpdateRequest, ProviderTestRequest, CustomPromptRequest,
-    PersonalityCreateRequest, PersonalityDeleteRequest,
+    ConfigValueUpdateRequest,
+    CustomPromptRequest,
+    MoaConfigUpdateRequest,
+    MoaProvidersUpdateRequest,
+    MoaProviderTestRequest,
+    PersonalityCreateRequest,
+    PersonalityDeleteRequest,
+    ProviderCreateRequest,
+    ProviderTestRequest,
+    ProviderUpdateRequest,
+    YamlSaveRequest,
 )
+from ..utils import hermes_path, mask_secrets, run_hermes
 
 logger = logging.getLogger(__name__)
 

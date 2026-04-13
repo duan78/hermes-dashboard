@@ -3,17 +3,20 @@ import json
 import logging
 import re
 import shutil
-import time
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
-from ..config import HERMES_PYTHON, HERMES_AGENT_DIR
-from ..utils import run_hermes, hermes_path
+
+from ..config import HERMES_AGENT_DIR, HERMES_PYTHON
 from ..schemas.overview import (
-    OverviewStats, LogResponse, SystemMetrics, VersionInfo,
-    ChangelogResponse, UpdateResponse,
+    ChangelogResponse,
+    LogResponse,
+    OverviewStats,
+    SystemMetrics,
+    UpdateResponse,
+    VersionInfo,
 )
+from ..utils import hermes_path
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +49,8 @@ async def get_overview():
         updated = gw.get("updated_at")
         if updated:
             try:
-                dt = datetime.fromisoformat(updated).replace(tzinfo=timezone.utc)
-                result["uptime_seconds"] = int((datetime.now(timezone.utc) - dt).total_seconds())
+                dt = datetime.fromisoformat(updated).replace(tzinfo=UTC)
+                result["uptime_seconds"] = int((datetime.now(UTC) - dt).total_seconds())
             except (ValueError, TypeError):
                 pass
 
@@ -125,7 +128,7 @@ async def system_metrics():
 
     # CPU usage: sample /proc/stat twice with 0.5s interval
     def _read_cpu_times():
-        with open("/proc/stat", "r") as f:
+        with open("/proc/stat") as f:
             line = f.readline()
         parts = line.split()[1:]
         return [int(p) for p in parts[:8]]
@@ -146,7 +149,7 @@ async def system_metrics():
     ram_total_gb = ram_used_gb = ram_percent = 0
     try:
         meminfo = {}
-        with open("/proc/meminfo", "r") as f:
+        with open("/proc/meminfo") as f:
             for line in f:
                 parts = line.split()
                 if len(parts) >= 2:
@@ -174,7 +177,7 @@ async def system_metrics():
     # Load average
     load_avg = [0.0, 0.0, 0.0]
     try:
-        with open("/proc/loadavg", "r") as f:
+        with open("/proc/loadavg") as f:
             parts = f.read().split()
             load_avg = [float(parts[i]) for i in range(3)]
     except Exception as e:
@@ -261,7 +264,7 @@ async def hermes_update():
             "output": (output + "\n" + err).strip() if err else output.strip(),
             "error": err.strip() if not success and err else "",
         }
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {"success": False, "output": "", "error": "Update timed out after 300 seconds"}
     except Exception as e:
         return {"success": False, "output": "", "error": str(e)}

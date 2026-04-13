@@ -1215,3 +1215,44 @@ export function useSessionMessages(sessionId, limit = 30) {
     enabled: !!sessionId,
   })
 }
+
+// ── Leads (EasyCRM) ──────────────────────────────────────────
+export function useLeads(offset = 0, limit = 25, search = '', status = '', sort = 'created_desc') {
+  return useQuery({
+    queryKey: ['leads', offset, limit, search, status, sort],
+    queryFn: () => api.listLeads(offset, limit, search, status, sort),
+    staleTime: STALE_MEDIUM,
+  })
+}
+
+export function useLeadsStats() {
+  return useQuery({
+    queryKey: ['leads', 'stats'],
+    queryFn: () => api.leadsStats(),
+    staleTime: STALE_MEDIUM,
+  })
+}
+
+export function useCreateLead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (lead) => api.createLead(lead),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
+  })
+}
+
+export function useUpdateLead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, lead }) => api.updateLead(id, lead),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
+  })
+}
+
+export function useDeleteLead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => api.deleteLead(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
+  })
+}

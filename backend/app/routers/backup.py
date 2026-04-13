@@ -1,15 +1,12 @@
 import io
 import logging
-import os
 import tarfile
-import time
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
+
 from ..config import HERMES_HOME
-from ..utils import hermes_path
 
 logger = logging.getLogger(__name__)
 

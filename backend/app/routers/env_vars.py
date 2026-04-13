@@ -1,9 +1,8 @@
 import re
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+
 from ..config import HERMES_HOME
-from ..utils import hermes_path
 
 router = APIRouter(prefix="/api/env-vars", tags=["env-vars"])
 

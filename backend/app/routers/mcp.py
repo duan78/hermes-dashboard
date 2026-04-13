@@ -1,14 +1,11 @@
-import asyncio
 import re
-from pathlib import Path
-from typing import Any
 
 import yaml
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
 from ..config import HERMES_HOME
+from ..schemas import McpAddRequest, McpConfigUpdateRequest, McpNameRequest, McpToggleRequest
 from ..utils import run_hermes
-from ..schemas import McpAddRequest, McpToggleRequest, McpConfigUpdateRequest, McpNameRequest
 
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 

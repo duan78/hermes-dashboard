@@ -1,19 +1,24 @@
 import asyncio
 import logging
-import sys
 import os
-import yaml
-from pathlib import Path
-from datetime import datetime
+import sys
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from pathlib import Path
 
+import yaml
 from fastapi import APIRouter, HTTPException
+
 from ..config import HERMES_HOME
-from ..utils import hermes_path
 from ..schemas.requests import (
-    ContentSaveRequest, MemoryFileSaveRequest, MemoryFileCreateRequest,
-    MemoryFileDeleteRequest, VectorStoreRequest, VectorDeleteRequest,
+    ContentSaveRequest,
+    MemoryFileCreateRequest,
+    MemoryFileDeleteRequest,
+    MemoryFileSaveRequest,
+    VectorDeleteRequest,
+    VectorStoreRequest,
 )
+from ..utils import hermes_path
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +58,8 @@ def _get_claw():
                         os.environ["MISTRAL_API_KEY"] = api_key
                         break
 
-        from plugins.memory.memory_claw.store import MemoryStore
         from plugins.memory.memory_claw.embedder import MistralEmbedder
+        from plugins.memory.memory_claw.store import MemoryStore
 
         _claw_store = MemoryStore(_MEMORY_CLAW_DB_PATH)
         _claw_store.open()
@@ -588,7 +593,7 @@ async def _get_honcho_client_async():
             asyncio.to_thread(_get_honcho_client),
             timeout=12
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         global _honcho_available, _honcho_error
         _honcho_available = False
         _honcho_error = "Connection timed out"
@@ -685,7 +690,7 @@ async def honcho_stats():
             "metadata": metadata or {},
             "configuration": str(config),
         }
-    except asyncio.TimeoutError:
+    except TimeoutError:
         raise HTTPException(504, "Honcho API timed out")
     except Exception as e:
         raise HTTPException(500, f"Honcho stats error: {e}")
@@ -728,7 +733,7 @@ async def honcho_profile():
             "configuration": str(config),
             "metadata": metadata or {},
         }
-    except asyncio.TimeoutError:
+    except TimeoutError:
         raise HTTPException(504, "Honcho API timed out")
     except Exception as e:
         raise HTTPException(500, f"Honcho profile error: {e}")
@@ -763,7 +768,7 @@ async def honcho_memories(limit: int = 50):
             sessions_data.append(s_dict)
 
         return {"memories": sessions_data, "total": sessions_page.total}
-    except asyncio.TimeoutError:
+    except TimeoutError:
         raise HTTPException(504, "Honcho API timed out")
     except Exception as e:
         raise HTTPException(500, f"Honcho memories error: {e}")
@@ -786,7 +791,7 @@ async def honcho_search(q: str = "", top_k: int = 10):
         )
         serialized = [_serialize_message(m) for m in results]
         return {"results": serialized, "count": len(serialized)}
-    except asyncio.TimeoutError:
+    except TimeoutError:
         raise HTTPException(504, "Honcho search timed out")
     except Exception as e:
         raise HTTPException(500, f"Honcho search error: {e}")
@@ -803,12 +808,12 @@ async def brain_search(q: str = "", top_k: int = 5):
     """
     if not q or len(q.strip()) < 2:
         raise HTTPException(400, "Query parameter 'q' is required (min 2 chars)")
-    
+
     q = q.strip()
     top_k = min(top_k, 20)
     results = {}
     errors = {}
-    
+
     # 1. Memory Claw (LanceDB vector search)
     try:
         claw_results = await asyncio.wait_for(
@@ -819,7 +824,7 @@ async def brain_search(q: str = "", top_k: int = 5):
     except Exception as e:
         errors["claw"] = str(e)
         results["claw"] = []
-    
+
     # 2. Honcho semantic search
     try:
         honcho_results = await _brain_search_honcho(q, top_k)
@@ -827,7 +832,7 @@ async def brain_search(q: str = "", top_k: int = 5):
     except Exception as e:
         errors["honcho"] = str(e)
         results["honcho"] = []
-    
+
     # 3. Backlog text search
     try:
         backlog_results = await asyncio.to_thread(_brain_search_backlog, q, top_k)
@@ -835,7 +840,7 @@ async def brain_search(q: str = "", top_k: int = 5):
     except Exception as e:
         errors["backlog"] = str(e)
         results["backlog"] = []
-    
+
     # 4. Wiki text search
     try:
         wiki_results = await asyncio.to_thread(_brain_search_wiki, q, top_k)
@@ -843,7 +848,7 @@ async def brain_search(q: str = "", top_k: int = 5):
     except Exception as e:
         errors["wiki"] = str(e)
         results["wiki"] = []
-    
+
     total = sum(len(v) for v in results.values())
     return {
         "query": q,
@@ -856,10 +861,10 @@ async def brain_search(q: str = "", top_k: int = 5):
 def _brain_search_claw(q: str, top_k: int) -> list:
     """Search Memory Claw (LanceDB) for relevant memories."""
     global _claw_store, _claw_embedder, _claw_error
-    
+
     if _claw_error or not _claw_store or not _claw_embedder:
         return []
-    
+
     try:
         query_embedding = _claw_embedder.embed(q)
         if not query_embedding:
@@ -886,7 +891,7 @@ async def _brain_search_honcho(q: str, top_k: int) -> list:
     client = _get_honcho_client()
     if not client:
         return []
-    
+
     try:
         honcho_results = await asyncio.wait_for(
             asyncio.to_thread(lambda: client.search(query=q, limit=top_k)),
@@ -907,27 +912,28 @@ async def _brain_search_honcho(q: str, top_k: int) -> list:
 
 def _brain_search_backlog(q: str, top_k: int) -> list:
     """Search backlog items by text matching."""
-    import json, re
-    
+    import json
+    import re
+
     backlog_path = hermes_path("backlog.json")
     if not backlog_path.exists():
         return []
-    
+
     try:
         with open(backlog_path) as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return []
-    
+
     items = data.get("items", [])
     if not items:
         return []
-    
+
     # Simple relevance scoring based on word overlap
     q_words = set(re.findall(r"\w+", q.lower()))
     if not q_words:
         return []
-    
+
     scored = []
     for item in items:
         text = f"{item.get('title', '')} {item.get('description', '')}".lower()
@@ -935,9 +941,9 @@ def _brain_search_backlog(q: str, top_k: int) -> list:
         overlap = len(q_words & text_words)
         if overlap > 0:
             scored.append((item, overlap))
-    
+
     scored.sort(key=lambda x: x[1], reverse=True)
-    
+
     results = []
     for item, score in scored[:top_k]:
         results.append({
@@ -954,19 +960,20 @@ def _brain_search_backlog(q: str, top_k: int) -> list:
 
 def _brain_search_wiki(q: str, top_k: int) -> list:
     """Search wiki pages by text matching."""
-    import json, re, os
-    
+    import os
+    import re
+
     wiki_root = Path(os.path.expanduser("~/wiki"))
     if not wiki_root.exists():
         return []
-    
+
     q_words = set(re.findall(r"\w+", q.lower()))
     if not q_words:
         return []
-    
+
     # Search in wiki index and page files
     scored = []
-    
+
     # Read index.md for page list
     index_path = wiki_root / "index.md"
     if index_path.exists():
@@ -980,10 +987,10 @@ def _brain_search_wiki(q: str, top_k: int) -> list:
                 full_path = wiki_root / rel_path
                 if not full_path.exists():
                     full_path = wiki_root / (rel_path + ".md")
-                
+
                 score = len(q_words & set(re.findall(r"\w+", title.lower())))
                 score += len(q_words & set(re.findall(r"\w+", rel_path.lower())))
-                
+
                 if score > 0:
                     scored.append({
                         "title": title,
@@ -991,7 +998,7 @@ def _brain_search_wiki(q: str, top_k: int) -> list:
                         "content_preview": "",
                         "score": score,
                     })
-    
+
     # Search in individual page files
     for md_file in wiki_root.rglob("*.md"):
         if md_file.name in ("index.md", "log.md", "SCHEMA.md"):
@@ -1015,8 +1022,8 @@ def _brain_search_wiki(q: str, top_k: int) -> list:
                         "content_preview": content[:200].replace("\n", " ").strip(),
                         "score": overlap,
                     })
-        except (OSError, IOError):
+        except OSError:
             continue
-    
+
     scored.sort(key=lambda x: x["score"], reverse=True)
     return scored[:top_k]

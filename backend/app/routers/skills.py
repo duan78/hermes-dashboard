@@ -1,11 +1,12 @@
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from ..utils import run_hermes, hermes_path
+
 from ..schemas.requests import SkillActionRequest
+from ..utils import hermes_path, run_hermes
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
 
@@ -119,7 +120,7 @@ def _get_skill_detail(skill_dir: Path) -> dict | None:
     # Last modified
     try:
         newest = max(f.stat().st_mtime for f in all_files) if all_files else 0
-        skill["updated_at"] = datetime.fromtimestamp(newest, tz=timezone.utc).isoformat() if newest else None
+        skill["updated_at"] = datetime.fromtimestamp(newest, tz=UTC).isoformat() if newest else None
     except OSError:
         skill["updated_at"] = None
 

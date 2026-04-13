@@ -1,6 +1,5 @@
 """Response schemas for cron endpoints."""
 
-from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
@@ -11,7 +10,7 @@ class CronJob(BaseModel):
     prompt: str = ""
     name: str = ""
     enabled: bool = True
-    last_run: Optional[str] = None
+    last_run: str | None = None
 
     model_config = {"extra": "allow"}
 

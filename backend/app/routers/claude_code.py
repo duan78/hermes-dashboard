@@ -4,12 +4,12 @@ import logging
 import os
 import re
 import shlex
-import shutil
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from ..schemas.requests import ClaudeCodeSessionRequest, ClaudeCodeSendRequest, ClaudeCodeNewRequest
+
+from ..schemas.requests import ClaudeCodeNewRequest, ClaudeCodeSendRequest, ClaudeCodeSessionRequest
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ async def _run(cmd: list, timeout: int = 10) -> str:
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         return stdout.decode(errors="replace").strip()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         return ""
     except Exception as e:

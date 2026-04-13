@@ -1,11 +1,9 @@
-import json
 import logging
 import os
 import re
-import subprocess
 from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Query
-from ..utils import run_hermes, hermes_path
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])

@@ -1,14 +1,16 @@
 import json
 import logging
-from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from ..utils import hermes_path, run_hermes
+
 from ..schemas.sessions import (
-    SessionSummary, SessionSearchResult, SessionDetail,
-    SessionStats, SessionExport,
+    SessionDetail,
+    SessionExport,
+    SessionSearchResult,
+    SessionStats,
+    SessionSummary,
 )
+from ..utils import hermes_path, run_hermes
 
 logger = logging.getLogger(__name__)
 

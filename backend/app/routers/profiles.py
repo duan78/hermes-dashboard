@@ -1,8 +1,7 @@
 import re
 
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse
-from ..config import HERMES_HOME
+
 from ..utils import run_hermes
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])

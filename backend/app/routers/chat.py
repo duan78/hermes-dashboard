@@ -3,13 +3,11 @@ import logging
 import os
 import time
 import uuid
-from pathlib import Path
-from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-from ..config import HERMES_HOME
+
 from ..utils import hermes_path
 
 logger = logging.getLogger(__name__)
