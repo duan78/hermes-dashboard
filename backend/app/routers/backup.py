@@ -32,6 +32,7 @@ def _create_archive(include_env: bool = True, include_skills: bool = True) -> di
         ("memories/MEMORY.md", HERMES_HOME / "memories" / "MEMORY.md"),
         ("memories/USER.md", HERMES_HOME / "memories" / "USER.md"),
         ("config.yaml", HERMES_HOME / "config.yaml"),
+        ("backlog.json", HERMES_HOME / "backlog.json"),
     ]
 
     if include_env:

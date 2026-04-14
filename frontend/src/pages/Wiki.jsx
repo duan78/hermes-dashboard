@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   FileText, Search, X, RefreshCw, BookOpen, Clock, Tag, FolderOpen,
-  Database, ChevronDown, ChevronRight, File, Archive
+  Database, ChevronDown, ChevronRight, File, Archive, Edit3, Save, Plus
 } from 'lucide-react'
 import { formatSize, formatDate } from '../utils/format'
+import { api } from '../api'
 
 const TYPE_LABELS = {
   entities: { label: 'Entities', icon: Database, color: '#8b5cf6' },
@@ -36,18 +39,89 @@ function tagColor(tag) {
   return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length]
 }
 
-function PageModal({ page, onClose }) {
-  const [content, setContent] = useState(null)
-  const [loading, setLoading] = useState(true)
+function parseFrontmatter(content) {
+  if (!content || !content.startsWith('---')) return { frontmatter: null, body: content }
+  const fmEnd = content.indexOf('---', 3)
+  if (fmEnd < 0) return { frontmatter: null, body: content }
+  const fmRaw = content.slice(3, fmEnd).trim()
+  const fm = {}
+  let listKey = null
+  for (const line of fmRaw.split('\n')) {
+    if (line.startsWith('  - ') && listKey) {
+      fm[listKey] = fm[listKey] || []
+      fm[listKey].push(line.slice(4).trim())
+    } else if (line.includes(':')) {
+      const idx = line.indexOf(':')
+      const key = line.slice(0, idx).trim()
+      let val = line.slice(idx + 1).trim()
+      if (val === '[]') { fm[key] = []; listKey = key; continue }
+      listKey = null
+      // Parse simple values
+      if (val.startsWith('[') && val.endsWith(']')) {
+        fm[key] = val.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean)
+      } else if (val.match(/^-?\d+(\.\d+)?$/)) {
+        fm[key] = parseFloat(val)
+      } else {
+        fm[key] = val
+      }
+    } else {
+      listKey = null
+    }
+  }
+  const body = content.slice(fmEnd + 3).trim()
+  return { frontmatter: fm, body }
+}
 
-  useEffect(() => {
-    setLoading(true)
-    setContent(null)
-    fetch(`/api/wiki/page/${page.type}/${page.name}`, { headers: authHeaders() })
-      .then(r => r.json())
-      .then(data => { setContent(data.content); setLoading(false) })
-      .catch(() => { setContent('Failed to load page.'); setLoading(false) })
-  }, [page])
+function ConfidenceBar({ value }) {
+  const pct = Math.min(100, Math.max(0, (value || 0) * 100))
+  const color = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', minWidth: 70 }}>Confidence</span>
+      <div style={{ flex: 1, maxWidth: 160, height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ width: pct + '%', height: '100%', background: color, borderRadius: 4, transition: 'width 0.3s' }} />
+      </div>
+      <span style={{ fontSize: '0.78rem', color, fontWeight: 600 }}>{(value || 0).toFixed(2)}</span>
+    </div>
+  )
+}
+
+function WikilinkRenderer({ href, children, onNavigate }) {
+  if (href && href.startsWith('[[') && href.endsWith(']]')) {
+    const linkName = href.slice(2, -2)
+    return (
+      <span
+        className="wiki-wikilink"
+        onClick={() => onNavigate && onNavigate(linkName)}
+        title={`Navigate to: ${linkName}`}
+      >
+        {linkName}
+      </span>
+    )
+  }
+  return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+}
+
+function CreatePageModal({ onClose, onCreate }) {
+  const [title, setTitle] = useState('')
+  const [type, setType] = useState('entity')
+  const [tags, setTags] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async () => {
+    if (!title.trim()) { setError('Title is required'); return }
+    setSaving(true)
+    setError('')
+    try {
+      const result = await api.wikiCreatePage(title.trim(), type, tags.split(',').map(t => t.trim()).filter(Boolean))
+      onCreate(result)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     const handleEsc = e => { if (e.key === 'Escape') onClose() }
@@ -55,13 +129,164 @@ function PageModal({ page, onClose }) {
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
+  const typeOptions = [
+    { value: 'entity', label: 'Entity', color: '#8b5cf6' },
+    { value: 'concept', label: 'Concept', color: '#06b6d4' },
+    { value: 'comparison', label: 'Comparison', color: '#f59e0b' },
+    { value: 'query', label: 'Query', color: '#10b981' },
+  ]
+
+  return (
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="wiki-create-modal" onClick={e => e.stopPropagation()}>
+        <div className="wiki-create-modal-header">
+          <h2 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Plus size={18} /> Create New Page
+          </h2>
+          <button className="btn" onClick={onClose} style={{ padding: '6px 10px' }} aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="wiki-create-modal-body">
+          <label style={{ display: 'block', marginBottom: 12 }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Title</span>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Page title..."
+              style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            />
+          </label>
+          <label style={{ display: 'block', marginBottom: 12 }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Type</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {typeOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setType(opt.value)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: '2px solid', cursor: 'pointer',
+                    background: type === opt.value ? opt.color + '22' : 'var(--bg-base)',
+                    borderColor: type === opt.value ? opt.color : 'var(--border)',
+                    color: type === opt.value ? opt.color : 'var(--text-secondary)',
+                    fontWeight: type === opt.value ? 600 : 400, fontSize: '0.85rem',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </label>
+          <label style={{ display: 'block', marginBottom: 12 }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Tags (comma separated)</span>
+            <input
+              type="text"
+              value={tags}
+              onChange={e => setTags(e.target.value)}
+              placeholder="tag1, tag2, tag3..."
+              style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </label>
+          {error && <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: 12 }}>{error}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button className="btn" onClick={onClose}>Cancel</button>
+            <button className="btn" onClick={handleSubmit} disabled={saving} style={{ background: 'var(--accent)', color: '#fff', border: 'none' }}>
+              {saving ? 'Creating...' : 'Create Page'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PageModal({ page, onClose, onNavigate }) {
+  const [content, setContent] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(false)
+  const [editContent, setEditContent] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  const pagePath = `${page.type}/${page.name}`
+
+  const loadContent = useCallback(() => {
+    setLoading(true)
+    setContent(null)
+    setEditing(false)
+    setSaveError('')
+    setSaveSuccess(false)
+    fetch(`/api/wiki/page/${page.type}/${page.name}`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(data => { setContent(data.content); setLoading(false) })
+      .catch(() => { setContent('Failed to load page.'); setLoading(false) })
+  }, [page])
+
+  useEffect(() => { loadContent() }, [loadContent])
+
+  useEffect(() => {
+    const handleEsc = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
+
+  const handleEdit = () => {
+    setEditContent(content)
+    setEditing(true)
+    setSaveError('')
+    setSaveSuccess(false)
+  }
+
+  const handleCancelEdit = () => {
+    setEditing(false)
+    setSaveError('')
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveError('')
+    try {
+      await api.wikiSavePage(pagePath, editContent)
+      setContent(editContent)
+      setEditing(false)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (e) {
+      setSaveError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const { frontmatter, body } = parseFrontmatter(content)
+
+  // Pre-process body to convert [[wikilinks]] to markdown links
+  const processedBody = body
+    ? body.replace(/\[\[([^\]]+)\]\]/g, (match, linkName) => `[${linkName}]([[${linkName}]])`)
+    : ''
+
   return (
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div className="wiki-page-modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.key === 'Escape' && onClose()}>
         <div className="wiki-page-modal-header">
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>{page.title}</h2>
-            <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>{page.title}</h2>
+              {!editing && !loading && (
+                <button className="btn" onClick={handleEdit} style={{ padding: '4px 10px', fontSize: '0.78rem' }} title="Edit page">
+                  <Edit3 size={13} /> Edit
+                </button>
+              )}
+              {saveSuccess && (
+                <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}>✓ Saved</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span className="wiki-type-badge" style={{ background: TYPE_LABELS[page.type]?.color || '#666' }}>
                 {TYPE_LABELS[page.type]?.label || page.type}
               </span>
@@ -81,22 +306,104 @@ function PageModal({ page, onClose }) {
             <X size={16} />
           </button>
         </div>
+
+        {/* Frontmatter metadata header */}
+        {frontmatter && !editing && (
+          <div className="wiki-frontmatter-header">
+            {frontmatter.confidence != null && (
+              <ConfidenceBar value={frontmatter.confidence} />
+            )}
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: frontmatter.confidence != null ? 10 : 0 }}>
+              {frontmatter.created && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  <Clock size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                  Created: {frontmatter.created}
+                </div>
+              )}
+              {frontmatter.updated && frontmatter.updated !== frontmatter.created && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Updated: {frontmatter.updated}
+                </div>
+              )}
+              {frontmatter.type && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Type: <span style={{ color: TYPE_LABELS[frontmatter.type + 's']?.color || 'var(--text-primary)', fontWeight: 500 }}>{frontmatter.type}</span>
+                </div>
+              )}
+            </div>
+            {frontmatter.sources?.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginRight: 8 }}>Sources:</span>
+                {frontmatter.sources.map((s, i) => (
+                  <span key={i} style={{ fontSize: '0.78rem', color: 'var(--accent)', marginRight: 8 }}>{s}</span>
+                ))}
+              </div>
+            )}
+            {(frontmatter.contradictions?.length > 0 || frontmatter.supersedes?.length > 0) && (
+              <div style={{ marginTop: 10, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {frontmatter.contradictions?.length > 0 && (
+                  <div style={{ fontSize: '0.78rem' }}>
+                    <span style={{ color: '#ef4444', fontWeight: 600, marginRight: 4 }}>Contradictions:</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{frontmatter.contradictions.join(', ')}</span>
+                  </div>
+                )}
+                {frontmatter.supersedes?.length > 0 && (
+                  <div style={{ fontSize: '0.78rem' }}>
+                    <span style={{ color: '#f59e0b', fontWeight: 600, marginRight: 4 }}>Supersedes:</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{frontmatter.supersedes.join(', ')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="wiki-page-modal-body">
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 40, color: 'var(--text-secondary)' }}>
               <div style={{ width: 24, height: 24, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
             </div>
+          ) : editing ? (
+            <div className="wiki-edit-container">
+              <textarea
+                className="wiki-edit-textarea"
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                spellCheck={false}
+              />
+              {saveError && (
+                <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: 8 }}>{saveError}</div>
+              )}
+              <div className="wiki-edit-actions">
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  {editContent.length} chars · {(editContent.split('\n').length)} lines
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn" onClick={handleCancelEdit}>Cancel</button>
+                  <button className="btn" onClick={handleSave} disabled={saving} style={{ background: 'var(--accent)', color: '#fff', border: 'none' }}>
+                    <Save size={14} /> {saving ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
-            <pre style={{
-              margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-              fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '0.85rem',
-              lineHeight: 1.6, color: 'var(--text-primary)',
-              background: 'var(--bg-base)', padding: 20, borderRadius: 8,
-              border: '1px solid var(--border)',
-              maxHeight: '65vh', overflow: 'auto'
-            }}>
-              {content}
-            </pre>
+            <div className="wiki-markdown">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ href, children }) => (
+                    <WikilinkRenderer href={href} onNavigate={(name) => {
+                      onClose()
+                      if (onNavigate) onNavigate(name)
+                    }}>
+                      {children}
+                    </WikilinkRenderer>
+                  )
+                }}
+              >
+                {processedBody}
+              </ReactMarkdown>
+            </div>
           )}
         </div>
       </div>
@@ -113,6 +420,7 @@ export default function Wiki() {
   const [loading, setLoading] = useState(true)
   const [expandedTypes, setExpandedTypes] = useState(new Set())
   const [selectedPage, setSelectedPage] = useState(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -143,6 +451,33 @@ export default function Wiki() {
       else next.add(type)
       return next
     })
+  }
+
+  const handleNavigate = (linkName) => {
+    // Try to find a matching page by name or title
+    const match = pages.find(p =>
+      p.name.toLowerCase() === linkName.toLowerCase() ||
+      p.title.toLowerCase() === linkName.toLowerCase()
+    )
+    if (match) {
+      setSelectedPage(match)
+    }
+  }
+
+  const handleCreatePage = (result) => {
+    setShowCreateModal(false)
+    loadAll() // Refresh the page list
+    // Auto-open the created page
+    setTimeout(() => {
+      const newPage = {
+        name: result.name,
+        title: result.title,
+        type: result.type,
+        tags: [],
+        size: result.size,
+      }
+      setSelectedPage(newPage)
+    }, 500)
   }
 
   const filteredPages = searchQuery
@@ -235,11 +570,62 @@ export default function Wiki() {
         .wiki-schema-tag { font-size: 0.82rem; padding: 6px 14px; border-radius: 8px; background: rgba(139, 92, 246, 0.12); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.2); font-weight: 500; }
         .wiki-empty { color: var(--text-secondary); font-size: 0.85rem; padding: 20px; text-align: center; }
         .modal-overlay { position: fixed; inset: 0; background: var(--bg-overlay, rgba(0,0,0,0.7)); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
-        .wiki-page-modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 860px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .wiki-page-modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
         .wiki-page-modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
-        .wiki-page-modal-body { padding: 16px 24px 24px; overflow: hidden; display: flex; flex-direction: column; }
+        .wiki-page-modal-body { padding: 16px 24px 24px; overflow: hidden; display: flex; flex-direction: column; flex: 1; }
         .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
         .btn:hover { background: var(--bg-hover); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Frontmatter header */
+        .wiki-frontmatter-header { padding: 12px 24px; background: var(--bg-base); border-bottom: 1px solid var(--border); }
+
+        /* Create modal */
+        .wiki-create-modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 520px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .wiki-create-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
+        .wiki-create-modal-body { padding: 20px 24px; }
+
+        /* Edit container */
+        .wiki-edit-container { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .wiki-edit-textarea {
+          width: 100%; min-height: 50vh; padding: 16px; background: var(--bg-base);
+          border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);
+          font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem;
+          line-height: 1.6; resize: vertical; outline: none; box-sizing: border-box;
+        }
+        .wiki-edit-textarea:focus { border-color: var(--accent); }
+        .wiki-edit-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+
+        /* Markdown rendered content */
+        .wiki-markdown { overflow-y: auto; max-height: 60vh; padding: 4px 0; }
+        .wiki-markdown h1 { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        .wiki-markdown h1:first-child { margin-top: 0; }
+        .wiki-markdown h2 { font-size: 1.3rem; font-weight: 600; color: var(--text-primary); margin: 20px 0 10px; }
+        .wiki-markdown h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin: 16px 0 8px; }
+        .wiki-markdown h4, .wiki-markdown h5, .wiki-markdown h6 { font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 12px 0 6px; }
+        .wiki-markdown p { line-height: 1.7; color: var(--text-primary); margin: 8px 0; font-size: 0.92rem; }
+        .wiki-markdown ul, .wiki-markdown ol { padding-left: 24px; margin: 8px 0; line-height: 1.7; }
+        .wiki-markdown li { color: var(--text-primary); margin: 4px 0; font-size: 0.92rem; }
+        .wiki-markdown li::marker { color: var(--text-secondary); }
+        .wiki-markdown code { background: var(--bg-base); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.82rem; color: #e879f9; }
+        .wiki-markdown pre { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+        .wiki-markdown pre code { background: none; border: none; padding: 0; color: #e6edf3; font-size: 0.82rem; line-height: 1.6; }
+        .wiki-markdown blockquote { border-left: 3px solid var(--accent); padding: 8px 16px; margin: 12px 0; background: rgba(139, 92, 246, 0.06); border-radius: 0 6px 6px 0; }
+        .wiki-markdown blockquote p { color: var(--text-secondary); margin: 4px 0; }
+        .wiki-markdown a { color: var(--accent); text-decoration: none; }
+        .wiki-markdown a:hover { text-decoration: underline; }
+        .wiki-markdown strong { color: var(--text-primary); font-weight: 600; }
+        .wiki-markdown em { color: var(--text-secondary); }
+        .wiki-markdown hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+        .wiki-markdown img { max-width: 100%; border-radius: 8px; margin: 8px 0; }
+        .wiki-markdown table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.88rem; }
+        .wiki-markdown thead th { background: var(--bg-base); color: var(--text-primary); font-weight: 600; text-align: left; padding: 10px 12px; border: 1px solid var(--border); }
+        .wiki-markdown tbody td { padding: 8px 12px; border: 1px solid var(--border); color: var(--text-primary); }
+        .wiki-markdown tbody tr:nth-child(even) { background: var(--bg-base); }
+        .wiki-markdown tbody tr:hover { background: var(--bg-hover); }
+        .wiki-markdown input[type="checkbox"] { margin-right: 6px; accent-color: var(--accent); }
+        .wiki-wikilink { color: var(--accent); cursor: pointer; text-decoration: none; border-bottom: 1px dashed var(--accent); }
+        .wiki-wikilink:hover { color: #c084fc; border-bottom-color: #c084fc; }
       `}</style>
 
       {/* Header */}
@@ -249,9 +635,14 @@ export default function Wiki() {
             <h1><FileText size={28} /> LLM Wiki</h1>
             <p>Knowledge base for entities, concepts, comparisons, and research sources</p>
           </div>
-          <button className="btn" onClick={loadAll} title="Refresh">
-            <RefreshCw size={14} /> Refresh
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={() => setShowCreateModal(true)} style={{ background: 'var(--accent)', color: '#fff', border: 'none' }}>
+              <Plus size={14} /> New Page
+            </button>
+            <button className="btn" onClick={loadAll} title="Refresh">
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
         </div>
         {stats && (
           <div className="wiki-stats-bar">
@@ -432,7 +823,12 @@ export default function Wiki() {
 
       {/* Page Modal */}
       {selectedPage && (
-        <PageModal page={selectedPage} onClose={() => setSelectedPage(null)} />
+        <PageModal page={selectedPage} onClose={() => setSelectedPage(null)} onNavigate={handleNavigate} />
+      )}
+
+      {/* Create Page Modal */}
+      {showCreateModal && (
+        <CreatePageModal onClose={() => setShowCreateModal(false)} onCreate={handleCreatePage} />
       )}
     </div>
   )

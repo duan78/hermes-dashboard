@@ -101,6 +101,8 @@ export const api = {
   disableTool: (tool, platform = 'cli') => request('/tools/disable', { method: 'POST', body: JSON.stringify({ tool, platform }) }),
   getToolConfig: () => request('/tools/config'),
   setToolEnv: (key, value, configKey, configValue) => request('/tools/config/set-env', { method: 'POST', body: JSON.stringify({ key, value, config_key: configKey, config_value: configValue }) }),
+  getAgentReachStatus: () => request('/tools/agent-reach/status'),
+  configureAgentReach: (channel) => request('/tools/agent-reach/configure', { method: 'POST', body: JSON.stringify({ channel }) }),
 
   // Skills
   listSkills: () => request('/skills'),
@@ -342,6 +344,15 @@ export const api = {
   backupCreate: (includeEnv, includeSkills) => request('/backup/create', { method: 'POST', body: JSON.stringify({ include_env: includeEnv, include_skills: includeSkills }) }),
   backupRestore: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   backupDelete: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
+
+  // GitHub Config Sync
+  githubConfigStatus: () => request('/github-config/status'),
+  githubConfigSync: () => request('/github-config/sync', { method: 'POST' }),
+  githubConfigFiles: () => request('/github-config/files'),
+
+  // Wiki
+  wikiSavePage: (path, content) => request('/wiki/page/' + encodeURIComponent(path), { method: 'PUT', body: JSON.stringify({ content }) }),
+  wikiCreatePage: (title, type, tags) => request('/wiki/page', { method: 'POST', body: JSON.stringify({ title, type, tags }) }),
 
   // User Management (auth)
   userRegister: (username, password, displayName) => publicRequest('/users/register', { method: 'POST', body: JSON.stringify({ username, password, display_name: displayName }) }),

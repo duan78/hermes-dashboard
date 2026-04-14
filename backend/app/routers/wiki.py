@@ -3,7 +3,10 @@ import os
 import re
 from pathlib import Path
 
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
@@ -191,3 +194,92 @@ async def wiki_sources():
                     "modified": f.stat().st_mtime,
                 })
     return sources
+
+
+class WikiPageSave(BaseModel):
+    content: str
+
+
+class WikiPageCreate(BaseModel):
+    title: str
+    type: str  # entity, concept, comparison, query
+    tags: list[str] = []
+
+
+@router.put("/page/{page_path:path}")
+async def save_wiki_page(page_path: str, body: WikiPageSave):
+    """Save (create or update) a wiki page."""
+    full_path = (WIKI_PATH / page_path).resolve()
+    # Validate path stays within WIKI_PATH
+    if not str(full_path).startswith(str(WIKI_PATH.resolve())):
+        raise HTTPException(403, "Access denied")
+    # Ensure .md extension
+    if not full_path.suffix == ".md":
+        full_path = full_path.with_suffix(".md")
+    if not str(full_path).startswith(str(WIKI_PATH.resolve())):
+        raise HTTPException(403, "Access denied")
+
+    # Create parent directories if needed
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+
+    full_path.write_text(body.content, encoding="utf-8")
+    logger.info(f"Wiki page saved: {page_path} ({len(body.content)} bytes)")
+    return {"success": True, "path": str(full_path.relative_to(WIKI_PATH)), "size": len(body.content)}
+
+
+@router.post("/page")
+async def create_wiki_page(body: WikiPageCreate):
+    """Create a new wiki page with auto-generated frontmatter."""
+    page_type = body.type.lower().rstrip("s") + "s"
+    if page_type not in DIRECTORIES:
+        # Fallback: accept singular form
+        singular = body.type.lower().rstrip("s")
+        page_type = singular + "s"
+    if page_type not in DIRECTORIES:
+        raise HTTPException(400, f"Invalid page type. Must be one of: entities, concepts, comparisons, queries")
+
+    dir_path = DIRECTORIES[page_type]
+    dir_path.mkdir(parents=True, exist_ok=True)
+
+    # Generate slug from title
+    slug = re.sub(r"[^a-z0-9]+", "-", body.title.lower()).strip("-")
+    if not slug:
+        slug = "untitled"
+    file_path = dir_path / f"{slug}.md"
+
+    # Avoid overwriting — add suffix if needed
+    counter = 1
+    original_slug = slug
+    while file_path.exists():
+        slug = f"{original_slug}-{counter}"
+        file_path = dir_path / f"{slug}.md"
+        counter += 1
+
+    now = datetime.now().strftime("%Y-%m-%d")
+    tags_str = ", ".join(body.tags) if body.tags else ""
+
+    frontmatter = f"""---
+title: {body.title}
+type: {page_type.rstrip("s")}
+tags: [{tags_str}]
+created: {now}
+updated: {now}
+confidence: 0.5
+sources: []
+---
+
+# {body.title}
+
+"""
+
+    file_path.write_text(frontmatter, encoding="utf-8")
+    logger.info(f"Wiki page created: {page_type}/{slug}.md")
+
+    return {
+        "success": True,
+        "path": f"{page_type}/{slug}.md",
+        "name": slug,
+        "title": body.title,
+        "type": page_type,
+        "size": len(frontmatter),
+    }

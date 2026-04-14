@@ -136,30 +136,22 @@ function Spinner() {
 }
 
 function AuthGuard({ currentUser, children }) {
-  // If user has a user token or legacy token, allow access
+  // Auth is handled by nginx HTTP Basic Auth — no frontend gate needed.
+  // The AuthGuard only checks user account state (JWT) when a user token exists.
   const userToken = localStorage.getItem('hermes_user_token')
-  const legacyToken = localStorage.getItem('hermes_token')
 
-  // Still checking auth
+  // Still checking auth state
   if (currentUser === undefined) {
     return <Spinner />
   }
 
-  // Has user token (account-based auth)
-  if (userToken) {
-    if (!currentUser) {
-      return <Navigate to="/login" replace />
-    }
-    return children
+  // Has user token (account-based auth) — validate it
+  if (userToken && !currentUser) {
+    return <Navigate to="/login" replace />
   }
 
-  // Has legacy token or no auth required — allow
-  if (legacyToken || currentUser === null) {
-    return children
-  }
-
-  // No token at all, not checking — redirect to login
-  return <Navigate to="/login" replace />
+  // All good — render children
+  return children
 }
 
 function App() {

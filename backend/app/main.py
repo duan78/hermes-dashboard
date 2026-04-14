@@ -32,6 +32,7 @@ from .routers import (
     files,
     fine_tune,
     gateway,
+    github_config,
     insights,
     leads,
     mcp,
@@ -285,6 +286,7 @@ app.include_router(wiki.router)
 app.include_router(backlog.router)
 app.include_router(users.router)
 app.include_router(leads.router)
+app.include_router(github_config.router)
 
 
 # ── WebSocket Hub for real-time dashboard updates ──
@@ -559,9 +561,11 @@ if static_dir.exists():
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
-    # Serve index.html for SPA fallback
+    # Serve index.html for SPA fallback (skip /api/ routes — those are handled by routers)
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
+        if full_path.startswith("api/"):
+            return JSONResponse(status_code=404, content={"detail": "Not found"})
         file_path = static_dir / full_path
         if full_path and file_path.exists() and file_path.is_file():
             return FileResponse(str(file_path))

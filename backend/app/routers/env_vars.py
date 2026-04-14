@@ -103,7 +103,6 @@ def _parse_env() -> list:
         result.append({
             "key": key,
             "value": _mask_value(value) if is_sensitive else value,
-            "raw_value": value,
             "is_sensitive": is_sensitive,
             "has_value": bool(value),
         })

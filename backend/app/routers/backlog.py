@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import subprocess
 import time
 from datetime import datetime, timedelta
@@ -879,8 +880,8 @@ async def run_backlog_item(item_id: str):
     # Create new tmux session
     subprocess.run(["tmux", "new-session", "-d", "-s", session_name])
 
-    # Send Claude Code launch command
-    subprocess.run(["tmux", "send-keys", "-t", session_name, "/root/.local/bin/claude -p \"" + task_prompt.replace('"', '\\"') + "\"", "Enter"])
+    # Send Claude Code launch command (shlex.quote prevents shell injection via title/description)
+    subprocess.run(["tmux", "send-keys", "-t", session_name, "/root/.local/bin/claude -p " + shlex.quote(task_prompt), "Enter"])
 
     # Wait for Claude Code to start
     time.sleep(2)
