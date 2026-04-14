@@ -238,7 +238,7 @@ async def get_tool_config():
                 })
             entry["combined_active_count"] = sum(1 for be in entry["combined_backends"] if be["is_set"])
 
-        for prov in cat["providers"]:
+        for prov in cat.get("providers", []):
             env_vars = []
             all_configured = True
             for ev in prov.get("env_vars", []):
