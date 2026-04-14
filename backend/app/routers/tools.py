@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import re
@@ -50,6 +49,19 @@ TOOL_CATEGORIES = {
             {"key": "FIRECRAWL_API_KEY", "name": "Firecrawl Cloud", "url": "https://firecrawl.dev"},
             {"key": "EXA_API_KEY", "name": "Exa", "url": "https://exa.ai"},
         ],
+        # Agent-Reach channels shown as read-only providers
+        "agent_reach_channels": [
+            {"name": "GitHub", "channel": "github"},
+            {"name": "YouTube", "channel": "youtube"},
+            {"name": "Reddit", "channel": "reddit"},
+            {"name": "Twitter/X", "channel": "twitter"},
+            {"name": "Bilibili", "channel": "bilibili"},
+            {"name": "V2EX", "channel": "v2ex"},
+            {"name": "WeChat", "channel": "wechat"},
+            {"name": "RSS/Atom", "channel": "rss"},
+            {"name": "Exa Search (Agent-Reach)", "channel": "exa_search"},
+            {"name": "Web Reader / Jina", "channel": "web"},
+        ],
     },
     "image_gen": {
         "name": "Image Generation",
@@ -89,13 +101,6 @@ TOOL_CATEGORIES = {
             {"name": "Z.AI Vision MCP", "tag": "Vision via Z.AI MCP (gratuit, coding plan)", "config_key": "mcp_servers.zai-vision", "config_value": "active", "env_vars": [{"key": "Z_AI_API_KEY", "label": "Z.AI API Key", "url": "https://z.ai"}]},
             {"name": "Mistral (Pixtral)", "tag": "Pixtral Large via Mistral API (fallback)", "config_key": "auxiliary.vision.provider", "config_value": "custom", "env_vars": [{"key": "MISTRAL_API_KEY", "label": "Mistral API Key", "url": "https://console.mistral.ai/api-keys/"}]},
         ],
-    },
-    "agent_reach": {
-        "name": "Agent Reach",
-        "icon": "radar",
-        "description": "Multi-platform search & read — 16 channels (GitHub, YouTube, Twitter, Reddit, Bilibili, WeChat, V2EX, RSS, Exa, Jina Reader, etc.)",
-        "has_providers": False,
-        "channels": True,
     },
 }
 
@@ -186,6 +191,47 @@ async def list_tools():
         return {"output": output}
     except RuntimeError as e:
         return {"output": "", "error": str(e)}
+
+
+def _get_agent_reach_channels():
+    """Fetch Agent-Reach channel statuses via the Python API."""
+    import concurrent.futures
+    try:
+        from agent_reach.channels import get_all_channels
+        channels = get_all_channels()
+        ar = {}
+        # Use threads with timeout so slow channel.check() calls don't block
+        def _check(ch):
+            try:
+                status_tuple = ch.check()
+                status_str = status_tuple[0] if isinstance(status_tuple, tuple) else str(status_tuple)
+                message = status_tuple[1] if isinstance(status_tuple, tuple) and len(status_tuple) > 1 else ""
+                return ch.name, {"status": status_str, "message": message}
+            except Exception as exc:
+                return ch.name, {"status": "off", "message": str(exc)[:100]}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {pool.submit(_check, ch): ch.name for ch in channels}
+            for future in concurrent.futures.as_completed(futures, timeout=10):
+                try:
+                    name, info = future.result(timeout=5)
+                    ar[name] = info
+                except Exception:
+                    pass
+        return ar
+    except Exception as e:
+        logger.debug("Agent-Reach channels unavailable: %s", e)
+        return {}
+
+
+def _fetch_agent_reach_status(channel_name: str, ar_channels: dict) -> str:
+    """Map an Agent-Reach channel status to ok/warn/off."""
+    info = ar_channels.get(channel_name, {})
+    status = info.get("status", "off")
+    if status == "ok":
+        return "ok"
+    if status == "warn":
+        return "warn"
+    return "off"
 
 
 @router.get("/config")
@@ -285,6 +331,22 @@ async def get_tool_config():
             if is_active:
                 entry["active_provider"] = prov["name"]
 
+        # For the 'web' category: attach Agent-Reach channel statuses
+        if ts_key == "web" and cat.get("agent_reach_channels"):
+            ar_channels = _get_agent_reach_channels()
+            ar_list = []
+            for ar_def in cat["agent_reach_channels"]:
+                ch_name = ar_def["channel"]
+                ch_status = _fetch_agent_reach_status(ch_name, ar_channels)
+                ch_info = ar_channels.get(ch_name, {})
+                ar_list.append({
+                    "name": ar_def["name"],
+                    "channel": ch_name,
+                    "status": ch_status,
+                    "message": ch_info.get("message", ""),
+                })
+            entry["agent_reach_channels"] = ar_list
+
         result[ts_key] = entry
 
     # Process simple env-var-only tools
@@ -364,116 +426,4 @@ async def disable_tool(body: ToolToggleRequest):
         output = await run_hermes("tools", "disable", body.tool, "--platform", body.platform, timeout=15)
         return {"status": "disabled", "output": output}
     except RuntimeError as e:
-        raise HTTPException(500, str(e))
-
-
-def _channel_key(name: str) -> str:
-    """Generate a stable key from a channel name."""
-    eng = re.findall(r'[A-Za-z][A-Za-z0-9_]*', name)
-    if eng:
-        return '_'.join(w.lower() for w in eng)
-    cn_map = {
-        "微信": "wechat", "B站": "bilibili", "小红书": "xiaohongshu",
-        "微博": "weibo", "小宇宙": "xiaoyuzhou", "雪球": "xueqiu",
-        "抖音": "douyin", "全网": "semantic", "任意": "webpage",
-    }
-    for cn, key in cn_map.items():
-        if cn in name:
-            return key
-    return f"ch_{abs(hash(name)) % 10000}"
-
-
-@router.get("/agent-reach/status")
-async def get_agent_reach_status():
-    """Return Agent-Reach channel statuses by running doctor."""
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "python", "-m", "agent_reach.cli", "doctor",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd="/opt/agent-reach",
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
-        output = (stdout or b"").decode(errors="replace") + (stderr or b"").decode(errors="replace")
-    except FileNotFoundError:
-        return {"installed": False, "channels": {}}
-    except asyncio.TimeoutError:
-        return {"installed": False, "error": "Command timed out", "channels": {}}
-    except Exception as e:
-        return {"installed": False, "error": str(e), "channels": {}}
-
-    channels: dict = {}
-    current_tier = 0
-    current_channel_key = None
-
-    for line in output.splitlines():
-        stripped = line.strip()
-
-        # Detect section headers for tier
-        if "装好即用" in stripped or "zero config" in stripped.lower() or "ready to use" in stripped.lower():
-            current_tier = 0
-            current_channel_key = None
-            continue
-        if "可选渠道" in stripped or re.search(r'optional', stripped, re.I):
-            current_tier = 1
-            current_channel_key = None
-            continue
-        if re.search(r'advanced|高级|需要额外配置', stripped, re.I):
-            current_tier = 2
-            current_channel_key = None
-            continue
-        # Skip summary / trailing lines
-        if "渠道可用" in stripped or "可选渠道可以解锁" in stripped:
-            current_channel_key = None
-            continue
-        if "Skill installed" in stripped or stripped.startswith("Shell cwd"):
-            continue
-
-        # Parse available channel: ✅ Name — Details
-        avail_match = re.match(r'\s*✅\s+(.+?)\s*[—–-]\s+(.*)', line)
-        if avail_match:
-            name = avail_match.group(1).strip()
-            details = avail_match.group(2).strip()
-            key = _channel_key(name)
-            channels[key] = {"name": name, "status": "ok", "message": details, "tier": current_tier}
-            current_channel_key = None
-            continue
-
-        # Parse unavailable channel: [X] Name — Details
-        unavail_match = re.match(r'\s*\[X\]\s+(.+?)\s*[—–-]\s+(.*)', line)
-        if unavail_match:
-            name = unavail_match.group(1).strip()
-            details = unavail_match.group(2).strip()
-            key = _channel_key(name)
-            channels[key] = {"name": name, "status": "unavailable", "message": details, "tier": current_tier}
-            current_channel_key = key
-            continue
-
-        # Continuation line for previous unavailable channel
-        if current_channel_key and stripped and not stripped.startswith("✅") and not stripped.startswith("[X]"):
-            if current_channel_key in channels:
-                channels[current_channel_key]["message"] += " " + stripped
-
-    return {"installed": True, "channels": channels, "version": "1.4.0"}
-
-
-@router.post("/agent-reach/configure")
-async def configure_agent_reach(body: dict):
-    """Install / configure an Agent-Reach channel."""
-    channel = body.get("channel", "")
-    if not channel:
-        raise HTTPException(400, "Missing 'channel' field")
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "python", "-m", "agent_reach.cli", "install", f"--channel={channel}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd="/opt/agent-reach",
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-        output = (stdout or b"").decode(errors="replace") + (stderr or b"").decode(errors="replace")
-        return {"status": "ok" if proc.returncode == 0 else "error", "output": output, "returncode": proc.returncode}
-    except asyncio.TimeoutError:
-        raise HTTPException(500, "Install command timed out")
-    except Exception as e:
         raise HTTPException(500, str(e))

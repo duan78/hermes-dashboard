@@ -3,161 +3,49 @@ import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, Togg
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
-// ── Agent-Reach Channel Display ──
+// ── Agent-Reach Channel Status Display (inline, used inside Web Search) ──
 
-function AgentReachChannels({ data, loading, onRefresh }) {
-  const [installing, setInstalling] = useState(null)
-  const [installMsg, setInstallMsg] = useState({})
+function AgentReachChannelList({ channels }) {
+  if (!channels || channels.length === 0) return null
 
-  const handleInstall = async (key, name) => {
-    setInstalling(key)
-    setInstallMsg(prev => ({ ...prev, [key]: null }))
-    try {
-      const res = await api.configureAgentReach(key)
-      if (res.status === 'ok') {
-        setInstallMsg(prev => ({ ...prev, [key]: 'Installed!' }))
-        if (onRefresh) setTimeout(onRefresh, 1000)
-      } else {
-        setInstallMsg(prev => ({ ...prev, [key]: res.output || 'Install failed' }))
-      }
-    } catch (e) {
-      setInstallMsg(prev => ({ ...prev, [key]: `Error: ${e.message}` }))
-    } finally {
-      setInstalling(null)
-    }
-  }
-
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: 32 }}><Loader2 size={20} className="spin" /></div>
-  }
-
-  if (!data || !data.installed) {
-    return (
-      <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-        Agent Reach is not installed. <code>pip install agent-reach</code>
-        {data && data.error && <div style={{ marginTop: 8, color: 'var(--error)', fontSize: 12 }}>{data.error}</div>}
-      </div>
-    )
-  }
-
-  const channels = data.channels || {}
-  const entries = Object.entries(channels)
-  if (entries.length === 0) {
-    return <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No channels found.</div>
-  }
-
-  const okCount = entries.filter(([, v]) => v.status === 'ok').length
-  const total = entries.length
-
-  // Group by tier
-  const tiers = { 0: [], 1: [], 2: [] }
-  for (const [key, val] of entries) {
-    const tier = val.tier ?? 1
-    if (!tiers[tier]) tiers[tier] = []
-    tiers[tier].push([key, val])
-  }
-
-  const tierLabels = { 0: 'Zero Config', 1: 'Optional', 2: 'Advanced' }
-  const tierColors = { 0: 'var(--success)', 1: 'var(--accent)', 2: 'var(--warning)' }
+  const okCount = channels.filter(c => c.status === 'ok').length
+  const totalCount = channels.length
 
   const statusIcon = (status) => {
-    if (status === 'ok') return <span style={{ color: 'var(--success)' }}><Check size={14} /></span>
-    if (status === 'warn') return <span style={{ color: 'var(--warning)' }}>⚠</span>
-    return <span style={{ color: 'var(--error)' }}>✕</span>
+    if (status === 'ok') return <span style={{ color: 'var(--success)' }}>✅</span>
+    if (status === 'warn') return <span style={{ color: 'var(--warning)' }}>⚠️</span>
+    return <span style={{ color: 'var(--error)' }}>❌</span>
   }
 
   return (
-    <div>
-      <div style={{
-        background: 'var(--accent-alpha, rgba(99,102,241,0.1))',
-        border: '1px solid var(--accent, #6366f1)',
-        borderRadius: 10,
-        padding: '12px 16px',
-        marginBottom: 16,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)' }}>
-          Agent Reach — Multi-platform search &amp; read
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Agent-Reach Channels
         </span>
-        <span className="badge badge-success" style={{ fontSize: 11 }}>
-          {okCount}/{total} channels active
+        <span className="badge badge-success" style={{ fontSize: 10 }}>
+          {okCount}/{totalCount} active
         </span>
       </div>
-
-      {[0, 1, 2].map(tier => {
-        const items = tiers[tier]
-        if (!items || items.length === 0) return null
-        return (
-          <div key={tier} style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{
-                fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5,
-                color: tierColors[tier],
-              }}>
-                {tierLabels[tier]}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {channels.map(ch => (
+          <div key={ch.channel} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 10px',
+            borderRadius: 6,
+            background: ch.status === 'ok' ? 'rgba(34,197,94,0.04)' : 'rgba(255,255,255,0.02)',
+            border: `1px solid ${ch.status === 'ok' ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.05)'}`,
+          }}>
+            <span style={{ flexShrink: 0, fontSize: 12 }}>{statusIcon(ch.status)}</span>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>{ch.name}</span>
+            {ch.message && (
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ch.message}>
+                — {ch.message}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                ({items.length})
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {items.map(([key, val]) => (
-                <div key={key} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  background: val.status === 'ok' ? 'rgba(34,197,94,0.06)' :
-                              val.status === 'warn' ? 'rgba(234,179,8,0.06)' :
-                              'rgba(239,68,68,0.04)',
-                  border: `1px solid ${
-                    val.status === 'ok' ? 'rgba(34,197,94,0.15)' :
-                    val.status === 'warn' ? 'rgba(234,179,8,0.2)' :
-                    'rgba(239,68,68,0.1)'
-                  }`,
-                }}>
-                  <div style={{ flexShrink: 0 }}>{statusIcon(val.status)}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>{val.name || key}</span>
-                      {val.backends && val.backends.length > 0 && (
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {val.backends.map((b, i) => (
-                            <span key={i} style={{
-                              fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                              background: 'var(--bg-tertiary, rgba(255,255,255,0.08))',
-                              color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
-                            }}>{b}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {val.message && (
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={val.message}>
-                        {val.message}
-                      </div>
-                    )}
-                    {installMsg[key] && (
-                      <div style={{ fontSize: 11, marginTop: 4, color: installMsg[key].startsWith('Error') ? 'var(--error)' : 'var(--success)' }}>
-                        {installMsg[key]}
-                      </div>
-                    )}
-                  </div>
-                  {val.status !== 'ok' && (
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => handleInstall(key, val.name)}
-                      disabled={installing === key}
-                      title={`Install ${val.name || key}`}
-                    >
-                      {installing === key ? <Loader2 size={12} className="spin" /> : 'Install'}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+            )}
           </div>
-        )
-      })}
+        ))}
+      </div>
     </div>
   )
 }
@@ -170,8 +58,6 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
   const [showValues, setShowValues] = useState({})
   const [selectedProvider, setSelectedProvider] = useState(null)
   const [saveMsg, setSaveMsg] = useState({})
-  const [agentReachData, setAgentReachData] = useState(null)
-  const [agentReachLoading, setAgentReachLoading] = useState(false)
 
   useEffect(() => {
     // Initialize values and detect active provider
@@ -179,17 +65,6 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
       const activeIdx = toolInfo.providers.findIndex(p => p.is_active)
       if (activeIdx >= 0) setSelectedProvider(activeIdx)
       else if (toolInfo.providers.length > 0) setSelectedProvider(0)
-    }
-  }, [toolInfo])
-
-  useEffect(() => {
-    // Load Agent-Reach channel status when this category is opened
-    if (toolInfo.channels) {
-      setAgentReachLoading(true)
-      api.getAgentReachStatus()
-        .then(data => setAgentReachData(data))
-        .catch(() => setAgentReachData({ installed: false, channels: {} }))
-        .finally(() => setAgentReachLoading(false))
     }
   }, [toolInfo])
 
@@ -285,15 +160,7 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
               )}
             </div>
           )}
-          {toolInfo.channels ? (
-            <AgentReachChannels data={agentReachData} loading={agentReachLoading} onRefresh={() => {
-              setAgentReachLoading(true)
-              api.getAgentReachStatus()
-                .then(data => setAgentReachData(data))
-                .catch(() => setAgentReachData({ installed: false, channels: {} }))
-                .finally(() => setAgentReachLoading(false))
-            }} />
-          ) : toolInfo.has_providers ? (
+          {toolInfo.has_providers ? (
             <>
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -400,6 +267,10 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
                   </label>
                 ))}
               </div>
+              {/* Agent-Reach channels shown inside Web Search category */}
+              {toolInfo.agent_reach_channels && toolInfo.agent_reach_channels.length > 0 && (
+                <AgentReachChannelList channels={toolInfo.agent_reach_channels} />
+              )}
             </>
           ) : (
             <>
