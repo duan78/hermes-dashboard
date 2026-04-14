@@ -49,19 +49,8 @@ TOOL_CATEGORIES = {
             {"key": "FIRECRAWL_API_KEY", "name": "Firecrawl Cloud", "url": "https://firecrawl.dev"},
             {"key": "EXA_API_KEY", "name": "Exa", "url": "https://exa.ai"},
         ],
-        # Agent-Reach channels with config metadata
-        "agent_reach_channels": [
-            {"name": "GitHub", "channel": "github", "config_type": "none"},
-            {"name": "YouTube", "channel": "youtube", "config_type": "none"},
-            {"name": "Reddit", "channel": "reddit", "config_type": "env", "config_keys": ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"], "config_hint": "Requires rdt-cli + Reddit API credentials", "config_url": "https://www.reddit.com/prefs/apps"},
-            {"name": "Twitter/X", "channel": "twitter", "config_type": "env", "config_keys": ["TWITTER_BEARER_TOKEN"], "config_hint": "Requires bird CLI + Twitter auth token", "config_url": "https://developer.twitter.com/en/portal/dashboard"},
-            {"name": "Bilibili", "channel": "bilibili", "config_type": "none"},
-            {"name": "V2EX", "channel": "v2ex", "config_type": "none"},
-            {"name": "WeChat", "channel": "wechat", "config_type": "none"},
-            {"name": "RSS/Atom", "channel": "rss", "config_type": "none"},
-            {"name": "Exa Search (Agent-Reach)", "channel": "exa_search", "config_type": "env", "config_keys": ["EXA_API_KEY"], "config_hint": "Exa semantic search API key", "config_url": "https://exa.ai"},
-            {"name": "Web Reader / Jina", "channel": "web", "config_type": "none"},
-        ],
+        # Agent-Reach channels are now fetched dynamically from agent_reach package
+        # (no hardcoded list — see _get_agent_reach_channels_dynamic)
     },
     "image_gen": {
         "name": "Image Generation",
@@ -194,13 +183,13 @@ async def list_tools():
 
 
 def _get_agent_reach_channels():
-    """Fetch Agent-Reach channel statuses via the Python API."""
+    """Fetch Agent-Reach channel statuses via the Python API (raw dict)."""
     import concurrent.futures
     try:
         from agent_reach.channels import get_all_channels
         channels = get_all_channels()
         ar = {}
-        # Use threads with timeout so slow channel.check() calls don't block
+        # Use threads with per-future timeout so slow channel.check() calls don't block others
         def _check(ch):
             try:
                 status_tuple = ch.check()
@@ -209,12 +198,14 @@ def _get_agent_reach_channels():
                 return ch.name, {"status": status_str, "message": message}
             except Exception as exc:
                 return ch.name, {"status": "off", "message": str(exc)[:100]}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
             futures = {pool.submit(_check, ch): ch.name for ch in channels}
-            for future in concurrent.futures.as_completed(futures, timeout=10):
+            for future in concurrent.futures.as_completed(futures, timeout=30):
                 try:
-                    name, info = future.result(timeout=5)
+                    name, info = future.result(timeout=10)
                     ar[name] = info
+                except concurrent.futures.TimeoutError:
+                    pass
                 except Exception:
                     pass
         return ar
@@ -223,15 +214,72 @@ def _get_agent_reach_channels():
         return {}
 
 
-def _fetch_agent_reach_status(channel_name: str, ar_channels: dict) -> str:
-    """Map an Agent-Reach channel status to ok/warn/off."""
-    info = ar_channels.get(channel_name, {})
-    status = info.get("status", "off")
-    if status == "ok":
-        return "ok"
-    if status == "warn":
-        return "warn"
-    return "off"
+def _build_agent_reach_list(ar_channels: dict) -> list:
+    """Build a full dynamic channel list from agent_reach get_all_channels().
+
+    Each channel entry has: name, channel, status, message, config_type, is_configured.
+    config_type is auto-detected:
+      - "none"  → status is "ok" (zero-config, works out of the box)
+      - "action" → status is "off" and message mentions install/config steps
+      - "env"   → status is "warn" (partially configured, needs env vars)
+    """
+    try:
+        from agent_reach.channels import get_all_channels
+        channels = get_all_channels()
+    except Exception:
+        return []
+
+    # Friendly display names for known channels
+    _DISPLAY_NAMES = {
+        "github": "GitHub",
+        "twitter": "Twitter / X",
+        "youtube": "YouTube",
+        "reddit": "Reddit",
+        "bilibili": "Bilibili",
+        "xiaohongshu": "Xiaohongshu",
+        "douyin": "Douyin",
+        "linkedin": "LinkedIn",
+        "wechat": "WeChat",
+        "weibo": "Weibo",
+        "xiaoyuzhou": "Xiaoyuzhou",
+        "v2ex": "V2EX",
+        "xueqiu": "Xueqiu",
+        "rss": "RSS / Atom",
+        "exa_search": "Exa Search",
+        "web": "Web Reader (Jina)",
+    }
+
+    ar_list = []
+    for ch in channels:
+        info = ar_channels.get(ch.name, {})
+        status = info.get("status", "off")
+        message = info.get("message", "")
+
+        # Auto-detect config_type from status
+        if status == "ok":
+            config_type = "none"
+        elif status == "warn":
+            config_type = "env"
+        else:
+            # "off" — determine if it needs an action (install CLI) or env vars
+            msg_lower = message.lower()
+            if any(kw in msg_lower for kw in ["pip install", "pipx install", "uv tool", "agent-reach install", "运行"]):
+                config_type = "action"
+            elif any(kw in msg_lower for kw in ["环境变量", "export", "api key", "token", "cookie", "login", "auth"]):
+                config_type = "env"
+            else:
+                config_type = "action"
+
+        ar_list.append({
+            "name": _DISPLAY_NAMES.get(ch.name, ch.name.replace("_", " ").title()),
+            "channel": ch.name,
+            "status": status,
+            "message": message,
+            "config_type": config_type,
+            "is_configured": status == "ok",
+        })
+
+    return ar_list
 
 
 @router.get("/config")
@@ -331,42 +379,20 @@ async def get_tool_config():
             if is_active:
                 entry["active_provider"] = prov["name"]
 
-        # For the 'web' category: attach Agent-Reach channel statuses with config info
-        if ts_key == "web" and cat.get("agent_reach_channels"):
+        # For the 'web' category: attach Agent-Reach channel statuses dynamically
+        if ts_key == "web":
             ar_channels = _get_agent_reach_channels()
-            ar_list = []
-            for ar_def in cat["agent_reach_channels"]:
-                ch_name = ar_def["channel"]
-                ch_status = _fetch_agent_reach_status(ch_name, ar_channels)
-                ch_info = ar_channels.get(ch_name, {})
-                config_type = ar_def.get("config_type", "none")
-                config_keys = ar_def.get("config_keys", [])
-                # Check if each config key is set
-                env_vars_info = []
-                all_keys_set = True
-                for ck in config_keys:
-                    val = _get_env_value(ck)
-                    is_set = bool(val)
-                    if not is_set:
-                        all_keys_set = False
-                    env_vars_info.append({
-                        "key": ck,
-                        "label": ck,
-                        "is_set": is_set,
-                        "value_preview": val[:4] + "****" if is_set and len(val) > 8 else ("****" if is_set else ""),
-                    })
-                ar_list.append({
-                    "name": ar_def["name"],
-                    "channel": ch_name,
-                    "status": ch_status,
-                    "message": ch_info.get("message", ""),
-                    "config_type": config_type,
-                    "config_hint": ar_def.get("config_hint", ""),
-                    "config_url": ar_def.get("config_url", ""),
-                    "env_vars": env_vars_info,
-                    "is_configured": ch_status == "ok" or (config_type == "env" and all_keys_set),
-                })
+            ar_list = _build_agent_reach_list(ar_channels)
             entry["agent_reach_channels"] = ar_list
+
+            # Add Agent-Reach info to combined mode
+            if is_combined_active:
+                ar_active = [ch for ch in ar_list if ch["status"] == "ok"]
+                entry["agent_reach_combined"] = [
+                    {"channel": ch["channel"], "name": ch["name"], "status": ch["status"]}
+                    for ch in ar_active
+                ]
+                entry["agent_reach_active_count"] = len(ar_active)
 
         result[ts_key] = entry
 
@@ -448,3 +474,11 @@ async def disable_tool(body: ToolToggleRequest):
         return {"status": "disabled", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))
+
+
+@router.post("/agent-reach/check")
+async def check_agent_reach():
+    """Force re-check all Agent-Reach channels and return updated statuses."""
+    ar_channels = _get_agent_reach_channels()
+    ar_list = _build_agent_reach_list(ar_channels)
+    return {"channels": ar_list, "total": len(ar_list), "active": sum(1 for ch in ar_list if ch["status"] == "ok")}

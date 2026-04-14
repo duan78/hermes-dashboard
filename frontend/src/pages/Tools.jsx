@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink } from 'lucide-react'
+import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
-// ── Agent-Reach Channel Status Display (configurable) ──
+// ── Agent-Reach Channel Status Display (dynamic, grouped by status) ──
 
-function AgentReachChannelList({ channels, onSaveEnv, saving, values, setValues, showValues, toggleShowValue, saveMsg, handleKeyDown }) {
+function AgentReachChannelList({ channels, onRecheck, rechecking }) {
   if (!channels || channels.length === 0) return null
 
-  const okCount = channels.filter(c => c.status === 'ok').length
+  const okChannels = channels.filter(c => c.status === 'ok')
+  const warnChannels = channels.filter(c => c.status === 'warn')
+  const offChannels = channels.filter(c => c.status === 'off')
+  const okCount = okChannels.length
   const totalCount = channels.length
 
   const statusIcon = (status) => {
@@ -17,103 +20,127 @@ function AgentReachChannelList({ channels, onSaveEnv, saving, values, setValues,
     return <span style={{ color: 'var(--error)' }}>❌</span>
   }
 
+  const configBadge = (ch) => {
+    if (ch.status === 'ok') {
+      return <span className="badge badge-info" style={{ fontSize: 9, opacity: 0.7 }}>Zero-config</span>
+    }
+    if (ch.config_type === 'action') {
+      return <span className="badge badge-error" style={{ fontSize: 9 }}>Action requise</span>
+    }
+    if (ch.config_type === 'env') {
+      return <span className="badge badge-error" style={{ fontSize: 9 }}>Action requise</span>
+    }
+    return null
+  }
+
+  const renderChannel = (ch) => (
+    <div key={ch.channel} style={{
+      padding: '8px 12px',
+      borderRadius: 8,
+      background: ch.status === 'ok' ? 'rgba(34,197,94,0.04)' : ch.status === 'warn' ? 'rgba(234,179,8,0.04)' : 'rgba(255,255,255,0.02)',
+      border: `1px solid ${ch.status === 'ok' ? 'rgba(34,197,94,0.12)' : ch.status === 'warn' ? 'rgba(234,179,8,0.12)' : 'rgba(255,255,255,0.06)'}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ flexShrink: 0, fontSize: 12 }}>{statusIcon(ch.status)}</span>
+        <span style={{ fontWeight: 600, fontSize: 13 }}>{ch.name}</span>
+        {configBadge(ch)}
+        {ch.message && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ch.message}>
+            {ch.message}
+          </span>
+        )}
+      </div>
+      {ch.status === 'off' && ch.message && (
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 28, lineHeight: 1.4, whiteSpace: 'pre-wrap', maxWidth: '100%', overflowWrap: 'break-word' }}>
+          💡 {ch.message.length > 200 ? ch.message.slice(0, 200) + '…' : ch.message}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div style={{ marginTop: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Agent-Reach Channels
         </span>
         <span className="badge badge-success" style={{ fontSize: 10 }}>
-          {okCount}/{totalCount} active
+          {okCount}/{totalCount} actifs
         </span>
+        {onRecheck && (
+          <Tooltip text="Revérifier les statuts de tous les canaux Agent-Reach">
+            <button
+              className="btn btn-sm"
+              onClick={onRecheck}
+              disabled={rechecking}
+              style={{ marginLeft: 'auto', padding: '2px 8px', fontSize: 11 }}
+            >
+              {rechecking ? <Loader2 size={11} className="spin" /> : <RefreshCw size={11} />}
+              {' '}Revérifier
+            </button>
+          </Tooltip>
+        )}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {channels.map(ch => {
-          const needsConfig = ch.config_type === 'env' && ch.env_vars && ch.env_vars.length > 0
-          const allConfigured = needsConfig && ch.env_vars.every(ev => ev.is_set)
-          const isActive = ch.status === 'ok'
-
-          return (
-            <div key={ch.channel} style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              background: isActive ? 'rgba(34,197,94,0.04)' : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${isActive ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.06)'}`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ flexShrink: 0, fontSize: 12 }}>{statusIcon(ch.status)}</span>
-                <span style={{ fontWeight: 600, fontSize: 13 }}>{ch.name}</span>
-                {ch.config_type === 'none' && isActive && (
-                  <span className="badge badge-info" style={{ fontSize: 9, opacity: 0.7 }}>Zero-config</span>
-                )}
-                {needsConfig && !allConfigured && (
-                  <span className="badge badge-error" style={{ fontSize: 9 }}>Needs config</span>
-                )}
-                {needsConfig && allConfigured && !isActive && (
-                  <span className="badge badge-info" style={{ fontSize: 9 }}>Keys set</span>
-                )}
-                {ch.config_hint && !isActive && (
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }} title={ch.config_hint}>
-                    {ch.config_hint}
-                  </span>
-                )}
-                {ch.config_url && !isActive && (
-                  <a href={ch.config_url} target="_blank" rel="noopener" style={{ color: 'var(--accent)', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                    <ExternalLink size={10} /> Get key
-                  </a>
-                )}
-              </div>
-              {needsConfig && ch.env_vars.map(ev => (
-                <div key={ev.key} className="tool-env-field" style={{ marginTop: 6, paddingLeft: 28 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      {ev.label || ev.key}
-                    </label>
-                    <span style={{ marginLeft: 'auto' }}>
-                      {ev.is_set ? (
-                        <span className="badge badge-success" style={{ fontSize: 9 }}><Check size={9} /> Set</span>
-                      ) : (
-                        <span className="badge badge-error" style={{ fontSize: 9 }}>Missing</span>
-                      )}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <input
-                        className="form-input"
-                        type={showValues[ev.key] ? 'text' : 'password'}
-                        placeholder={ev.is_set ? (ev.value_preview || '****') : `Enter ${ev.label || ev.key}`}
-                        value={values[ev.key] !== undefined ? values[ev.key] : ''}
-                        onChange={e => setValues(prev => ({ ...prev, [ev.key]: e.target.value }))}
-                        onKeyDown={e => handleKeyDown(e, ev.key)}
-                        style={{ fontSize: 12, padding: '4px 32px 4px 8px' }}
-                      />
-                      <button
-                        onClick={() => toggleShowValue(ev.key)}
-                        style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 1 }}
-                      >
-                        {showValues[ev.key] ? <EyeOff size={12} /> : <Eye size={12} />}
-                      </button>
-                    </div>
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => onSaveEnv(ev.key)}
-                      disabled={saving[ev.key] || !values[ev.key]}
-                      style={{ fontSize: 11, padding: '4px 10px' }}
-                    >
-                      {saving[ev.key] ? <Loader2 size={10} className="spin" /> : 'Save'}
-                    </button>
-                  </div>
-                  {saveMsg[ev.key] && (
-                    <div style={{ fontSize: 10, marginTop: 2, color: saveMsg[ev.key].startsWith('Error') ? 'var(--error)' : 'var(--success)' }}>
-                      {saveMsg[ev.key]}
-                    </div>
-                  )}
-                </div>
-              ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {okChannels.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--success)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              Actifs ({okChannels.length})
             </div>
-          )
-        })}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {okChannels.map(renderChannel)}
+            </div>
+          </div>
+        )}
+        {warnChannels.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              Avertissement ({warnChannels.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {warnChannels.map(renderChannel)}
+            </div>
+          </div>
+        )}
+        {offChannels.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--error)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              Inactifs ({offChannels.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {offChannels.map(renderChannel)}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Agent-Reach combined mode section ──
+
+function AgentReachCombinedSection({ channels }) {
+  if (!channels || channels.length === 0) return null
+  return (
+    <div style={{
+      marginTop: 10,
+      padding: '10px 14px',
+      background: 'rgba(99,102,241,0.06)',
+      borderRadius: 8,
+      border: '1px solid rgba(99,102,241,0.15)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Radio size={13} style={{ color: 'var(--accent)' }} />
+        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--accent)' }}>Agent-Reach Channels</span>
+        <span className="badge badge-success" style={{ fontSize: 10 }}>{channels.length} actifs</span>
+        <Tooltip text="Agent-Reach fournit l'accès direct à 16 plateformes internet. Les canaux actifs sont automatiquement utilisés par le mode Combined pour enrichir les résultats de recherche." />
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {channels.map(ch => (
+          <span key={ch.channel} className="badge badge-success" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            ✅ {ch.name}
+          </span>
+        ))}
       </div>
     </div>
   )
@@ -127,6 +154,7 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
   const [showValues, setShowValues] = useState({})
   const [selectedProvider, setSelectedProvider] = useState(null)
   const [saveMsg, setSaveMsg] = useState({})
+  const [arRechecking, setArRechecking] = useState(false)
 
   useEffect(() => {
     // Initialize values and detect active provider
@@ -261,6 +289,10 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
                   </div>
                 ))}
               </div>
+              {/* Agent-Reach combined channels section */}
+              {toolInfo.agent_reach_combined && toolInfo.agent_reach_combined.length > 0 && (
+                <AgentReachCombinedSection channels={toolInfo.agent_reach_combined} />
+              )}
             </div>
           )}
           {toolInfo.has_providers ? (
@@ -374,14 +406,15 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
               {toolInfo.agent_reach_channels && toolInfo.agent_reach_channels.length > 0 && (
                 <AgentReachChannelList
                   channels={toolInfo.agent_reach_channels}
-                  onSaveEnv={handleSaveEnv}
-                  saving={saving}
-                  values={values}
-                  setValues={setValues}
-                  showValues={showValues}
-                  toggleShowValue={toggleShowValue}
-                  saveMsg={saveMsg}
-                  handleKeyDown={handleKeyDown}
+                  onRecheck={async () => {
+                    setArRechecking(true)
+                    try {
+                      await api.checkAgentReach()
+                      if (onSaved) onSaved()
+                    } catch (e) { /* silent */ }
+                    finally { setArRechecking(false) }
+                  }}
+                  rechecking={arRechecking}
                 />
               )}
             </>
