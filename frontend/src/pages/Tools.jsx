@@ -3,9 +3,9 @@ import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, Togg
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
-// ── Agent-Reach Channel Status Display (inline, used inside Web Search) ──
+// ── Agent-Reach Channel Status Display (configurable) ──
 
-function AgentReachChannelList({ channels }) {
+function AgentReachChannelList({ channels, onSaveEnv, saving, values, setValues, showValues, toggleShowValue, saveMsg, handleKeyDown }) {
   if (!channels || channels.length === 0) return null
 
   const okCount = channels.filter(c => c.status === 'ok').length
@@ -27,24 +27,93 @@ function AgentReachChannelList({ channels }) {
           {okCount}/{totalCount} active
         </span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {channels.map(ch => (
-          <div key={ch.channel} style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '6px 10px',
-            borderRadius: 6,
-            background: ch.status === 'ok' ? 'rgba(34,197,94,0.04)' : 'rgba(255,255,255,0.02)',
-            border: `1px solid ${ch.status === 'ok' ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.05)'}`,
-          }}>
-            <span style={{ flexShrink: 0, fontSize: 12 }}>{statusIcon(ch.status)}</span>
-            <span style={{ fontWeight: 600, fontSize: 12 }}>{ch.name}</span>
-            {ch.message && (
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ch.message}>
-                — {ch.message}
-              </span>
-            )}
-          </div>
-        ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {channels.map(ch => {
+          const needsConfig = ch.config_type === 'env' && ch.env_vars && ch.env_vars.length > 0
+          const allConfigured = needsConfig && ch.env_vars.every(ev => ev.is_set)
+          const isActive = ch.status === 'ok'
+
+          return (
+            <div key={ch.channel} style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: isActive ? 'rgba(34,197,94,0.04)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${isActive ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.06)'}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flexShrink: 0, fontSize: 12 }}>{statusIcon(ch.status)}</span>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{ch.name}</span>
+                {ch.config_type === 'none' && isActive && (
+                  <span className="badge badge-info" style={{ fontSize: 9, opacity: 0.7 }}>Zero-config</span>
+                )}
+                {needsConfig && !allConfigured && (
+                  <span className="badge badge-error" style={{ fontSize: 9 }}>Needs config</span>
+                )}
+                {needsConfig && allConfigured && !isActive && (
+                  <span className="badge badge-info" style={{ fontSize: 9 }}>Keys set</span>
+                )}
+                {ch.config_hint && !isActive && (
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }} title={ch.config_hint}>
+                    {ch.config_hint}
+                  </span>
+                )}
+                {ch.config_url && !isActive && (
+                  <a href={ch.config_url} target="_blank" rel="noopener" style={{ color: 'var(--accent)', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                    <ExternalLink size={10} /> Get key
+                  </a>
+                )}
+              </div>
+              {needsConfig && ch.env_vars.map(ev => (
+                <div key={ev.key} className="tool-env-field" style={{ marginTop: 6, paddingLeft: 28 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      {ev.label || ev.key}
+                    </label>
+                    <span style={{ marginLeft: 'auto' }}>
+                      {ev.is_set ? (
+                        <span className="badge badge-success" style={{ fontSize: 9 }}><Check size={9} /> Set</span>
+                      ) : (
+                        <span className="badge badge-error" style={{ fontSize: 9 }}>Missing</span>
+                      )}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input
+                        className="form-input"
+                        type={showValues[ev.key] ? 'text' : 'password'}
+                        placeholder={ev.is_set ? (ev.value_preview || '****') : `Enter ${ev.label || ev.key}`}
+                        value={values[ev.key] !== undefined ? values[ev.key] : ''}
+                        onChange={e => setValues(prev => ({ ...prev, [ev.key]: e.target.value }))}
+                        onKeyDown={e => handleKeyDown(e, ev.key)}
+                        style={{ fontSize: 12, padding: '4px 32px 4px 8px' }}
+                      />
+                      <button
+                        onClick={() => toggleShowValue(ev.key)}
+                        style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 1 }}
+                      >
+                        {showValues[ev.key] ? <EyeOff size={12} /> : <Eye size={12} />}
+                      </button>
+                    </div>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => onSaveEnv(ev.key)}
+                      disabled={saving[ev.key] || !values[ev.key]}
+                      style={{ fontSize: 11, padding: '4px 10px' }}
+                    >
+                      {saving[ev.key] ? <Loader2 size={10} className="spin" /> : 'Save'}
+                    </button>
+                  </div>
+                  {saveMsg[ev.key] && (
+                    <div style={{ fontSize: 10, marginTop: 2, color: saveMsg[ev.key].startsWith('Error') ? 'var(--error)' : 'var(--success)' }}>
+                      {saveMsg[ev.key]}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -120,44 +189,78 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)' }}>
-                  ⚡ Combined Mode Active
+                  Combined Search Backends
                 </span>
-                {toolInfo.active_provider && (
-                  <span className="badge badge-success" style={{ fontSize: 10 }}>Active</span>
-                )}
+                <Tooltip text="When Combined mode is active, all configured search APIs are queried in parallel. Results are deduplicated by URL and merged for maximum coverage. The more backends you configure, the richer the results." />
+                <span className="badge badge-success" style={{ fontSize: 10 }}>
+                  {toolInfo.combined_active_count}/{toolInfo.combined_backends?.length || 0} active
+                </span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 }}>
-                {toolInfo.mode_description || 'Queries multiple search APIs in parallel and deduplicates results by URL.'}
+                {toolInfo.mode_description || 'Queries multiple search APIs in parallel and deduplicates results by URL for maximum coverage.'}
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {toolInfo.combined_backends && toolInfo.combined_backends.map(be => (
                   <div key={be.key} style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    background: be.is_set ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)',
-                    border: `1px solid ${be.is_set ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
+                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                    background: be.is_set ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.04)',
+                    border: `1px solid ${be.is_set ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.15)'}`,
                     borderRadius: 8,
-                    padding: '6px 10px',
-                    fontSize: 12,
+                    padding: '8px 12px',
                   }}>
-                    <span style={{ fontWeight: 600 }}>{be.name}</span>
+                    <span style={{ fontWeight: 600, fontSize: 13, lineHeight: '28px' }}>{be.name}</span>
                     {be.is_set ? (
-                      <span style={{ color: 'var(--success)', fontSize: 11 }}><Check size={12} /> {be.value_preview}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '28px' }}>
+                        <span className="badge badge-success" style={{ fontSize: 10 }}><Check size={10} /> Configured</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{be.value_preview}</span>
+                      </div>
                     ) : (
-                      <span style={{ color: 'var(--error)', fontSize: 11 }}>Not configured</span>
-                    )}
-                    {!be.is_set && be.url && (
-                      <a href={be.url} target="_blank" rel="noopener" style={{ color: 'var(--accent)', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                        <ExternalLink size={10} /> Get key
-                      </a>
+                      <div style={{ flex: 1, marginLeft: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <span className="badge badge-error" style={{ fontSize: 10 }}>Not configured</span>
+                          {be.url && (
+                            <a href={be.url} target="_blank" rel="noopener" style={{ color: 'var(--accent)', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                              <ExternalLink size={10} /> Get key
+                            </a>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <div style={{ position: 'relative', flex: 1 }}>
+                            <input
+                              className="form-input"
+                              type={showValues[be.key] ? 'text' : 'password'}
+                              placeholder={`Enter ${be.name} API key`}
+                              value={values[be.key] !== undefined ? values[be.key] : ''}
+                              onChange={e => setValues(prev => ({ ...prev, [be.key]: e.target.value }))}
+                              onKeyDown={e => handleKeyDown(e, be.key)}
+                              style={{ fontSize: 12, padding: '4px 32px 4px 8px' }}
+                            />
+                            <button
+                              onClick={() => toggleShowValue(be.key)}
+                              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 1 }}
+                            >
+                              {showValues[be.key] ? <EyeOff size={12} /> : <Eye size={12} />}
+                            </button>
+                          </div>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => handleSaveEnv(be.key)}
+                            disabled={saving[be.key] || !values[be.key]}
+                            style={{ fontSize: 11, padding: '4px 10px' }}
+                          >
+                            {saving[be.key] ? <Loader2 size={10} className="spin" /> : 'Save'}
+                          </button>
+                        </div>
+                        {saveMsg[be.key] && (
+                          <div style={{ fontSize: 10, marginTop: 2, color: saveMsg[be.key].startsWith('Error') ? 'var(--error)' : 'var(--success)' }}>
+                            {saveMsg[be.key]}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
               </div>
-              {toolInfo.combined_active_count > 0 && (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
-                  {toolInfo.combined_active_count} backend{toolInfo.combined_active_count > 1 ? 's' : ''} configured — results are queried in parallel and deduplicated
-                </div>
-              )}
             </div>
           )}
           {toolInfo.has_providers ? (
@@ -269,7 +372,17 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
               </div>
               {/* Agent-Reach channels shown inside Web Search category */}
               {toolInfo.agent_reach_channels && toolInfo.agent_reach_channels.length > 0 && (
-                <AgentReachChannelList channels={toolInfo.agent_reach_channels} />
+                <AgentReachChannelList
+                  channels={toolInfo.agent_reach_channels}
+                  onSaveEnv={handleSaveEnv}
+                  saving={saving}
+                  values={values}
+                  setValues={setValues}
+                  showValues={showValues}
+                  toggleShowValue={toggleShowValue}
+                  saveMsg={saveMsg}
+                  handleKeyDown={handleKeyDown}
+                />
               )}
             </>
           ) : (

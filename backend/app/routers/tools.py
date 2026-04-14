@@ -49,18 +49,18 @@ TOOL_CATEGORIES = {
             {"key": "FIRECRAWL_API_KEY", "name": "Firecrawl Cloud", "url": "https://firecrawl.dev"},
             {"key": "EXA_API_KEY", "name": "Exa", "url": "https://exa.ai"},
         ],
-        # Agent-Reach channels shown as read-only providers
+        # Agent-Reach channels with config metadata
         "agent_reach_channels": [
-            {"name": "GitHub", "channel": "github"},
-            {"name": "YouTube", "channel": "youtube"},
-            {"name": "Reddit", "channel": "reddit"},
-            {"name": "Twitter/X", "channel": "twitter"},
-            {"name": "Bilibili", "channel": "bilibili"},
-            {"name": "V2EX", "channel": "v2ex"},
-            {"name": "WeChat", "channel": "wechat"},
-            {"name": "RSS/Atom", "channel": "rss"},
-            {"name": "Exa Search (Agent-Reach)", "channel": "exa_search"},
-            {"name": "Web Reader / Jina", "channel": "web"},
+            {"name": "GitHub", "channel": "github", "config_type": "none"},
+            {"name": "YouTube", "channel": "youtube", "config_type": "none"},
+            {"name": "Reddit", "channel": "reddit", "config_type": "env", "config_keys": ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"], "config_hint": "Requires rdt-cli + Reddit API credentials", "config_url": "https://www.reddit.com/prefs/apps"},
+            {"name": "Twitter/X", "channel": "twitter", "config_type": "env", "config_keys": ["TWITTER_BEARER_TOKEN"], "config_hint": "Requires bird CLI + Twitter auth token", "config_url": "https://developer.twitter.com/en/portal/dashboard"},
+            {"name": "Bilibili", "channel": "bilibili", "config_type": "none"},
+            {"name": "V2EX", "channel": "v2ex", "config_type": "none"},
+            {"name": "WeChat", "channel": "wechat", "config_type": "none"},
+            {"name": "RSS/Atom", "channel": "rss", "config_type": "none"},
+            {"name": "Exa Search (Agent-Reach)", "channel": "exa_search", "config_type": "env", "config_keys": ["EXA_API_KEY"], "config_hint": "Exa semantic search API key", "config_url": "https://exa.ai"},
+            {"name": "Web Reader / Jina", "channel": "web", "config_type": "none"},
         ],
     },
     "image_gen": {
@@ -331,7 +331,7 @@ async def get_tool_config():
             if is_active:
                 entry["active_provider"] = prov["name"]
 
-        # For the 'web' category: attach Agent-Reach channel statuses
+        # For the 'web' category: attach Agent-Reach channel statuses with config info
         if ts_key == "web" and cat.get("agent_reach_channels"):
             ar_channels = _get_agent_reach_channels()
             ar_list = []
@@ -339,11 +339,32 @@ async def get_tool_config():
                 ch_name = ar_def["channel"]
                 ch_status = _fetch_agent_reach_status(ch_name, ar_channels)
                 ch_info = ar_channels.get(ch_name, {})
+                config_type = ar_def.get("config_type", "none")
+                config_keys = ar_def.get("config_keys", [])
+                # Check if each config key is set
+                env_vars_info = []
+                all_keys_set = True
+                for ck in config_keys:
+                    val = _get_env_value(ck)
+                    is_set = bool(val)
+                    if not is_set:
+                        all_keys_set = False
+                    env_vars_info.append({
+                        "key": ck,
+                        "label": ck,
+                        "is_set": is_set,
+                        "value_preview": val[:4] + "****" if is_set and len(val) > 8 else ("****" if is_set else ""),
+                    })
                 ar_list.append({
                     "name": ar_def["name"],
                     "channel": ch_name,
                     "status": ch_status,
                     "message": ch_info.get("message", ""),
+                    "config_type": config_type,
+                    "config_hint": ar_def.get("config_hint", ""),
+                    "config_url": ar_def.get("config_url", ""),
+                    "env_vars": env_vars_info,
+                    "is_configured": ch_status == "ok" or (config_type == "env" and all_keys_set),
                 })
             entry["agent_reach_channels"] = ar_list
 
