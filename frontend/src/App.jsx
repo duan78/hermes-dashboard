@@ -4,6 +4,7 @@ import {
  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText, ClipboardList,
+ Search as SearchIcon,
  LogOut
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
@@ -51,6 +52,7 @@ const MoaConfig = lazy(() => import('./pages/MoaConfig'))
 const Backlog = lazy(() => import('./pages/Backlog'))
 const UsersPage = lazy(() => import('./pages/Users'))
 const NotFound = lazy(() => import('./pages/NotFound'))
+const SearchHistory = lazy(() => import('./pages/SearchHistory'))
 
 // Page-level error boundaries — each page gets its own boundary
 // so a crash in one page doesn't take down the entire dashboard
@@ -85,6 +87,7 @@ const BoundedWiki = withErrorBoundary(WikiPage, 'Wiki')
 const BoundedMoa = withErrorBoundary(MoaConfig, 'MOA')
 const BoundedBacklog = withErrorBoundary(Backlog, 'Backlog')
 const BoundedNotFound = withErrorBoundary(NotFound, 'Not Found')
+const BoundedSearchHistory = withErrorBoundary(SearchHistory, 'Search History')
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -93,6 +96,7 @@ const NAV_ITEMS = [
   { to: '/chat', icon: MessageCircle, label: 'Chat' },
   { to: '/config', icon: Settings, label: 'Configuration' },
   { to: '/sessions', icon: MessageSquare, label: 'Sessions' },
+  { to: '/search-history', icon: SearchIcon, label: 'Recherches' },
   { to: '/files', icon: FolderOpen, label: 'Files' },
   { to: '/terminal', icon: Terminal, label: 'Terminal' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
@@ -304,6 +308,7 @@ function App() {
             <Route path="/config" element={<BoundedConfig />} />
             <Route path="/sessions" element={<BoundedSessions />} />
             <Route path="/sessions/:id" element={<BoundedSessions />} />
+            <Route path="/search-history" element={<BoundedSearchHistory />} />
             <Route path="/files" element={<BoundedFiles />} />
             <Route path="/terminal" element={<BoundedTerminal />} />
             <Route path="/tools" element={<BoundedTools />} />

@@ -353,6 +353,11 @@ export const api = {
   wikiSavePage: (path, content) => request('/wiki/page/' + encodeURIComponent(path), { method: 'PUT', body: JSON.stringify({ content }) }),
   wikiCreatePage: (title, type, tags) => request('/wiki/page', { method: 'POST', body: JSON.stringify({ title, type, tags }) }),
 
+  // Search History
+  getSearchHistory: (params) => request('/search/history?' + new URLSearchParams(params)),
+  getSearchHistoryStats: () => request('/search/history/stats'),
+  deleteSearchHistory: (params) => request('/search/history', { method: 'DELETE', body: JSON.stringify(params || {}) }),
+
   // User Management (auth)
   userRegister: (username, password, displayName) => publicRequest('/users/register', { method: 'POST', body: JSON.stringify({ username, password, display_name: displayName }) }),
   userLogin: (username, password) => publicRequest('/users/login', { method: 'POST', body: JSON.stringify({ username, password }) }),

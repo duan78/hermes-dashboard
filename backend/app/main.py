@@ -42,6 +42,7 @@ from .routers import (
     platforms,
     plugins_router,
     profiles,
+    search_history,
     sessions,
     skills,
     tools,
@@ -287,6 +288,7 @@ app.include_router(backlog.router)
 app.include_router(users.router)
 app.include_router(leads.router)
 app.include_router(github_config.router)
+app.include_router(search_history.router)
 
 
 # ── WebSocket Hub for real-time dashboard updates ──
