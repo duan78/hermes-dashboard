@@ -6,16 +6,16 @@ from urllib.parse import parse_qs
 from starlette.responses import JSONResponse
 from starlette.websockets import WebSocketClose
 
-from .config import DASHBOARD_TOKEN
+from .config import _get_dashboard_token as _get_token
 
 logger = logging.getLogger(__name__)
 
 
 def verify_token(token: str) -> bool:
     """Verify a bearer token against the configured dashboard token."""
-    if not DASHBOARD_TOKEN:
+    if not _get_token():
         return True  # No auth configured
-    return bool(token) and hmac.compare_digest(token, DASHBOARD_TOKEN)
+    return bool(token) and hmac.compare_digest(token, _get_token())
 
 
 def _try_parse_jwt(token: str) -> dict | None:
@@ -104,17 +104,17 @@ class AuthMiddleware:
             if path == "/ws/terminal":
                 token = _extract_ws_token(scope)
 
-                if not DASHBOARD_TOKEN:
+                if not _get_token():
                     logger.error(
                         "SECURITY: /ws/terminal connection rejected — "
-                        "HERMES_DASHBOARD_TOKEN not configured. "
+                        "HERMES__get_token() not configured. "
                         "A root shell endpoint CANNOT run without auth."
                     )
                     close = WebSocketClose(code=4008, reason="Server misconfigured: no auth token")
                     await close(scope, receive, send)
                     return
 
-                if not token or not hmac.compare_digest(token, DASHBOARD_TOKEN):
+                if not token or not hmac.compare_digest(token, _get_token()):
                     client_ip = scope.get("client", ("unknown", 0))[0]
                     logger.warning(
                         "SECURITY: /ws/terminal rejected — invalid token from %s",
@@ -129,7 +129,7 @@ class AuthMiddleware:
                 await self.app(scope, receive, send)
                 return
 
-            if not DASHBOARD_TOKEN:
+            if not _get_token():
                 # Non-terminal WS: allow without token when none configured
                 await self.app(scope, receive, send)
                 return
@@ -167,9 +167,9 @@ class AuthMiddleware:
                     await self.app(scope, receive, send)
                     return
 
-        # Fall back to legacy DASHBOARD_TOKEN
+        # Fall back to legacy _get_token()
         # Skip auth if no token configured
-        if not DASHBOARD_TOKEN:
+        if not _get_token():
             await self.app(scope, receive, send)
             return
 
@@ -179,7 +179,7 @@ class AuthMiddleware:
             return
 
         # Check legacy token
-        if token and hmac.compare_digest(token, DASHBOARD_TOKEN):
+        if token and hmac.compare_digest(token, _get_token()):
             await self.app(scope, receive, send)
             return
 

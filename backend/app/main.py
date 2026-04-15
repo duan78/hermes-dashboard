@@ -94,7 +94,14 @@ app = FastAPI(
 # CORS for frontend dev
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        f"http://{os.getenv('SERVER_IP', '82.29.175.64')}",
+        f"http://{os.getenv('SERVER_IP', '82.29.175.64')}/dashboard",
+        "http://127.0.0.1:3100",
+        "http://localhost:3100",
+        "http://100.113.69.73",  # Tailscale
+        "http://100.113.69.73/dashboard",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

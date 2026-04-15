@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 HERMES_HOME = Path(os.getenv("HERMES_HOME", os.path.expanduser("~/.hermes")))
-DASHBOARD_TOKEN = os.getenv("DASHBOARD_TOKEN", "")
+
+def _get_dashboard_token() -> str:
+    return os.getenv("HERMES_DASHBOARD_TOKEN", "")
 
 HERMES_BIN = os.getenv("HERMES_BIN", "/root/.local/bin/hermes")
 HERMES_PYTHON = os.getenv("HERMES_PYTHON", "/root/.hermes/hermes-agent/venv/bin/python")

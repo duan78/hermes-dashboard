@@ -18,7 +18,7 @@ import bcrypt
 import jwt
 from fastapi import APIRouter, Request
 
-from ..config import DASHBOARD_TOKEN, HERMES_HOME
+from ..config import _get_dashboard_token as _get_token, HERMES_HOME
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,8 @@ JWT_EXPIRY_SECONDS = 86400 * 7  # 7 days
 
 def _get_jwt_secret() -> str:
     """Derive JWT secret from dashboard token or generate one."""
-    if DASHBOARD_TOKEN:
-        return DASHBOARD_TOKEN + "__jwt_suffix"
+    if _get_token():
+        return _get_token() + "__jwt_suffix"
     # Fallback: read or create a random secret
     secret_path = HERMES_HOME / ".dashboard_jwt_secret"
     if secret_path.exists():
@@ -237,7 +237,7 @@ async def get_current_user(request: Request):
     user = getattr(request.state, "user", None)
     if not user:
         # Check for legacy token auth
-        if DASHBOARD_TOKEN:
+        if _get_token():
             return {
                 "authenticated": True,
                 "mode": "legacy_token",
