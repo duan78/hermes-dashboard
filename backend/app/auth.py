@@ -107,7 +107,7 @@ class AuthMiddleware:
                 if not _get_token():
                     logger.error(
                         "SECURITY: /ws/terminal connection rejected — "
-                        "HERMES__get_token() not configured. "
+                        "HERMES_DASHBOARD_TOKEN not configured. "
                         "A root shell endpoint CANNOT run without auth."
                     )
                     close = WebSocketClose(code=4008, reason="Server misconfigured: no auth token")
