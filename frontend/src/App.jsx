@@ -169,7 +169,7 @@ function App() {
   const location = useLocation()
 
   // Only connect WebSocket when authenticated and inside dashboard
-  useWebSocket()
+  useWebSocket(!!currentUser)
 
   useEffect(() => {
     setSidebarOpen(false)

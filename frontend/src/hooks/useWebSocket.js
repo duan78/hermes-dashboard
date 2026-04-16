@@ -12,7 +12,7 @@ const EVENT_INVALIDATIONS = {
   'cron:output': [['cron']],
 }
 
-export function useWebSocket() {
+export function useWebSocket(enabled = true) {
   const queryClient = useQueryClient()
   const wsRef = useRef(null)
   const reconnectAttempt = useRef(0)
@@ -20,7 +20,16 @@ export function useWebSocket() {
   const mounted = useRef(true)
 
   const connect = useCallback(() => {
-    const token = localStorage.getItem('hermes_token') || ''
+    const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_dashboard_token') || ''
+
+    if (!token) {
+      // No token yet — retry later
+      if (mounted.current) {
+        reconnectTimer.current = setTimeout(connect, RECONNECT_BASE)
+      }
+      return
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
     const url = `${protocol}//${host}/ws/hub`
@@ -77,7 +86,10 @@ export function useWebSocket() {
 
   useEffect(() => {
     mounted.current = true
-    connect()
+
+    if (enabled) {
+      connect()
+    }
 
     return () => {
       mounted.current = false
@@ -87,7 +99,7 @@ export function useWebSocket() {
         wsRef.current.close()
       }
     }
-  }, [connect])
+  }, [connect, enabled])
 
   return wsRef
 }
