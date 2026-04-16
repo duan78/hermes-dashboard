@@ -165,10 +165,20 @@ async def ws_hub_handler(ws: WebSocket):
 
             # Auth required as first message
             if msg.get("type") == "auth":
-                token = msg.get("token", "")
-                # Verify token via the same mechanism as AuthMiddleware
-                from .auth import verify_token
-                if verify_token(token):
+                token=msg.get("token", "")
+                from .auth import verify_token, _try_parse_jwt, _load_user_by_id
+                # Try JWT user token first (same logic as AuthMiddleware for HTTP)
+                authenticated=False
+                if token:
+                    jwt_payload=_try_parse_jwt(token)
+                    if jwt_payload:
+                        user=_load_user_by_id(int(jwt_payload.get("sub", 0)))
+                        if user:
+                            authenticated=True
+                # Fall back to legacy token
+                if not authenticated and verify_token(token):
+                    authenticated=True
+                if authenticated:
                     hub.authenticate(ws)
                     await ws.send_text(json.dumps({"type": "auth_ok"}))
                     logger.info("WS client authenticated (total=%d)", hub.connection_count)
