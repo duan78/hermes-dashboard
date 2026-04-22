@@ -174,15 +174,14 @@ async def get_moa_config():
         # Return defaults when no moa section exists
         moa = {
             "reference_models": [
-                "qwen/qwen3-coder:free",
-                "nousresearch/hermes-3-llama-3.1-405b:free",
-                "openai/gpt-oss-120b:free",
-                "z-ai/glm-4.5-air:free",
+                "deepseek-v3.2",
+                "mistral-large-3:675b",
+                "gemma4:31b",
             ],
-            "aggregator_model": "z-ai/glm-5",
-            "aggregator_provider": "openrouter",
+            "aggregator_model": "mistral-large-3:675b",
+            "aggregator_provider": "ollama_cloud",
             "reference_temperature": 0.6,
-            "aggregator_temperature": 0.4,
+            "aggregator_temperature": 0.3,
             "min_successful_references": 1,
         }
     return moa
@@ -228,8 +227,8 @@ async def save_moa_config(body: MoaConfigUpdateRequest):
 
     # Validate aggregator_provider
     provider = data.get("aggregator_provider")
-    if provider is not None and provider not in ("openrouter", "custom"):
-        raise HTTPException(400, "aggregator_provider must be 'openrouter' or 'custom'")
+    if provider is not None and provider not in ("openrouter", "custom", "ollama_cloud"):
+        raise HTTPException(400, "aggregator_provider must be 'openrouter', 'custom', or 'ollama_cloud'")
 
     # Merge into existing config
     if "moa" not in original or not isinstance(original.get("moa"), dict):

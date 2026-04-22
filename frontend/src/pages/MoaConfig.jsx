@@ -10,25 +10,27 @@ import './moa.css'
 
 const DEFAULT_CONFIG = {
   reference_models: [
-    { model: 'qwen/qwen3-coder:free', provider: 'openrouter' },
-    { model: 'nousresearch/hermes-3-llama-3.1-405b:free', provider: 'openrouter' },
-    { model: 'openai/gpt-oss-120b:free', provider: 'openrouter' },
-    { model: 'z-ai/glm-4.5-air:free', provider: 'openrouter' },
+    { model: 'deepseek-v3.2', provider: 'ollama_cloud' },
+    { model: 'mistral-large-3:675b', provider: 'ollama_cloud' },
+    { model: 'gemma4:31b', provider: 'ollama_cloud' },
   ],
-  aggregator_model: 'glm-5',
-  aggregator_provider: 'custom',
+  aggregator_model: 'mistral-large-3:675b',
+  aggregator_provider: 'ollama_cloud',
   reference_temperature: 0.6,
-  aggregator_temperature: 0.4,
+  aggregator_temperature: 0.3,
   min_successful_references: 1,
 }
 
 const PROVIDER_COLORS = {
+  ollama_cloud: '#00d4aa',
+  ollama: '#00d4aa',
+  deepseek: '#4fc3f7',
+  mistral: '#ff7000',
   openrouter: '#34d399',
   nvidia: '#76b900',
   cerebras: '#6366f1',
   google: '#4285f4',
   groq: '#f55036',
-  mistral: '#ff7000',
   custom: '#60a5fa',
   anthropic: '#d4a574',
   openai: '#10a37f',
@@ -44,8 +46,8 @@ function getModelName(entry) {
 }
 
 function getProviderId(entry) {
-  if (typeof entry === 'string') return 'openrouter'
-  return entry.provider || 'openrouter'
+  if (typeof entry === 'string') return 'ollama_cloud'
+  return entry.provider || 'ollama_cloud'
 }
 
 function isFreeModel(model) {
@@ -55,8 +57,8 @@ function isFreeModel(model) {
 function normalizeRefModels(models) {
   if (!Array.isArray(models)) return []
   return models.map(m => {
-    if (typeof m === 'string') return { model: m, provider: 'openrouter' }
-    if (m && m.model) return { model: m.model, provider: m.provider || 'openrouter' }
+    if (typeof m === 'string') return { model: m, provider: 'ollama_cloud' }
+    if (m && m.model) return { model: m.model, provider: m.provider || 'ollama_cloud' }
     return null
   }).filter(Boolean)
 }
@@ -91,7 +93,7 @@ export default function MoaConfig() {
   const [editConfig, setEditConfig] = useState(null)
   const [editProviders, setEditProviders] = useState(null)
   const [newModel, setNewModel] = useState('')
-  const [newModelProvider, setNewModelProvider] = useState('openrouter')
+  const [newModelProvider, setNewModelProvider] = useState('ollama_cloud')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [activeTab, setActiveTab] = useState('config')
   const [testResults, setTestResults] = useState({})
@@ -258,7 +260,7 @@ export default function MoaConfig() {
           <div>
             <h2>Mixture of Agents (MoA) <Tooltip text="MoA is a 2-layer architecture: multiple reference models generate diverse responses in parallel, then an aggregator model synthesizes them into a single high-quality answer. This improves accuracy and reduces bias from any single model." /></h2>
             <p className="moa-subtitle">
-              Multi-model collaborative reasoning with multi-provider support
+              Multi-model collaborative reasoning via Ollama Cloud with DeepSeek/Mistral fallback
             </p>
           </div>
         </div>
@@ -302,7 +304,7 @@ export default function MoaConfig() {
           <div className="moa-stat-label"><Server size={13} /> Provider <Tooltip text="The API provider routing the aggregator model's requests." /></div>
           <div className="moa-stat-value">
             <span className={`moa-provider-badge ${cfg.aggregator_provider}`}>
-              {cfg.aggregator_provider === 'custom' ? 'Z.AI (Custom)' : 'OpenRouter'}
+              {cfg.aggregator_provider === 'ollama_cloud' ? 'Ollama Cloud' : cfg.aggregator_provider === 'custom' ? 'Custom' : 'OpenRouter'}
             </span>
           </div>
         </div>
@@ -381,8 +383,11 @@ export default function MoaConfig() {
                           value={p}
                           onChange={e => updateRefModelProvider(i, e.target.value)}
                         >
+                          <option value="ollama_cloud">Ollama Cloud</option>
+                          <option value="deepseek">DeepSeek</option>
+                          <option value="mistral">Mistral</option>
                           <option value="openrouter">OpenRouter</option>
-                          {providerIds.filter(id => id !== 'openrouter').map(id => (
+                          {providerIds.filter(id => !['ollama_cloud', 'deepseek', 'mistral', 'openrouter'].includes(id)).map(id => (
                             <option key={id} value={id}>{provs[id]?.name || id}</option>
                           ))}
                         </select>
@@ -414,8 +419,11 @@ export default function MoaConfig() {
                   value={newModelProvider}
                   onChange={e => setNewModelProvider(e.target.value)}
                 >
+                  <option value="ollama_cloud">Ollama Cloud</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="mistral">Mistral</option>
                   <option value="openrouter">OpenRouter</option>
-                  {providerIds.filter(id => id !== 'openrouter').map(id => (
+                  {providerIds.filter(id => !['ollama_cloud', 'deepseek', 'mistral', 'openrouter'].includes(id)).map(id => (
                     <option key={id} value={id}>{provs[id]?.name || id}</option>
                   ))}
                 </select>
@@ -451,24 +459,33 @@ export default function MoaConfig() {
                 {editing ? (
                   <select
                     className="form-input"
-                    value={cfg.aggregator_provider || 'openrouter'}
+                    value={cfg.aggregator_provider || 'ollama_cloud'}
                     onChange={e => updateField('aggregator_provider', e.target.value)}
                   >
+                    <option value="ollama_cloud">Ollama Cloud</option>
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="mistral">Mistral</option>
                     <option value="openrouter">OpenRouter</option>
-                    <option value="custom">Z.AI (Custom)</option>
+                    <option value="custom">Custom</option>
                   </select>
                 ) : (
                   <span className="moa-field-value">
                     <span className={`moa-provider-badge ${cfg.aggregator_provider}`}>
-                      {cfg.aggregator_provider === 'custom' ? 'Z.AI (Custom)' : 'OpenRouter'}
+                      {cfg.aggregator_provider === 'ollama_cloud' ? 'Ollama Cloud' : cfg.aggregator_provider === 'custom' ? 'Custom' : cfg.aggregator_provider === 'deepseek' ? 'DeepSeek' : cfg.aggregator_provider === 'mistral' ? 'Mistral' : 'OpenRouter'}
                     </span>
                   </span>
                 )}
                 {editing && (
                   <span className="moa-field-hint">
-                    {cfg.aggregator_provider === 'custom'
-                      ? 'Uses Z.AI directly. Model name should be plain (e.g. "glm-5")'
-                      : 'Routes through OpenRouter. Use full model path (e.g. "z-ai/glm-5")'}
+                    {cfg.aggregator_provider === 'ollama_cloud'
+                      ? 'Uses Ollama Cloud (included in Pro plan). Models: deepseek-v3.2, mistral-large-3, gemma4'
+                      : cfg.aggregator_provider === 'deepseek'
+                      ? 'Uses DeepSeek API directly. Model name should be plain (e.g. "deepseek-chat")'
+                      : cfg.aggregator_provider === 'mistral'
+                      ? 'Uses Mistral API directly. Model name should be plain (e.g. "mistral-large-latest")'
+                      : cfg.aggregator_provider === 'custom'
+                      ? 'Custom OpenAI-compatible endpoint'
+                      : 'Routes through OpenRouter'}
                   </span>
                 )}
               </div>
@@ -835,11 +852,11 @@ export default function MoaConfig() {
                     color: getProviderColor(cfg.aggregator_provider),
                     borderColor: `${getProviderColor(cfg.aggregator_provider)}40`,
                   }}>
-                    {cfg.aggregator_provider === 'custom' ? 'Z.AI (Custom)' : 'OpenRouter'}
+                    {cfg.aggregator_provider === 'ollama_cloud' ? 'Ollama Cloud' : cfg.aggregator_provider === 'custom' ? 'Custom' : cfg.aggregator_provider === 'deepseek' ? 'DeepSeek' : cfg.aggregator_provider === 'mistral' ? 'Mistral' : 'OpenRouter'}
                   </span>
                 </span>
                 <span>
-                  <span className="moa-cost-type free">Plan coding</span>
+                  <span className="moa-cost-type free">Plan inclus</span>
                 </span>
                 <span className="moa-cost-value">$0</span>
               </div>
@@ -849,9 +866,8 @@ export default function MoaConfig() {
           <div className="moa-info-banner" style={{ marginTop: 16 }}>
             <Info size={14} />
             <span>
-              Cost estimates are approximate and based on free-tier quotas. Actual costs depend on
-              token usage, model pricing, and provider rate limits. All listed providers offer
-              free tiers.
+              All models are included in the Ollama Cloud Pro plan — $0 additional cost per call.
+              Automatic fallback to DeepSeek and Mistral ensures availability even if Ollama Cloud is down.
             </span>
           </div>
         </div>
@@ -862,7 +878,8 @@ export default function MoaConfig() {
         <div className="moa-info-banner">
           <Info size={14} />
           <span>
-            MoA uses a 2-layer architecture: reference models generate diverse responses in parallel,
+            MoA routes through Ollama Cloud (included in Pro plan) with automatic fallback to
+            DeepSeek and Mistral if needed. Reference models generate diverse responses in parallel,
             then the aggregator synthesizes them into a single high-quality response.
             Changes require Hermes restart to take effect in active sessions.
           </span>
