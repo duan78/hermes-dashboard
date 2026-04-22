@@ -818,13 +818,6 @@ export default function McpServers() {
   useEffect(() => { loadServers() }, [loadServers])
 
   // Load OAuth and connection status, poll connection status every 30 seconds
-  useEffect(() => {
-    loadOAuth()
-    loadConnStatus()
-    const interval = setInterval(loadConnStatus, 30000)
-    return () => clearInterval(interval)
-  }, [loadOAuth, loadConnStatus])
-
   const loadOAuth = useCallback(async () => {
     setOauthLoading(true)
     try {
@@ -842,6 +835,13 @@ export default function McpServers() {
     } catch {}
     finally { setConnLoading(false) }
   }, [])
+
+  useEffect(() => {
+    loadOAuth()
+    loadConnStatus()
+    const interval = setInterval(loadConnStatus, 30000)
+    return () => clearInterval(interval)
+  }, [loadOAuth, loadConnStatus])
 
   const revokeOAuth = async (name) => {
     try {

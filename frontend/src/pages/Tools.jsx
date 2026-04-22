@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio, List, Upload, Image as ImageIcon, Volume2, Play, Sparkles, FlaskConical, Activity } from 'lucide-react'
+import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio, List, Upload, Image as ImageIcon, Volume2, Play, Sparkles, FlaskConical, Activity, Terminal } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
