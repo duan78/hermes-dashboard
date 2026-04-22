@@ -5,7 +5,7 @@ import {
   Zap, Database, Volume2, Shield, Archive, Layers, Code, Plug,
   Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
   Route, FileText, Plus, Trash2, RefreshCw, Zap as TestIcon,
-  AlertTriangle, Skull, Smile, XCircle,
+  AlertTriangle, Skull, Smile, XCircle, Boxes,
 } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
@@ -879,6 +879,114 @@ function SystemPromptSection() {
   )
 }
 
+// ── Auxiliary Models Section ──
+
+const AUX_PROVIDERS = [
+  { key: 'vision', label: 'Vision', desc: 'Image analysis and OCR. Uses Pixtral or other vision models to analyze screenshots, photos, and documents.' },
+  { key: 'web_extract', label: 'Web Extract', desc: 'Web page content extraction. Summarizes and extracts key information from fetched web pages.' },
+  { key: 'compression', label: 'Compression', desc: 'Context compression/summarization. Summarizes old conversation history to save tokens in long sessions.' },
+  { key: 'session_search', label: 'Session Search', desc: 'Searches past conversation history for relevant context. Helps the agent recall previous interactions.' },
+  { key: 'skills_hub', label: 'Skills Hub', desc: 'Skills marketplace analysis. Evaluates and recommends skills from the hub based on user needs.' },
+  { key: 'approval', label: 'Approval', desc: 'Smart approval decisions. Uses an LLM to auto-approve or reject tool calls based on risk assessment.' },
+  { key: 'mcp', label: 'MCP', desc: 'MCP server sampling. Handles LLM callbacks from MCP servers that request model completions.' },
+  { key: 'flush_memories', label: 'Flush Memories', desc: 'Memory flush processing. Summarizes and stores accumulated memories during conversation.' },
+]
+
+function AuxiliaryModelsSection({ config, onChange }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  const aux = config?.auxiliary || {}
+
+  const handleChange = (subKey, field, value) => {
+    onChange(`auxiliary.${subKey}.${field}`, value)
+  }
+
+  return (
+    <div className="accordion-card">
+      <div className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+        <Boxes size={18} className="accordion-icon" />
+        <span className="accordion-title">Auxiliary Models</span>
+        <span className="field-count">{AUX_PROVIDERS.length} sub-providers</span>
+        <Tooltip text="Configure the 8 auxiliary LLM sub-providers used for specific tasks (vision, compression, web extraction, etc.). Each can use a different model/provider than the main one." />
+        <span className="accordion-chevron">
+          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </div>
+      {isOpen && (
+        <div className="accordion-body" style={{ padding: 0 }}>
+          {AUX_PROVIDERS.map((prov, idx) => {
+            const sub = aux[prov.key] || {}
+            const isAuto = (sub.provider || 'auto') === 'auto'
+            return (
+              <div key={prov.key} style={{ padding: '12px 16px', borderBottom: idx < AUX_PROVIDERS.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{prov.label}</span>
+                  <Tooltip text={prov.desc} />
+                  {isAuto ? (
+                    <span className="badge badge-info" style={{ fontSize: 10 }}>Auto (inherits main)</span>
+                  ) : (
+                    <span className="badge badge-success" style={{ fontSize: 10 }}>Custom</span>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr 80px', gap: 8, alignItems: 'center' }}>
+                  <div>
+                    <label className="field-label" style={{ fontSize: 11 }}>Provider</label>
+                    <select className="form-select" style={{ fontSize: 12 }} value={sub.provider || 'auto'} onChange={e => handleChange(prov.key, 'provider', e.target.value)}>
+                      <option value="auto">auto</option>
+                      <option value="openai">openai</option>
+                      <option value="anthropic">anthropic</option>
+                      <option value="mistral">mistral</option>
+                      <option value="google">google</option>
+                      <option value="deepseek">deepseek</option>
+                      <option value="custom">custom</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="field-label" style={{ fontSize: 11 }}>Model
+                      <Tooltip text="Model name for this auxiliary task. Empty = inherits from main model." />
+                    </label>
+                    <input className="form-input" style={{ fontSize: 12 }} placeholder="e.g. pixtral-large-latest" value={sub.model || ''} onChange={e => handleChange(prov.key, 'model', e.target.value || null)} />
+                  </div>
+                  <div>
+                    <label className="field-label" style={{ fontSize: 11 }}>Base URL
+                      <Tooltip text="Custom API endpoint. Only needed when provider is 'custom'." />
+                    </label>
+                    <input className="form-input" style={{ fontSize: 12 }} placeholder="https://api.example.com/v1" value={sub.base_url || ''} onChange={e => handleChange(prov.key, 'base_url', e.target.value || null)} />
+                  </div>
+                  <div>
+                    <label className="field-label" style={{ fontSize: 11 }}>Timeout (s)
+                      <Tooltip text="Request timeout for this sub-provider in seconds." />
+                    </label>
+                    <input className="form-input" type="number" style={{ fontSize: 12 }} min="5" max="600" value={sub.timeout ?? ''} onChange={e => handleChange(prov.key, 'timeout', e.target.value ? Number(e.target.value) : null)} />
+                  </div>
+                </div>
+                {!isAuto && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8, marginTop: 6, alignItems: 'center' }}>
+                    <div>
+                      <label className="field-label" style={{ fontSize: 11 }}>API Key
+                        <Tooltip text="API key for this sub-provider. Falls back to the main model API key if empty." />
+                      </label>
+                      <input className="form-input" type="password" style={{ fontSize: 12 }} placeholder="Leave empty to inherit main key" value={sub.api_key || ''} onChange={e => handleChange(prov.key, 'api_key', e.target.value || null)} />
+                    </div>
+                    {prov.key === 'vision' && (
+                      <div>
+                        <label className="field-label" style={{ fontSize: 11 }}>Download Timeout (s)
+                          <Tooltip text="Timeout for downloading images before analysis." />
+                        </label>
+                        <input className="form-input" type="number" style={{ fontSize: 12 }} min="5" max="120" value={sub.download_timeout ?? ''} onChange={e => handleChange(prov.key, 'download_timeout', e.target.value ? Number(e.target.value) : null)} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Component ──
 
 export default function Config() {
@@ -1062,6 +1170,7 @@ export default function Config() {
       })}
 
       {/* Special sections */}
+      <AuxiliaryModelsSection config={workingConfig} onChange={handleChange} />
       <ProviderRoutingSection config={workingConfig} />
       <PersonalityCreatorSection config={workingConfig} onChange={handleChange} />
       <SystemPromptSection />
