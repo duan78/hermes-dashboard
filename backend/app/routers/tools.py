@@ -25,6 +25,7 @@ TOOL_CATEGORIES = {
             {"name": "Microsoft Edge TTS", "tag": "Free - no API key needed", "env_vars": [], "config_key": "tts.provider", "config_value": "edge"},
             {"name": "OpenAI TTS", "tag": "Premium - high quality voices", "env_vars": [{"key": "VOICE_TOOLS_OPENAI_KEY", "label": "OpenAI API key", "url": "https://platform.openai.com/api-keys"}], "config_key": "tts.provider", "config_value": "openai"},
             {"name": "ElevenLabs", "tag": "Premium - most natural voices", "env_vars": [{"key": "ELEVENLABS_API_KEY", "label": "ElevenLabs API key", "url": "https://elevenlabs.io/app/settings/api-keys"}], "config_key": "tts.provider", "config_value": "elevenlabs"},
+            {"name": "MiniMax TTS", "tag": "Chinese TTS provider with natural voices", "env_vars": [{"key": "MINIMAX_API_KEY", "label": "MiniMax API key"}, {"key": "MINIMAX_GROUP_ID", "label": "MiniMax Group ID"}], "config_key": "tts.provider", "config_value": "minimax"},
         ],
     },
     "web": {

@@ -36,6 +36,7 @@ from .routers import (
     insights,
     leads,
     mcp,
+    mcp_oauth,
     memory,
     models,
     overview,
@@ -45,6 +46,7 @@ from .routers import (
     search_history,
     sessions,
     skills,
+    skills_security,
     tools,
     users,
     webhooks,
@@ -272,6 +274,7 @@ app.include_router(sessions.router)
 app.include_router(memory.router)
 app.include_router(tools.router)
 app.include_router(skills.router)
+app.include_router(skills_security.router)
 app.include_router(cron.router)
 app.include_router(models.router)
 app.include_router(platforms.router)
@@ -286,6 +289,7 @@ app.include_router(webhooks.router)
 app.include_router(env_vars.router)
 app.include_router(plugins_router.router)
 app.include_router(mcp.router)
+app.include_router(mcp_oauth.router)
 app.include_router(auth_pairing.router)
 app.include_router(profiles.router)
 app.include_router(backup.router)

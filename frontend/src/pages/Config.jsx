@@ -66,6 +66,7 @@ const SECTIONS = [
       { key: 'delegation.base_url', label: 'Subagent Base URL', type: 'text', desc: 'Direct OpenAI-compatible endpoint for subagents. Leave empty to use provider routing.' },
       { key: 'delegation.api_key', label: 'Subagent API Key', type: 'secret', desc: 'API key for delegation.base_url. Falls back to OPENAI_API_KEY if empty.' },
       { key: 'delegation.max_iterations', label: 'Max Iterations', type: 'number', min: 1, max: 200, desc: 'Per-subagent iteration cap. Each subagent gets its own budget, independent of the parent\'s max_iterations. Default: 50.' },
+      { key: 'delegation.max_concurrent_children', label: 'Max Concurrent Children', type: 'number', min: 1, max: 20, desc: 'Maximum number of subagent child processes that can run simultaneously. Higher values enable parallel delegation but use more memory and API tokens. Default: 3.' },
     ],
   },
   {
@@ -158,10 +159,13 @@ const SECTIONS = [
     id: 'tts', title: 'TTS & Voice', icon: Volume2,
     desc: 'Configure text-to-speech, speech-to-text, and voice input settings.',
     fields: [
-      { key: 'tts.provider', label: 'TTS Provider', type: 'select', options: ['edge', 'elevenlabs', 'openai', 'mistral', 'neutts'], desc: 'Text-to-speech engine. "edge" uses free Microsoft Edge TTS (recommended). "elevenlabs" uses ElevenLabs API (high quality, paid). "openai" uses OpenAI TTS. "mistral" uses Mistral voxtral TTS. "neutts" runs a local model.' },
+      { key: 'tts.provider', label: 'TTS Provider', type: 'select', options: ['edge', 'elevenlabs', 'openai', 'mistral', 'minimax', 'neutts'], desc: 'Text-to-speech engine. "edge" uses free Microsoft Edge TTS (recommended). "elevenlabs" uses ElevenLabs API (high quality, paid). "openai" uses OpenAI TTS. "mistral" uses Mistral voxtral TTS. "minimax" uses MiniMax TTS (Chinese TTS with natural voices). "neutts" runs a local model.' },
       { key: 'tts.edge.voice', label: 'Edge Voice', type: 'text', desc: 'Voice identifier for Edge TTS. Format: "lang-Region-VoiceName". Examples: "fr-FR-DeniseNeural", "en-US-AriaNeural", "en-US-GuyNeural". List voices with: hermes config check.' },
       { key: 'tts.mistral.model', label: 'Mistral TTS Model', type: 'text', desc: 'Mistral TTS model name. Default: "voxtral-mini-tts-2603". Requires MISTRAL_API_KEY env var.' },
       { key: 'tts.mistral.voice_id', label: 'Mistral Voice ID', type: 'text', desc: 'Voice identifier for Mistral TTS. UUID format. Default voice is pre-selected. Find available voices in Mistral API docs.' },
+      { key: 'tts.minimax.model', label: 'MiniMax Model', type: 'text', desc: 'MiniMax TTS model name. Default: "speech-01-turbo". Requires MINIMAX_API_KEY env var and MINIMAX_GROUP_ID.' },
+      { key: 'tts.minimax.voice_id', label: 'MiniMax Voice ID', type: 'text', desc: 'Voice identifier for MiniMax TTS. Choose from available voices in MiniMax console.' },
+      { key: 'tts.minimax.group_id', label: 'MiniMax Group ID', type: 'text', desc: 'MiniMax group ID for API authentication. Find in your MiniMax account settings.' },
       { key: 'stt.enabled', label: 'STT Enabled', type: 'toggle', desc: 'Enable speech-to-text for voice input. Allows recording audio messages that are transcribed and sent as text to the AI.' },
       { key: 'stt.provider', label: 'STT Provider', type: 'select', options: ['openai', 'local', 'mistral', 'groq'], desc: 'Speech recognition engine. "openai" uses Whisper API. "local" runs Whisper locally (free). "mistral" uses Voxtral. "groq" uses Groq\'s fast Whisper.' },
       { key: 'stt.local.model', label: 'Local STT Model', type: 'text', desc: 'Whisper model size for local STT. Options: "tiny", "base", "small", "medium", "large". Larger = more accurate but slower. Default: "base".' },

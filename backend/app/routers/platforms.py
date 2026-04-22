@@ -56,6 +56,22 @@ PLATFORM_ENV_VARS = {
         {"key": "HASS_TOKEN", "label": "Access Token", "description": "Long-lived access token from Home Assistant", "password": True},
         {"key": "HASS_URL", "label": "Home Assistant URL", "description": "URL of your Home Assistant instance (e.g. http://homeassistant.local:8123)", "password": False},
     ],
+    "qqbot": [
+        {"key": "QQBOT_APP_ID", "label": "App ID", "description": "QQ Bot application ID from QQ Open Platform", "password": False},
+        {"key": "QQBOT_TOKEN", "label": "Token", "description": "QQ Bot token from the developer portal", "password": True},
+        {"key": "QQBOT_SECRET", "label": "App Secret", "description": "QQ Bot application secret", "password": True},
+    ],
+    "bluebubbles": [
+        {"key": "BLUEBUBBLES_URL", "label": "Server URL", "description": "BlueBubbles server URL (e.g. http://localhost:1234)", "password": False},
+        {"key": "BLUEBUBBLES_API_KEY", "label": "API Key", "description": "BlueBubbles API key for authentication", "password": True},
+    ],
+    "webhook": [
+        {"key": "WEBHOOK_SECRET", "label": "Webhook Secret", "description": "Secret token for validating incoming webhook requests", "password": True},
+        {"key": "WEBHOOK_PORT", "label": "Port", "description": "Port number for the webhook listener (e.g. 8080)", "password": False},
+    ],
+        {"key": "HASS_TOKEN", "label": "Access Token", "description": "Long-lived access token from Home Assistant", "password": True},
+        {"key": "HASS_URL", "label": "Home Assistant URL", "description": "URL of your Home Assistant instance (e.g. http://homeassistant.local:8123)", "password": False},
+    ],
 }
 
 
@@ -89,7 +105,7 @@ async def get_platforms_status():
     config_path = hermes_path("config.yaml")
     if config_path.exists():
         cfg = yaml.safe_load(config_path.read_text())
-        for p in ["telegram", "discord", "whatsapp", "signal", "slack"]:
+        for p in ["telegram", "discord", "whatsapp", "signal", "slack", "qqbot", "bluebubbles", "webhook"]:
             if p not in result:
                 result[p] = {
                     "state": "not_configured" if not cfg.get(p) else "disconnected",

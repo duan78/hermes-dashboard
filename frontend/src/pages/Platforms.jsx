@@ -17,6 +17,9 @@ const PLATFORM_INFO = {
   mattermost: { desc: "Mattermost open-source messaging integration.", icon: MessageCircle },
   home_assistant: { desc: "Home Assistant smart home integration. Controls devices and reads sensors.", icon: Home },
   email: { desc: "Email integration for sending and receiving messages via SMTP/IMAP.", icon: Mail },
+  qqbot: { desc: "QQ Bot integration for Tencent QQ messaging platform.", icon: MessageCircle },
+  bluebubbles: { desc: "BlueBubbles iMessage bridge integration. Connects to a BlueBubbles server for Apple Messages.", icon: Smartphone },
+  webhook: { desc: "Webhook inbound integration. Receives HTTP POST requests as messages.", icon: Hash },
 }
 
 function PlatformIcon({ name }) {
