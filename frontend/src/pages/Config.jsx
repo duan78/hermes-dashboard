@@ -6,7 +6,7 @@ import {
   Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
   Route, FileText, Plus, Trash2, RefreshCw, Zap as TestIcon,
   AlertTriangle, Skull, Smile, XCircle, Boxes, LayoutGrid, MessageSquare,
-  Loader2, Play,
+  Loader2, Play, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
@@ -417,6 +417,10 @@ function ProviderRoutingSection({ config }) {
   const [testing, setTesting] = useState({})
   const [testResults, setTestResults] = useState({})
   const [isOpen, setIsOpen] = useState(false)
+  const [fallbackVis, setFallbackVis] = useState({})
+  const [fallbackTesting, setFallbackTesting] = useState({})
+  const [fallbackTestResults, setFallbackTestResults] = useState({})
+  const [savingFallbacks, setSavingFallbacks] = useState(false)
   const { toast } = useToast()
 
   const load = useCallback(async () => {
@@ -491,6 +495,62 @@ function ProviderRoutingSection({ config }) {
   }
 
   const isActive = (name) => active?.provider === name
+
+  // ── Fallback CRUD handlers ──
+  const updateFallback = (index, field, value) => {
+    setFallbacks(prev => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  const moveFallback = (index, direction) => {
+    setFallbacks(prev => {
+      const next = [...prev]
+      const target = index + direction
+      if (target < 0 || target >= next.length) return prev
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
+  }
+
+  const removeFallback = (index) => {
+    setFallbacks(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleAddFallback = () => {
+    setFallbacks(prev => [...prev, { provider: '', model: '', api_key: '', base_url: '', enabled: true }])
+  }
+
+  const handleSaveFallbacks = async () => {
+    try {
+      setSavingFallbacks(true)
+      await api.saveFallbackProviders(fallbacks)
+      toast.success('Fallback providers saved')
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setSavingFallbacks(false)
+    }
+  }
+
+  const handleTestFallback = async (index) => {
+    const fb = fallbacks[index]
+    setFallbackTesting(prev => ({ ...prev, [index]: true }))
+    setFallbackTestResults(prev => { const n = { ...prev }; delete n[index]; return n })
+    try {
+      const result = await api.testProvider(fb.provider || 'custom', fb.base_url, null, fb.model)
+      setFallbackTestResults(prev => ({ ...prev, [index]: result }))
+      setTimeout(() => setFallbackTestResults(prev => { const n = { ...prev }; delete n[index]; return n }), 10000)
+    } catch (e) {
+      setFallbackTestResults(prev => ({ ...prev, [index]: { status: 'error', error: e.message } }))
+      setTimeout(() => setFallbackTestResults(prev => { const n = { ...prev }; delete n[index]; return n }), 10000)
+    } finally {
+      setFallbackTesting(prev => ({ ...prev, [index]: false }))
+    }
+  }
 
   return (
     <div className="accordion-card">
@@ -582,21 +642,130 @@ function ProviderRoutingSection({ config }) {
                 })}
 
                 {/* Fallback Providers */}
-                {fallbacks.length > 0 && (
-                  <div style={{ marginTop: 16 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 8 }}>
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
                       Fallback Chain
-                      <Tooltip text="Providers tried in order if the active provider fails. Each entry specifies a provider and model to fall back to." />
+                      <Tooltip text="Providers tried in order if the active provider fails. Each entry specifies a provider and model to fall back to. Edit fields directly and click Save All to persist." />
+                    </span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm" onClick={handleAddFallback} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                        <Plus size={12} /> Add Fallback
+                        <Tooltip text="Add a new empty fallback provider entry at the end of the chain." />
+                      </button>
+                      <button className="btn btn-sm btn-primary" onClick={handleSaveFallbacks} disabled={savingFallbacks} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                        <Save size={12} /> {savingFallbacks ? 'Saving...' : 'Save All'}
+                        <Tooltip text="Save all fallback provider entries to config.yaml. Changes are not persisted until you click this button." />
+                      </button>
                     </div>
-                    {fallbacks.map((fb, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 0', color: 'var(--text-secondary)' }}>
-                        <span style={{ color: 'var(--text-muted)', width: 24 }}>#{i + 1}</span>
-                        <span>{fb.provider}</span>
-                        <code style={{ fontSize: 11 }}>{fb.model}</code>
-                      </div>
-                    ))}
                   </div>
-                )}
+                  {fallbacks.length === 0 && (
+                    <div style={{ padding: 12, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                      No fallback providers configured. Click "Add Fallback" to add one.
+                    </div>
+                  )}
+                  {fallbacks.map((fb, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 1fr 1fr 40px auto auto auto', gap: 6, padding: '8px 0', borderBottom: '1px solid var(--border)', alignItems: 'center', fontSize: 12, opacity: fb.enabled === false ? 0.5 : 1 }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-muted)', textAlign: 'center' }}>
+                        #{i + 1}
+                        <Tooltip text={`Priority ${i + 1}. Fallback providers are tried in order from top to bottom.`} />
+                      </span>
+                      <div>
+                        <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>
+                          Provider
+                          <Tooltip text="Provider name (e.g. openai, anthropic, custom). Must match a configured provider or be a recognized provider type." />
+                        </label>
+                        <input
+                          className="form-input"
+                          style={{ fontSize: 11, padding: '4px 6px' }}
+                          placeholder="e.g. openai"
+                          value={fb.provider || ''}
+                          onChange={e => updateFallback(i, 'provider', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>
+                          Model
+                          <Tooltip text="The model to use with this fallback provider (e.g. gpt-4o, claude-sonnet-4)." />
+                        </label>
+                        <input
+                          className="form-input"
+                          style={{ fontSize: 11, padding: '4px 6px' }}
+                          placeholder="e.g. gpt-4o"
+                          value={fb.model || ''}
+                          onChange={e => updateFallback(i, 'model', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>
+                          API Key
+                          <Tooltip text="API key for this fallback provider. Falls back to the default key if empty." />
+                        </label>
+                        <div className="secret-input-wrap" style={{ fontSize: 11 }}>
+                          <input
+                            type={fallbackVis[i] ? 'text' : 'password'}
+                            className="form-input"
+                            style={{ fontSize: 11, padding: '4px 6px' }}
+                            placeholder="Optional"
+                            value={fb.api_key || ''}
+                            onChange={e => updateFallback(i, 'api_key', e.target.value)}
+                          />
+                          <button type="button" className="secret-toggle-btn" onClick={() => setFallbackVis(prev => ({ ...prev, [i]: !prev[i] }))} style={{ padding: 2 }}>
+                            {fallbackVis[i] ? <EyeOff size={11} /> : <Eye size={11} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>
+                          Base URL
+                          <Tooltip text="Custom API endpoint URL for this fallback. Only needed if different from the provider's default." />
+                        </label>
+                        <input
+                          className="form-input"
+                          style={{ fontSize: 11, padding: '4px 6px' }}
+                          placeholder="https://api.example.com/v1"
+                          value={fb.base_url || ''}
+                          onChange={e => updateFallback(i, 'base_url', e.target.value)}
+                        />
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>
+                          Toggle
+                          <Tooltip text="Enable or disable this fallback without removing it from the list." />
+                        </label>
+                        <label className="toggle-wrap" style={{ display: 'inline-flex' }}>
+                          <input type="checkbox" checked={fb.enabled !== false} onChange={e => updateFallback(i, 'enabled', e.target.checked)} />
+                          <span className="toggle-track" />
+                        </label>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <button className="btn btn-sm" onClick={() => moveFallback(i, -1)} disabled={i === 0} style={{ padding: '2px 4px', fontSize: 10, lineHeight: 1 }}>
+                          <ArrowUp size={11} />
+                          <Tooltip text="Move this fallback up (higher priority)." />
+                        </button>
+                        <button className="btn btn-sm" onClick={() => moveFallback(i, 1)} disabled={i === fallbacks.length - 1} style={{ padding: '2px 4px', fontSize: 10, lineHeight: 1 }}>
+                          <ArrowDown size={11} />
+                          <Tooltip text="Move this fallback down (lower priority)." />
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <button className="btn btn-sm" onClick={() => handleTestFallback(i)} disabled={fallbackTesting[i]} style={{ fontSize: 10, color: '#8b5cf6', padding: '2px 4px' }}>
+                          {fallbackTesting[i] ? <RefreshCw size={11} className="spin" /> : <TestIcon size={11} />}
+                          <Tooltip text="Test connectivity to this fallback provider with the current settings." />
+                        </button>
+                        {fallbackTestResults[i] && (
+                          fallbackTestResults[i].status === 'ok'
+                            ? <span className="badge badge-success" style={{ fontSize: 9 }}>{fallbackTestResults[i].latency_ms}ms</span>
+                            : <Tooltip text={fallbackTestResults[i].error || 'Error'}><span className="badge badge-error" style={{ fontSize: 9, cursor: 'help' }}>Err</span></Tooltip>
+                        )}
+                        <button className="btn btn-sm" onClick={() => removeFallback(i)} style={{ fontSize: 10, color: '#ef4444', padding: '2px 4px' }}>
+                          <Trash2 size={11} />
+                          <Tooltip text="Remove this fallback entry from the chain." />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}
