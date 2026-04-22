@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { LayoutDashboard, Activity, Cpu, MessageSquare, Radio, RefreshCw, Package, ChevronDown, Loader2, RotateCcw } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { LayoutDashboard, Activity, Cpu, MessageSquare, Radio, RefreshCw, Package, ChevronDown, Loader2, RotateCcw, Database } from 'lucide-react'
 import { useOverview, useLogs, useSystemMetrics, useHermesVersion, useHermesChangelog, useHermesUpdate } from '../hooks/useApi'
 import Tooltip from '../components/Tooltip'
+import { api } from '../api'
 import './overview.css'
 
 function formatUptime(seconds) {
@@ -32,6 +33,127 @@ function getCpuColor(pct) {
   if (pct < 50) return 'var(--success)'
   if (pct < 80) return 'var(--warning)'
   return 'var(--error)'
+}
+
+// ── Context Usage Card ──
+
+function ContextUsageCard() {
+  const [ctxData, setCtxData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.contextStatus().then(data => {
+      setCtxData(data)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  if (loading || !ctxData) return null
+
+  const contextLength = ctxData.context_length || 128000
+  const compressionEnabled = ctxData.compression_enabled || false
+  const estimatedTokens = ctxData.estimated_tokens || 0
+  const events = ctxData.compression_events || []
+  const usagePercent = ctxData.usage_percent || 0
+  const color = usagePercent > 80 ? 'var(--error)' : usagePercent > 50 ? 'var(--warning)' : 'var(--success)'
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-header">
+        <span className="card-title">
+          <Database size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 8 }} />
+          Context Usage
+          <Tooltip text="Estimated context window usage based on conversation length. The context window limits how much conversation history the model can see at once. Compression summarizes old messages to stay within limits." />
+        </span>
+        <span className="badge badge-info" style={{ fontSize: 10 }}>
+          {ctxData.model || 'unknown'}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, padding: '0 4px' }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+            Context Window
+            <Tooltip text="Maximum tokens the model can process in a single conversation turn. Larger windows allow longer conversations." />
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+            {(contextLength / 1000).toFixed(0)}K
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+            Est. Usage
+            <Tooltip text="Estimated context window usage based on conversation length." />
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color }}>
+            {usagePercent.toFixed(1)}%
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <ProgressBar percent={usagePercent} color={color} />
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+            ~{estimatedTokens.toLocaleString()} / {contextLength.toLocaleString()} tokens
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+            Compression
+            <Tooltip text="Whether automatic context compression is enabled. When context exceeds the threshold, older messages are summarized." />
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>
+            <span className={`badge ${compressionEnabled ? 'badge-success' : 'badge-warning'}`}>
+              {compressionEnabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+            Compression Events
+            <Tooltip text="Number of compression events recorded in log files." />
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+            {events.length}
+          </div>
+        </div>
+      </div>
+      {events.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+            Compression History
+            <Tooltip text="Recent context compression events showing when conversations were summarized to save tokens." />
+          </div>
+          <div style={{ maxHeight: 150, overflow: 'auto', borderRadius: 6, border: '1px solid var(--border)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-tertiary)' }}>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>
+                    Date
+                    <Tooltip text="When the compression event occurred." />
+                  </th>
+                  <th style={{ padding: '6px 10px', textAlign: 'center' }}>
+                    Ratio
+                    <Tooltip text="Compression ratio achieved. Lower values mean more aggressive compression." />
+                  </th>
+                  <th style={{ padding: '6px 10px', textAlign: 'center' }}>
+                    Messages
+                    <Tooltip text="Number of messages affected by this compression event." />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.slice(0, 10).map((ev, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '4px 10px', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{ev.date || '-'}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{ev.ratio != null ? ev.ratio : '-'}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'center' }}>{ev.messages_affected != null ? ev.messages_affected : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function Overview() {
@@ -197,6 +319,9 @@ export default function Overview() {
           </div>
         </div>
       )}
+
+      {/* Context Usage Card */}
+      <ContextUsageCard />
 
       {/* Row 3: Hermes Agent Version */}
       {versionInfo && (

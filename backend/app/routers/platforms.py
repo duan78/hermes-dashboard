@@ -69,9 +69,6 @@ PLATFORM_ENV_VARS = {
         {"key": "WEBHOOK_SECRET", "label": "Webhook Secret", "description": "Secret token for validating incoming webhook requests", "password": True},
         {"key": "WEBHOOK_PORT", "label": "Port", "description": "Port number for the webhook listener (e.g. 8080)", "password": False},
     ],
-        {"key": "HASS_TOKEN", "label": "Access Token", "description": "Long-lived access token from Home Assistant", "password": True},
-        {"key": "HASS_URL", "label": "Home Assistant URL", "description": "URL of your Home Assistant instance (e.g. http://homeassistant.local:8123)", "password": False},
-    ],
 }
 
 

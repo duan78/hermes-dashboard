@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio, List, Upload, Image as ImageIcon, Volume2, Play, Sparkles } from 'lucide-react'
+import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio, List, Upload, Image as ImageIcon, Volume2, Play, Sparkles, FlaskConical, Activity } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
@@ -811,6 +811,10 @@ export default function Tools() {
   const [imageGenModel, setImageGenModel] = useState('')
   const [codeExecStatus, setCodeExecStatus] = useState(null)
   const [codeExecLoading, setCodeExecLoading] = useState(false)
+  const [rlStatus, setRlStatus] = useState(null)
+  const [rlLoading, setRlLoading] = useState(false)
+  const [rlResults, setRlResults] = useState(null)
+  const [rlResultsLoading, setRlResultsLoading] = useState(false)
 
   const load = async () => {
     try {
@@ -834,6 +838,30 @@ export default function Tools() {
       // Config endpoint may not be available yet
     } finally {
       setConfigLoading(false)
+    }
+  }
+
+  const loadRlStatus = async () => {
+    setRlLoading(true)
+    try {
+      const data = await api.rlTrainingStatus()
+      setRlStatus(data)
+    } catch (e) {
+      // ignore
+    } finally {
+      setRlLoading(false)
+    }
+  }
+
+  const checkRlResults = async () => {
+    setRlResultsLoading(true)
+    try {
+      const data = await api.rlTrainingCheckResults()
+      setRlResults(data)
+    } catch (e) {
+      setRlResults({ error: e.message })
+    } finally {
+      setRlResultsLoading(false)
     }
   }
 
@@ -951,6 +979,10 @@ export default function Tools() {
         </button>
         <button className={`tab ${activeTab === 'code-execution' ? 'active' : ''}`} onClick={() => { setActiveTab('code-execution'); if (!codeExecStatus) loadCodeExecStatus() }}>
           <Terminal size={13} style={{ verticalAlign: 'middle' }} /> Code Execution
+        </button>
+        <button className={`tab ${activeTab === 'rl-training' ? 'active' : ''}`} onClick={() => { setActiveTab('rl-training'); if (!rlStatus) loadRlStatus() }}>
+          <FlaskConical size={13} style={{ verticalAlign: 'middle' }} /> RL Training
+          <Tooltip text="Reinforcement Learning training status and results. Monitor Tinker/Atropos training jobs." />
         </button>
       </div>
 
@@ -1117,6 +1149,131 @@ export default function Tools() {
           ) : (
             <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
               Failed to load code execution status. Click refresh to try again.
+            </div>
+          )}
+        </div>
+      ) : activeTab === 'rl-training' ? (
+        <div className="card">
+          {rlLoading ? (
+            <div className="spinner" />
+          ) : rlStatus ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>RL Training Status</span>
+                <Tooltip text="Reinforcement Learning training with Tinker/Atropos platform. Monitor API key configuration, training runs, and results." />
+                <span className={`badge ${rlStatus.fully_configured ? 'badge-success' : rlStatus.configured ? 'badge-warning' : 'badge-error'}`} style={{ fontSize: 10 }}>
+                  {rlStatus.fully_configured ? 'Ready' : rlStatus.configured ? 'Partial' : 'Not Configured'}
+                </span>
+                <button className="btn btn-sm" onClick={loadRlStatus} disabled={rlLoading} style={{ marginLeft: 'auto' }}>
+                  {rlLoading ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />}
+                  {' '}Refresh
+                </button>
+              </div>
+              <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  API Keys Configuration
+                  <Tooltip text="Required API keys for RL training. Tinker API key connects to the Tinker/Atropos training platform. WandB API key logs training metrics to Weights & Biases." />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ padding: 10, background: rlStatus.api_keys?.tinker?.configured ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.04)', border: '1px solid ' + (rlStatus.api_keys?.tinker?.configured ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.15)'), borderRadius: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>Tinker API Key</span>
+                      <Tooltip text="API key for Tinker/Atropos RL training platform. Get yours at tinker-console.thinkingmachines.ai/keys" />
+                      {rlStatus.api_keys?.tinker?.configured ? (
+                        <span className="badge badge-success" style={{ fontSize: 9 }}><Check size={9} /> Set</span>
+                      ) : (
+                        <span className="badge badge-error" style={{ fontSize: 9 }}>Missing</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {rlStatus.api_keys?.tinker?.configured ? (rlStatus.api_keys.tinker.preview || '****') : 'Set TINKER_API_KEY env var to enable'}
+                    </div>
+                  </div>
+                  <div style={{ padding: 10, background: rlStatus.api_keys?.wandb?.configured ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.04)', border: '1px solid ' + (rlStatus.api_keys?.wandb?.configured ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.15)'), borderRadius: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>WandB API Key</span>
+                      <Tooltip text="Weights & Biases API key for logging training metrics. Get yours at wandb.ai/authorize" />
+                      {rlStatus.api_keys?.wandb?.configured ? (
+                        <span className="badge badge-success" style={{ fontSize: 9 }}><Check size={9} /> Set</span>
+                      ) : (
+                        <span className="badge badge-error" style={{ fontSize: 9 }}>Missing</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {rlStatus.api_keys?.wandb?.configured ? (rlStatus.api_keys.wandb.preview || '****') : 'Set WANDB_API_KEY env var to enable'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <button className="btn btn-primary btn-sm" onClick={checkRlResults} disabled={rlResultsLoading} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {rlResultsLoading ? <Loader2 size={14} className="spin" /> : <Activity size={14} />}
+                  {' '}Check Training Results
+                  <Tooltip text="Scan for RL training result files. Looks in ~/.hermes/rl_results/ for output files from completed training runs." />
+                </button>
+              </div>
+              {rlResults && (
+                <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    Training Results
+                    <Tooltip text="Results from the last training check. Shows files generated by completed RL training runs." />
+                  </div>
+                  {rlResults.error ? (
+                    <div className="error-box">{rlResults.error}</div>
+                  ) : rlResults.results && rlResults.results.length > 0 ? (
+                    <div className="table-container">
+                      <table>
+                        <thead><tr>
+                          <th>File <Tooltip text="Result filename generated by the training run." /></th>
+                          <th>Size <Tooltip text="File size in kilobytes." /></th>
+                        </tr></thead>
+                        <tbody>
+                          {rlResults.results.map((r, i) => (
+                            <tr key={i}>
+                              <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{r.name}</td>
+                              <td style={{ fontSize: 12 }}>{(r.size / 1024).toFixed(1)} KB</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{rlResults.message || 'No results found'}</div>
+                  )}
+                </div>
+              )}
+              <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  Training Metrics
+                  <Tooltip text="Live training metrics (loss, reward, steps) will appear here when a training run is active." />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  <div style={{ textAlign: 'center', padding: 12, background: 'var(--bg-primary)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Loss <Tooltip text="Average loss across the latest training batch. Lower is better." /></div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)' }}>--</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: 12, background: 'var(--bg-primary)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Reward <Tooltip text="Average reward score. Higher indicates better model performance." /></div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)' }}>--</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: 12, background: 'var(--bg-primary)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Steps <Tooltip text="Total training steps completed so far." /></div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)' }}>--</div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, padding: 12, background: 'rgba(99,102,241,0.04)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.12)' }}>
+                <strong style={{ color: 'var(--text-secondary)' }}>About RL Training</strong>
+                <Tooltip text="Information about configuring and using RL training with Hermes." />
+                <br />
+                RL training uses the <strong>Tinker/Atropos</strong> platform for reinforcement learning with LLMs.
+                Configure your <code>TINKER_API_KEY</code> and <code>WANDB_API_KEY</code> environment variables to enable training runs.
+                Training metrics are logged to <strong>Weights &amp; Biases</strong> for experiment tracking.
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+              Failed to load RL training status. Click refresh to try again.
             </div>
           )}
         </div>
