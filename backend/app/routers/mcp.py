@@ -274,3 +274,24 @@ async def test_mcp_server(body: McpNameRequest):
         return {"success": True, "output": output, "tools": tools}
     except Exception as e:
         return {"success": False, "output": str(e), "tools": []}
+
+
+@router.get("/connection-status")
+async def mcp_connection_status():
+    """Check real-time connection status for each MCP server."""
+    cfg = _load_config()
+    servers = cfg.get("mcp_servers", {})
+    statuses = []
+    for name, srv_cfg in servers.items():
+        disabled = srv_cfg.get("disabled", False)
+        if disabled:
+            statuses.append({"name": name, "status": "disabled", "reconnecting": False, "attempts": 0})
+            continue
+        # Try a quick test to see if server responds
+        try:
+            output = await run_hermes("mcp", "test", name, timeout=10)
+            connected = "✓" in output or "Tools discovered" in output
+            statuses.append({"name": name, "status": "connected" if connected else "disconnected", "reconnecting": False, "attempts": 0})
+        except Exception:
+            statuses.append({"name": name, "status": "disconnected", "reconnecting": False, "attempts": 0})
+    return {"servers": statuses}

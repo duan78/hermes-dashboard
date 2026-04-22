@@ -135,6 +135,9 @@ export const api = {
   getPlatformEnvVars: () => request('/platforms/env-vars'),
   configurePlatform: (platform, vars) => request('/platforms/configure', { method: 'POST', body: JSON.stringify({ platform, vars }) }),
   // Discord Listings
+  discordServers: () => request('/discord/servers'),
+  discordChannels: (serverId) => request('/discord/servers/' + serverId + '/channels'),
+  // Discord Listings
 
   // Insights
   getInsights: (days = 7) => request(`/insights?days=${days}`),
@@ -308,6 +311,9 @@ export const api = {
   mcpTest: (name) => request('/mcp/test', { method: 'POST', body: JSON.stringify({ name }) }),
   mcpRemove: (name) => request('/mcp/remove', { method: 'POST', body: JSON.stringify({ name }) }),
 
+  // Code Execution
+  codeExecutionStatus: () => request('/code-execution/status'),
+
   // Backlog
   getBacklogItems: (qs) => request('/backlog' + (qs ? '?' + qs : '')),
 
@@ -451,4 +457,39 @@ export const api = {
 
   // MCP Connection Status
   mcpConnectionStatus: () => request('/mcp/connection-status'),
+
+
+  // Vision Test
+  visionTest: (formData) => {
+    const userToken = localStorage.getItem('hermes_user_token') || '';
+    const legacyToken = localStorage.getItem('hermes_token') || '';
+    const token = userToken || legacyToken;
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch('/api/vision/test', { method: 'POST', headers, body: formData })
+      .then(res => res.json());
+  },
+
+  // TTS Test
+  ttsTest: (text, provider) => {
+    const userToken = localStorage.getItem('hermes_user_token') || '';
+    const legacyToken = localStorage.getItem('hermes_token') || '';
+    const token = userToken || legacyToken;
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch('/api/tts/test?text=' + encodeURIComponent(text || 'Hello, this is a test.') + (provider ? '&provider=' + provider : ''), { headers })
+      .then(res => res.blob());
+  },
+
+  // Image Gen Test
+  imageGenTest: (prompt) => request('/tools/image-gen/test', { method: 'POST', body: JSON.stringify({ prompt }) }),
+
+  // Delegation Monitoring
+  delegationActive: () => request('/delegation/active'),
+
+  // Approval History
+  approvalHistory: () => request('/approvals/history'),
+
+  // Context Compression Monitoring
+  contextStatus: () => request('/context/status'),
 };

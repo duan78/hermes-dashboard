@@ -20,14 +20,17 @@ from .auth import AuthMiddleware
 from .config import HERMES_HOME, HOST, PORT
 from .routers import (
     api_keys,
+    approvals,
     auth_pairing,
     backlog,
     backup,
     chat,
     claude_code,
     config,
+    context,
     cron,
     diagnostics,
+    delegation,
     env_vars,
     files,
     fine_tune,
@@ -54,6 +57,7 @@ from .routers import (
     vision,
     webhooks,
     wiki,
+    code_execution,
 )
 
 # ── Structured logging setup ──
@@ -301,11 +305,15 @@ app.include_router(profiles.router)
 app.include_router(backup.router)
 app.include_router(claude_code.router)
 app.include_router(wiki.router)
+app.include_router(code_execution.router)
 app.include_router(backlog.router)
 app.include_router(users.router)
 app.include_router(leads.router)
 app.include_router(github_config.router)
 app.include_router(search_history.router)
+app.include_router(delegation.router)
+app.include_router(approvals.router)
+app.include_router(context.router)
 
 
 # ── WebSocket Hub for real-time dashboard updates ──

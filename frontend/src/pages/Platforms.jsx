@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Radio, RefreshCw, Wifi, WifiOff, Users, Key, Check, X, Loader2, Settings, Eye, EyeOff, Save, Send, MessageCircle, Smartphone, Shield, Hash, Grid, Home, Mail } from 'lucide-react'
+import { Radio, RefreshCw, Wifi, WifiOff, Users, Key, Check, X, Loader2, Settings, Eye, EyeOff, Save, Send, MessageCircle, Smartphone, Shield, Hash, Grid, Home, Mail, Server, ChevronRight, ChevronDown, Copy } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 import ConfirmModal from '../components/ConfirmModal'
@@ -157,6 +157,16 @@ export default function Platforms() {
   const [envVarsLoading, setEnvVarsLoading] = useState(false)
   const [modalPlatform, setModalPlatform] = useState(null)
 
+  // Discord Server Browser state
+  const [discordServers, setDiscordServers] = useState(null)
+  const [discordChannels, setDiscordChannels] = useState(null)
+  const [discordLoading, setDiscordLoading] = useState(false)
+  const [discordError, setDiscordError] = useState(null)
+  const [selectedDiscordServer, setSelectedDiscordServer] = useState(null)
+  const [channelsLoading, setChannelsLoading] = useState(false)
+  const [copiedId, setCopiedId] = useState(null)
+  const discordConfigured = platforms.discord && platforms.discord.state !== 'not_configured'
+
   const load = async () => {
     try {
       setLoading(true)
@@ -235,6 +245,42 @@ export default function Platforms() {
     const [envData] = await Promise.all([api.getPlatformEnvVars(), load()])
     setEnvVars(envData)
     return result
+  }
+
+  const loadDiscordServers = async () => {
+    setDiscordLoading(true)
+    setDiscordError(null)
+    setDiscordChannels(null)
+    setSelectedDiscordServer(null)
+    try {
+      const data = await api.discordServers()
+      setDiscordServers(data.servers || [])
+    } catch (e) {
+      setDiscordError(e.message)
+    } finally {
+      setDiscordLoading(false)
+    }
+  }
+
+  const loadDiscordChannels = async (serverId) => {
+    setSelectedDiscordServer(serverId)
+    setChannelsLoading(true)
+    setDiscordChannels(null)
+    try {
+      const data = await api.discordChannels(serverId)
+      setDiscordChannels(data.channels || [])
+    } catch (e) {
+      setDiscordError(e.message)
+    } finally {
+      setChannelsLoading(false)
+    }
+  }
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(text)
+      setTimeout(() => setCopiedId(null), 1500)
+    })
   }
 
   useEffect(() => { load(); loadPairing() }, [])

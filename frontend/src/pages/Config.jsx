@@ -1377,6 +1377,74 @@ function CheckpointManagerSection() {
   )
 }
 
+
+// ── TTS Test Button ──
+
+function TTSTestButton({ config }) {
+  const [playing, setPlaying] = useState(false)
+  const [error, setError] = useState(null)
+  const { toast } = useToast()
+  const audioRef = useRef(null)
+
+  const handleTest = async () => {
+    setPlaying(true)
+    setError(null)
+    try {
+      const provider = config?.tts?.provider || 'edge'
+      const blob = await api.ttsTest('Hello, this is a test of the text-to-speech system.', provider)
+      if (blob.size === 0) {
+        setError('No audio received')
+        setPlaying(false)
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      if (audioRef.current) {
+        audioRef.current.pause()
+        URL.revokeObjectURL(audioRef.current.src)
+      }
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.onended = () => {
+        setPlaying(false)
+        URL.revokeObjectURL(url)
+      }
+      audio.onerror = () => {
+        setError('Audio playback failed')
+        setPlaying(false)
+      }
+      audio.play().catch(e => {
+        setError('Playback error: ' + e.message)
+        setPlaying(false)
+      })
+    } catch (e) {
+      setError(e.message || 'TTS test failed')
+      setPlaying(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button
+        className="btn btn-sm btn-primary"
+        onClick={handleTest}
+        disabled={playing}
+        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+      >
+        {playing ? <Loader2 size={13} className="spin" /> : <Play size={13} />}
+        {playing ? 'Playing...' : 'Test Voice'}
+        <Tooltip text="Generate a short audio sample using the configured TTS provider and play it back. This tests that your TTS configuration is working correctly." />
+      </button>
+      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+        Provider: {config?.tts?.provider || 'edge'}
+        <Tooltip text="The current TTS provider that will be used for the test." />
+      </span>
+      {error && (
+        <span style={{ fontSize: 11, color: 'var(--error)' }}>{error}</span>
+      )}
+    </div>
+  )
+}
+
 // ── Main Component ──
 
 export default function Config() {
@@ -1514,6 +1582,12 @@ export default function Config() {
             </div>
             {isOpen && (
               <div className="accordion-body">
+                {/* TTS Test Button */}
+                {section.id === 'tts' && (
+                  <div className="field-group" style={{ gridColumn: '1 / -1' }}>
+                    <TTSTestButton config={workingConfig} />
+                  </div>
+                )}
                 {section.fields.map(field => {
                   // YOLO toggle — special widget
                   if (field.type === 'yolo') {

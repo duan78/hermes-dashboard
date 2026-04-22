@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio, List } from 'lucide-react'
+import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio, List, Upload, Image as ImageIcon, Volume2, Play, Sparkles } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
@@ -142,6 +142,254 @@ function AgentReachCombinedSection({ channels }) {
           </span>
         ))}
       </div>
+    </div>
+  )
+}
+
+
+// ── Vision Test Section ──
+
+function VisionTestSection() {
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useState(null)
+
+  const handleFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setImageFile(file)
+    setResult(null)
+    setError(null)
+    const reader = new FileReader()
+    reader.onload = (e) => setImagePreview(e.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    handleFile(file)
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    setDragOver(true)
+  }
+
+  const handleDragLeave = () => setDragOver(false)
+
+  const handleTest = async () => {
+    if (!imageFile) return
+    setAnalyzing(true)
+    setResult(null)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', imageFile)
+      const data = await api.visionTest(formData)
+      if (data.status === 'ok') {
+        setResult({ provider: data.provider, text: data.result })
+      } else {
+        setError(data.detail || data.error || 'Analysis failed')
+      }
+    } catch (e) {
+      setError(e.message || 'Vision test failed')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+        Vision Test
+        <Tooltip text="Upload an image to test the configured vision provider. The image will be sent to the vision API and the analysis result will be displayed." />
+      </div>
+
+      {/* Drop zone */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onClick={() => fileInputRef.current && fileInputRef.current.click()}
+        style={{
+          border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: 10,
+          padding: '20px 16px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          background: dragOver ? 'rgba(99,102,241,0.05)' : 'rgba(255,255,255,0.02)',
+          transition: 'all 0.15s',
+          marginBottom: 12,
+        }}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
+        />
+        <Upload size={24} style={{ color: 'var(--text-muted)', marginBottom: 6 }} />
+        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          {imageFile ? imageFile.name : 'Drop an image here or click to upload'}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>PNG, JPG, GIF, WebP (max 10 MB)</div>
+      </div>
+
+      {/* Image preview */}
+      {imagePreview && (
+        <div style={{ marginBottom: 12, textAlign: 'center' }}>
+          <img
+            src={imagePreview}
+            alt="Preview"
+            style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid var(--border)' }}
+          />
+        </div>
+      )}
+
+      {/* Test button */}
+      <button
+        className="btn btn-sm btn-primary"
+        onClick={handleTest}
+        disabled={!imageFile || analyzing}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}
+      >
+        {analyzing ? <Loader2 size={13} className="spin" /> : <Eye size={13} />}
+        {analyzing ? 'Analyzing...' : 'Test Vision'}
+        <Tooltip text="Send the uploaded image to the configured vision provider for analysis." />
+      </button>
+
+      {/* Error */}
+      {error && (
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 12, color: 'var(--error)', marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {/* Result */}
+      {result && (
+        <div style={{ padding: '12px 14px', borderRadius: 8, background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.12)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Check size={13} style={{ color: 'var(--success)' }} />
+            <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--success)' }}>Analysis Result</span>
+            <span className="badge badge-info" style={{ fontSize: 9 }}>Provider: {result.provider}</span>
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+            {result.text}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Image Gen Test Section ──
+
+function ImageGenTestSection() {
+  const [prompt, setPrompt] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [resultImage, setResultImage] = useState(null)
+  const [error, setError] = useState(null)
+  const [falKeySet, setFalKeySet] = useState(false)
+
+  useEffect(() => {
+    // Check if FAL_KEY is configured
+    api.getToolConfig().then(data => {
+      const imgGen = data.image_gen || {}
+      const providers = imgGen.providers || []
+      for (const p of providers) {
+        const envVars = p.env_vars || []
+        for (const ev of envVars) {
+          if (ev.key === 'FAL_KEY' && ev.is_set) {
+            setFalKeySet(true)
+            return
+          }
+        }
+      }
+    }).catch(() => {})
+  }, [])
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return
+    setGenerating(true)
+    setResultImage(null)
+    setError(null)
+    try {
+      const data = await api.imageGenTest(prompt)
+      if (data.status === 'ok' && data.images && data.images.length > 0) {
+        const img = data.images[0]
+        setResultImage({ url: img.url, model: data.model })
+      } else {
+        setError('No image returned from FAL.ai')
+      }
+    } catch (e) {
+      setError(e.message || 'Image generation failed')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+        Image Generation Test
+        <Tooltip text="Test image generation by entering a prompt. Uses the configured FAL.ai model. Make sure FAL_KEY is set." />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <input
+          className="form-input"
+          type="text"
+          placeholder="Enter a prompt, e.g. 'A cat astronaut on the moon'"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+          style={{ flex: 1, fontSize: 13 }}
+        />
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={handleGenerate}
+          disabled={!prompt.trim() || generating || !falKeySet}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          {generating ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+          {generating ? 'Generating...' : 'Generate'}
+          <Tooltip text={falKeySet ? "Generate an image using FAL.ai with the configured model." : "FAL_KEY not configured. Set it in the provider section above."} />
+        </button>
+      </div>
+
+      {!falKeySet && (
+        <div style={{ fontSize: 11, color: 'var(--warning)', marginBottom: 8 }}>
+          FAL_KEY is not configured. Set it in the FAL.ai provider section above to enable image generation testing.
+          <Tooltip text="You need a FAL.ai API key to generate images. Get one at https://fal.ai/dashboard/keys" />
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 12, color: 'var(--error)', marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {/* Result image */}
+      {resultImage && (
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ marginBottom: 8 }}>
+            <span className="badge badge-success" style={{ fontSize: 10 }}>Model: {resultImage.model}</span>
+          </div>
+          <img
+            src={resultImage.url}
+            alt="Generated"
+            style={{ maxWidth: '100%', maxHeight: 400, borderRadius: 8, border: '1px solid var(--border)' }}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -410,6 +658,11 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
                   </label>
                 ))}
               </div>
+              {/* Vision Test Section */}
+              {toolKey === 'vision' && (
+                <VisionTestSection />
+              )}
+
               {/* Image Gen Model Selection */}
               {toolKey === 'image_gen' && toolInfo.models && toolInfo.models.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
@@ -444,6 +697,11 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
                   )}
                 </div>
               )}
+              {/* Image Gen Test Section */}
+              {toolKey === 'image_gen' && (
+                <ImageGenTestSection />
+              )}
+
               {/* Agent-Reach channels shown inside Web Search category */}
               {toolInfo.agent_reach_channels && toolInfo.agent_reach_channels.length > 0 && (
                 <AgentReachChannelList
@@ -551,6 +809,8 @@ export default function Tools() {
   const [registryLoading, setRegistryLoading] = useState(false)
   const [registryFilter, setRegistryFilter] = useState('')
   const [imageGenModel, setImageGenModel] = useState('')
+  const [codeExecStatus, setCodeExecStatus] = useState(null)
+  const [codeExecLoading, setCodeExecLoading] = useState(false)
 
   const load = async () => {
     try {
@@ -586,6 +846,18 @@ export default function Tools() {
       // ignore
     } finally {
       setRegistryLoading(false)
+    }
+  }
+
+  const loadCodeExecStatus = async () => {
+    setCodeExecLoading(true)
+    try {
+      const data = await api.codeExecutionStatus()
+      setCodeExecStatus(data)
+    } catch (e) {
+      // ignore
+    } finally {
+      setCodeExecLoading(false)
     }
   }
 
@@ -677,6 +949,9 @@ export default function Tools() {
         <button className={`tab ${activeTab === 'registry' ? 'active' : ''}`} onClick={() => { setActiveTab('registry'); if (!registry) loadRegistry() }}>
           <List size={13} style={{ verticalAlign: 'middle' }} /> Registered Tools
         </button>
+        <button className={`tab ${activeTab === 'code-execution' ? 'active' : ''}`} onClick={() => { setActiveTab('code-execution'); if (!codeExecStatus) loadCodeExecStatus() }}>
+          <Terminal size={13} style={{ verticalAlign: 'middle' }} /> Code Execution
+        </button>
       </div>
 
       {activeTab === 'registry' ? (
@@ -729,6 +1004,119 @@ export default function Tools() {
           ) : (
             <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
               Failed to load registry. Click refresh to try again.
+            </div>
+          )}
+        </div>
+      ) : activeTab === 'code-execution' ? (
+        <div className="card">
+          {codeExecLoading && !codeExecStatus ? (
+            <div className="spinner" />
+          ) : codeExecStatus ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>Code Execution Sandbox</span>
+                <Tooltip text="Code execution allows the AI agent to run Python, JavaScript, and other code in an isolated sandbox environment. Configure safety limits here." />
+                <button className="btn btn-sm" onClick={loadCodeExecStatus} disabled={codeExecLoading} style={{ marginLeft: 'auto' }}>
+                  {codeExecLoading ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />}
+                  {' '}Refresh
+                </button>
+              </div>
+
+              {/* Config Card */}
+              <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Sandbox Configuration
+                  <Tooltip text="These limits control how code execution behaves. Max tool calls limits the number of tool invocations per session, and timeout sets the maximum execution time." />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+                      Max Tool Calls
+                      <Tooltip text="Maximum number of tool calls the agent can make within a single code execution session." />
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
+                      {codeExecStatus.config?.max_tool_calls ?? 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+                      Timeout (seconds)
+                      <Tooltip text="Maximum time in seconds a code execution session can run before being terminated." />
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
+                      {codeExecStatus.config?.timeout ?? 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+                      Group Sessions
+                      <Tooltip text="When enabled, sessions from the same user are grouped together instead of creating separate sandboxes." />
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: codeExecStatus.config?.group_sessions_per_user ? 'var(--success)' : 'var(--text-muted)' }}>
+                      {codeExecStatus.config?.group_sessions_per_user ? 'Enabled' : 'Disabled'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Platform Toolsets with code_execution */}
+              {codeExecStatus.platform_toolsets && codeExecStatus.platform_toolsets.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Platforms Using Code Execution
+                    <Tooltip text="These platforms have code_execution enabled in their toolset configuration." />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {codeExecStatus.platform_toolsets.map(p => (
+                      <span key={p} className="badge badge-info" style={{ fontSize: 11 }}>
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Sandbox Processes */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Active Sandbox Processes
+                  <Tooltip text="Currently running sandbox processes detected on the system. Shows the process command, PID, CPU and memory usage." />
+                </div>
+                {codeExecStatus.active_processes && codeExecStatus.active_processes.length > 0 ? (
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>PID <Tooltip text="Process ID assigned by the operating system." /></th>
+                          <th>User <Tooltip text="System user running the process." /></th>
+                          <th>CPU % <Tooltip text="Current CPU usage percentage." /></th>
+                          <th>MEM % <Tooltip text="Current memory usage percentage." /></th>
+                          <th>Command <Tooltip text="The command line that started this process." /></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {codeExecStatus.active_processes.map((proc, i) => (
+                          <tr key={i}>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{proc.pid}</td>
+                            <td style={{ fontSize: 12 }}>{proc.user}</td>
+                            <td style={{ fontSize: 12 }}>{proc.cpu}%</td>
+                            <td style={{ fontSize: 12 }}>{proc.mem}%</td>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.command}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 8 }}>
+                    No active sandbox processes detected
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+              Failed to load code execution status. Click refresh to try again.
             </div>
           )}
         </div>
