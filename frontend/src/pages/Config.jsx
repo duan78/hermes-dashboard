@@ -5,7 +5,7 @@ import {
   Zap, Database, Volume2, Shield, Archive, Layers, Code, Plug,
   Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
   Route, FileText, Plus, Trash2, RefreshCw, Zap as TestIcon,
-  AlertTriangle, Skull, Smile, XCircle, Boxes,
+  AlertTriangle, Skull, Smile, XCircle, Boxes, LayoutGrid,
 } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
@@ -987,6 +987,87 @@ function AuxiliaryModelsSection({ config, onChange }) {
   )
 }
 
+// ── Platform Toolsets Section ──
+
+const ALL_PLATFORMS = ['cli', 'telegram', 'discord', 'slack', 'whatsapp', 'signal', 'homeassistant', 'mattermost', 'matrix', 'dingtalk', 'feishu', 'wecom', 'email']
+const ALL_TOOLSETS = ['browser', 'web', 'vision', 'image_gen', 'terminal', 'file', 'code_execution', 'memory', 'session_search', 'tts', 'skills', 'delegation', 'cronjob', 'clarify', 'todo', 'moa', 'homeassistant']
+
+function PlatformToolsetsSection({ config, onChange }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const pt = config?.platform_toolsets || {}
+
+  const toggleToolset = (platform, toolset) => {
+    const current = pt[platform] || []
+    const next = current.includes(toolset)
+      ? current.filter(t => t !== toolset)
+      : [...current, toolset]
+    onChange(`platform_toolsets.${platform}`, next.length > 0 ? next : null)
+  }
+
+  return (
+    <div className="accordion-card">
+      <div className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+        <LayoutGrid size={18} className="accordion-icon" />
+        <span className="accordion-title">Platform Toolsets</span>
+        <span className="field-count">{Object.keys(pt).length} platforms</span>
+        <Tooltip text="Control which tools are available on each platform. Rows are platforms (Telegram, Discord, etc.), columns are toolsets (web, browser, tts, etc.). Only enabled toolsets are accessible from that platform." />
+        <span className="accordion-chevron">
+          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </div>
+      {isOpen && (
+        <div className="accordion-body" style={{ padding: 0, overflowX: 'auto' }}>
+          <table style={{ fontSize: 12, borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-secondary)' }}>
+                <th style={{ padding: '8px 12px', textAlign: 'left', position: 'sticky', left: 0, background: 'var(--bg-secondary)', zIndex: 1, minWidth: 100 }}>Platform</th>
+                {ALL_TOOLSETS.map(ts => (
+                  <th key={ts} style={{ padding: '6px 4px', textAlign: 'center', fontSize: 10, writingMode: 'vertical-rl', transform: 'rotate(180deg)', maxWidth: 30 }}>
+                    <Tooltip text={`Toggle ${ts} for this platform`}>{ts}</Tooltip>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ALL_PLATFORMS.map(plat => {
+                const active = pt[plat] || []
+                return (
+                  <tr key={plat} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '6px 12px', fontWeight: 600, position: 'sticky', left: 0, background: 'var(--bg-primary)', zIndex: 1 }}>
+                      {plat}
+                      <Tooltip text={`Toolsets available on ${plat}. Click cells to toggle.`} />
+                    </td>
+                    {ALL_TOOLSETS.map(ts => {
+                      const enabled = active.includes(ts)
+                      return (
+                        <td key={ts} style={{ padding: 0, textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleToolset(plat, ts)}
+                            style={{
+                              width: 26, height: 26, border: 'none', borderRadius: 4,
+                              background: enabled ? 'var(--success)' : 'var(--bg-secondary)',
+                              color: enabled ? '#fff' : 'var(--text-muted)', cursor: 'pointer',
+                              fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                            title={enabled ? `Disable ${ts} on ${plat}` : `Enable ${ts} on ${plat}`}
+                          >
+                            {enabled ? '✓' : ''}
+                          </button>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Component ──
 
 export default function Config() {
@@ -1171,6 +1252,7 @@ export default function Config() {
 
       {/* Special sections */}
       <AuxiliaryModelsSection config={workingConfig} onChange={handleChange} />
+      <PlatformToolsetsSection config={workingConfig} onChange={handleChange} />
       <ProviderRoutingSection config={workingConfig} />
       <PersonalityCreatorSection config={workingConfig} onChange={handleChange} />
       <SystemPromptSection />
