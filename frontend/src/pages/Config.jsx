@@ -44,12 +44,17 @@ const SECTIONS = [
   },
   {
     id: 'agent', title: 'Agent', icon: Sparkles,
-    desc: 'Control agent behavior: how many turns, reasoning depth, and tool call enforcement.',
+    desc: 'Control agent behavior: how many turns, reasoning depth, tool call enforcement, and gateway timeout settings.',
     fields: [
       { key: 'agent.max_turns', label: 'Max Turns', type: 'number', min: 1, max: 200, desc: 'Maximum tool-calling iterations per conversation. Higher values allow complex multi-step tasks but cost more tokens. Recommended: 60 for simple tasks, 120+ for agentic workflows. Default: 60.' },
       { key: 'agent.tool_use_enforcement', label: 'Tool Enforcement', type: 'select', options: ['auto', 'strict', 'permissive'], desc: 'Forces the model to make actual tool calls instead of describing actions. "auto" enables for GPT models, "strict" forces all models, "permissive" allows descriptive responses.' },
       { key: 'agent.verbose', label: 'Verbose', type: 'toggle', desc: 'Enable verbose logging for debugging. Shows internal decision-making, tool call details, and reasoning traces in the console. Disable in production.' },
       { key: 'agent.reasoning_effort', label: 'Reasoning Effort', type: 'select', options: ['none', 'low', 'minimal', 'medium', 'high', 'xhigh'], desc: 'Controls how much "thinking" the model does before responding. "none" disables reasoning entirely for fastest responses. "low"/"minimal" for simple tasks. "medium" balances speed and quality. "high" for complex tasks. "xhigh" for maximum reasoning depth at higher cost.' },
+      { key: 'agent.service_tier', label: 'Service Tier', type: 'text', desc: 'API service tier for the model provider. Some providers (e.g. OpenAI) offer tiers like "auto", "default", "flex". Leave empty for provider default. Affects latency and cost.' },
+      { key: 'agent.gateway_timeout', label: 'Gateway Timeout (s)', type: 'number', min: 10, max: 7200, desc: 'Maximum time in seconds the gateway waits for the agent to finish processing a message before timing out. Long-running agentic tasks may need higher values. Default: 120.' },
+      { key: 'agent.restart_drain_timeout', label: 'Restart Drain Timeout (s)', type: 'number', min: 5, max: 300, desc: 'Seconds to wait for in-flight requests to complete before forcing a gateway restart. Allows graceful shutdown without dropping active conversations. Default: 30.' },
+      { key: 'agent.gateway_timeout_warning', label: 'Timeout Warning (s)', type: 'number', min: 5, max: 3600, desc: 'Seconds before gateway_timeout expires at which a warning notification is sent. Gives you time to intervene before the conversation is killed. Default: 10.' },
+      { key: 'agent.gateway_notify_interval', label: 'Notify Interval (s)', type: 'number', min: 10, max: 3600, desc: 'How often (seconds) the gateway sends progress notifications during long-running agent operations. Prevents timeout on messaging platforms that drop silent connections. Default: 60.' },
     ],
   },
   {
