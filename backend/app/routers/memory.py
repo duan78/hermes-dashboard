@@ -24,51 +24,100 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
 
-# ── Vector memory (memory-claw / LanceDB) ──
+# ── Vector memory (LanceDB) ──
 _claw_store = None
 _claw_embedder = None
 _claw_error = None
 
-# Path to memory-claw source (for direct import, not from venv)
-_HERMES_AGENT_PATH = "/root/.hermes/hermes-agent"
-_MEMORY_CLAW_DB_PATH = str(HERMES_HOME / "memory-claw")
+_MEMORY_CLAW_DB_PATH = str(HERMES_HOME / "memory.lance")
+
+
+class _LanceDBStore:
+    """Lightweight LanceDB wrapper compatible with the dashboard's vector memory interface."""
+
+    def __init__(self, db_path: str):
+        import lancedb
+        self._db = lancedb.connect(db_path)
+        tables = list(self._db.table_names())
+        if "memories" not in tables:
+            raise RuntimeError(f"No 'memories' table in {db_path} (tables: {tables})")
+        self._table = self._db.open_table("memories")
+
+    def get_stats(self) -> dict:
+        return {"total": self._table.count_rows()}
+
+    def search(self, vector: list, limit: int = 10) -> list[dict]:
+        results = self._table.search(vector).limit(limit).to_list()
+        out = []
+        for r in results:
+            r.pop("vector", None)
+            if "_distance" in r:
+                r["score"] = 1.0 / (1.0 + r.pop("_distance"))
+            out.append(r)
+        return out
+
+    def add(self, text: str, vector: list, importance: float = 0.5,
+            category: str = "fact", source: str = "manual") -> str:
+        import time
+        import uuid
+        memory_id = str(uuid.uuid4())
+        self._table.add([{
+            "id": memory_id,
+            "text": text,
+            "vector": vector,
+            "source": source,
+            "session_id": "",
+            "created_at": time.time(),
+            "metadata": "",
+        }])
+        return memory_id
+
+    def delete(self, memory_id: str) -> bool:
+        try:
+            self._table.delete(f"id = '{memory_id}'")
+            return True
+        except Exception:
+            return False
 
 
 def _get_claw():
-    """Lazy-load MemoryStore + MistralEmbedder from memory-claw plugin."""
+    """Lazy-load LanceDB store + optional embedder."""
     global _claw_store, _claw_embedder, _claw_error
     if _claw_store is not None:
         return _claw_store, _claw_embedder
     if _claw_error is not None:
         return None, None
     try:
-        # Add hermes-agent source to sys.path for plugin imports
-        if _HERMES_AGENT_PATH not in sys.path:
-            sys.path.insert(0, _HERMES_AGENT_PATH)
+        _claw_store = _LanceDBStore(_MEMORY_CLAW_DB_PATH)
+        logger.info("LanceDB: loaded store from %s", _MEMORY_CLAW_DB_PATH)
 
-        # Ensure MISTRAL_API_KEY is available (may be in ~/.hermes/.env)
-        api_key = os.environ.get("MISTRAL_API_KEY", "")
-        if not api_key:
-            env_path = HERMES_HOME / ".env"
-            if env_path.exists():
-                for line in env_path.read_text().splitlines():
-                    line = line.strip()
-                    if line.startswith("MISTRAL_API_KEY="):
-                        api_key = line.split("=", 1)[1].strip().strip("\"'")
-                        os.environ["MISTRAL_API_KEY"] = api_key
-                        break
+        # Embedder is optional — needed for semantic search/store only
+        try:
+            _HERMES_AGENT_PATH = "/root/.hermes/hermes-agent"
+            if _HERMES_AGENT_PATH not in sys.path:
+                sys.path.insert(0, _HERMES_AGENT_PATH)
 
-        from plugins.memory.memory_claw.embedder import MistralEmbedder
-        from plugins.memory.memory_claw.store import MemoryStore
+            api_key = os.environ.get("MISTRAL_API_KEY", "")
+            if not api_key:
+                env_path = HERMES_HOME / ".env"
+                if env_path.exists():
+                    for line in env_path.read_text().splitlines():
+                        line = line.strip()
+                        if line.startswith("MISTRAL_API_KEY="):
+                            api_key = line.split("=", 1)[1].strip().strip("\"'")
+                            os.environ["MISTRAL_API_KEY"] = api_key
+                            break
 
-        _claw_store = MemoryStore(_MEMORY_CLAW_DB_PATH)
-        _claw_store.open()
-        _claw_embedder = MistralEmbedder(api_key=api_key)
-        logger.info("memory-claw: loaded store from %s", _MEMORY_CLAW_DB_PATH)
+            from plugins.memory.memory_claw.embedder import MistralEmbedder
+            _claw_embedder = MistralEmbedder(api_key=api_key)
+        except Exception as e:
+            logger.debug("Embedder not available (search/store will be limited): %s", e)
+            _claw_embedder = None
+
         return _claw_store, _claw_embedder
     except Exception as e:
         _claw_error = str(e)
-        logger.warning("memory-claw: failed to load: %s", e)
+        logger.warning("LanceDB: failed to load: %s", e)
         return None, None
 
 _executor = ThreadPoolExecutor(max_workers=4)

@@ -89,9 +89,9 @@ async def search_sessions(q: str = Query(min_length=1, max_length=200)):
                     "id": sid,
                     "model": model or "unknown",
                     "platform": platform or "unknown",
-                    "created": data.get("created_at", ""),
+                    "created": data.get("created_at") or "",
                     "messages_count": msg_count,
-                    "preview": preview,
+                    "preview": preview or "",
                     "matched_in": matched_in,
                     "snippet": snippet,
                 })
@@ -150,8 +150,8 @@ async def list_sessions():
 
             sessions.append({
                 "id": sid,
-                "model": data.get("model", "unknown"),
-                "platform": data.get("platform", "unknown"),
+                "model": data.get("model") or "unknown",
+                "platform": data.get("platform") or "unknown",
                 "created": created_at,
                 "messages_count": msg_count,
                 "tokens": data.get("tokens", {}),
