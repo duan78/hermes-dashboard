@@ -4,13 +4,20 @@ from pydantic import BaseModel, Field
 
 
 class CronJob(BaseModel):
-    """A cron job entry."""
+    """A cron job entry. Supports both simple schedule string and Hermes wrapper format."""
     id: str = ""
-    schedule: str = ""
+    schedule: str | dict = ""
+    schedule_display: str | None = None
     prompt: str = ""
     name: str = ""
     enabled: bool = True
     last_run: str | None = None
+    last_run_at: str | None = None
+    last_status: str | None = None
+    deliver: str | None = None
+    repeat: dict | None = None
+    next_run_at: str | None = None
+    state: str | None = None
 
     model_config = {"extra": "allow"}
 

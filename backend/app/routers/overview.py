@@ -87,14 +87,21 @@ async def get_overview():
             d for d in skills_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()
         ])
 
-    # Cron count
+    # Cron count — handle Hermes wrapper format {"jobs": [...], "enabled": true}
     cron_dir = hermes_path("cron")
     if cron_dir.exists():
         cron_files = list(cron_dir.glob("*.json"))
-        result["cron_active"] = sum(
-            1 for f in cron_files
-            if json.loads(f.read_text()).get("enabled", True)
-        ) if cron_files else 0
+        count = 0
+        for f in cron_files:
+            try:
+                data = json.loads(f.read_text())
+                if "jobs" in data and isinstance(data["jobs"], list):
+                    count += sum(1 for j in data["jobs"] if j.get("enabled", True))
+                elif data.get("enabled", True):
+                    count += 1
+            except (json.JSONDecodeError, Exception):
+                pass
+        result["cron_active"] = count
 
     # Platform connections
     if result["gateway"] and result["gateway"]["platforms"]:

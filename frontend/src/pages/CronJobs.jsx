@@ -61,7 +61,7 @@ function cronToHuman(expr) {
 }
 
 async function fetchSystemCrons() {
-  const token = localStorage.getItem('hermes_token') || '';
+  const token = localStorage.getItem('hermes_user_token') || '';
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch('/api/cron/system', { headers });
@@ -372,8 +372,8 @@ export default function CronJobs() {
                 <tr key={job.id}>
                   <td style={{ fontWeight: 600 }}>{job.name || job.id}</td>
                   <td>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{job.schedule}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{cronToHuman(job.schedule)}</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{job.schedule_display || (typeof job.schedule === 'object' ? job.schedule.display : job.schedule)}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{cronToHuman(job.schedule_display || (typeof job.schedule === 'object' ? job.schedule.display : job.schedule))}</div>
                   </td>
                   <td>
                     <span className={`badge ${job.enabled ? 'badge-success' : 'badge-warning'}`}>
@@ -381,7 +381,7 @@ export default function CronJobs() {
                     </span>
                   </td>
                   <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {job.last_run || 'Never'}
+                    {job.last_run_at || job.last_run || 'Never'}
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>

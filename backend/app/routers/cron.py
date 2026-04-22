@@ -107,8 +107,14 @@ async def list_cron_jobs():
     for f in sorted(cron_dir.glob("*.json")):
         try:
             data = json.loads(f.read_text())
-            data["id"] = f.stem
-            jobs.append(data)
+            # Hermes stores all jobs in a single jobs.json wrapper: {"jobs": [...], "updated_at": "..."}
+            if "jobs" in data and isinstance(data["jobs"], list):
+                for job in data["jobs"]:
+                    job.setdefault("id", job.get("id", f.stem))
+                    jobs.append(job)
+            else:
+                data["id"] = f.stem
+                jobs.append(data)
         except json.JSONDecodeError:
             continue
     return jobs
