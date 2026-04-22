@@ -5,7 +5,7 @@ import {
   Zap, Database, Volume2, Shield, Archive, Layers, Code, Plug,
   Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
   Route, FileText, Plus, Trash2, RefreshCw, Zap as TestIcon,
-  AlertTriangle, Skull, Smile, XCircle, Boxes, LayoutGrid,
+  AlertTriangle, Skull, Smile, XCircle, Boxes, LayoutGrid, MessageSquare,
 } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
@@ -1083,6 +1083,106 @@ function PlatformToolsetsSection({ config, onChange }) {
   )
 }
 
+// ── Channel Prompts Section ──
+
+const CHANNEL_PROMPT_PLATFORMS = ['discord', 'telegram', 'slack', 'mattermost', 'whatsapp']
+
+function ChannelPromptsSection({ config, onChange }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [editPlatform, setEditPlatform] = useState(null)
+  const [newChannelId, setNewChannelId] = useState('')
+  const [newPromptText, setNewPromptText] = useState('')
+
+  const getPrompts = (platform) => {
+    const val = config?.[platform]?.channel_prompts
+    if (!val || typeof val !== 'object') return {}
+    return val
+  }
+
+  const addPrompt = (platform) => {
+    if (!newChannelId.trim() || !newPromptText.trim()) return
+    const current = getPrompts(platform)
+    const updated = { ...current, [newChannelId.trim()]: newPromptText.trim() }
+    onChange(`${platform}.channel_prompts`, updated)
+    setNewChannelId('')
+    setNewPromptText('')
+  }
+
+  const removePrompt = (platform, channelId) => {
+    const current = getPrompts(platform)
+    const updated = { ...current }
+    delete updated[channelId]
+    onChange(`${platform}.channel_prompts`, Object.keys(updated).length > 0 ? updated : null)
+  }
+
+  const activePlatforms = CHANNEL_PROMPT_PLATFORMS.filter(p => {
+    const prompts = getPrompts(p)
+    return Object.keys(prompts).length > 0
+  })
+
+  return (
+    <div className="accordion-card">
+      <div className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+        <MessageSquare size={18} className="accordion-icon" />
+        <span className="accordion-title">Channel Prompts</span>
+        <span className="field-count">{activePlatforms.length} platforms</span>
+        <Tooltip text="Configure custom system prompts per channel. Each channel ID can have its own prompt that overrides the default personality. Used for platform-specific behavior (e.g. a support channel gets a different personality)." />
+        <span className="accordion-chevron">
+          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </div>
+      {isOpen && (
+        <div className="accordion-body" style={{ padding: 0 }}>
+          {CHANNEL_PROMPT_PLATFORMS.map((platform, idx) => {
+            const prompts = getPrompts(platform)
+            const entries = Object.entries(prompts)
+            return (
+              <div key={platform} style={{ padding: '12px 16px', borderBottom: idx < CHANNEL_PROMPT_PLATFORMS.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14, textTransform: 'capitalize' }}>{platform}</span>
+                  <span className="badge badge-info" style={{ fontSize: 10 }}>{entries.length} prompts</span>
+                  <Tooltip text={`Channel-specific prompts for ${platform}. Format: channel_id = custom system prompt text.`} />
+                  <button className="btn btn-sm" style={{ marginLeft: 'auto', fontSize: 11 }} onClick={() => setEditPlatform(editPlatform === platform ? null : platform)}>
+                    {editPlatform === platform ? 'Close' : 'Edit'}
+                  </button>
+                </div>
+                {entries.length > 0 && editPlatform !== platform && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {entries.map(([chId, prompt]) => (
+                      <div key={chId} style={{ fontSize: 12, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        <code style={{ fontSize: 11, color: 'var(--accent)', minWidth: 80 }}>{chId}</code>
+                        <span style={{ flex: 1, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prompt}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {editPlatform === platform && (
+                  <div>
+                    {entries.map(([chId, prompt]) => (
+                      <div key={chId} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                        <code style={{ fontSize: 11, color: 'var(--accent)', minWidth: 80 }}>{chId}</code>
+                        <span style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary)' }}>{prompt.slice(0, 100)}{prompt.length > 100 ? '...' : ''}</span>
+                        <button className="btn btn-sm btn-danger-icon" onClick={() => removePrompt(platform, chId)}><Trash2 size={11} /></button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                      <input className="form-input" style={{ fontSize: 12, width: 140 }} placeholder="Channel ID" value={newChannelId} onChange={e => setNewChannelId(e.target.value)} />
+                      <input className="form-input" style={{ fontSize: 12, flex: 1 }} placeholder="Custom prompt text" value={newPromptText} onChange={e => setNewPromptText(e.target.value)} />
+                      <button className="btn btn-sm btn-primary" onClick={() => addPrompt(platform)} disabled={!newChannelId.trim() || !newPromptText.trim()}>
+                        <Plus size={12} /> Add
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Component ──
 
 export default function Config() {
@@ -1268,6 +1368,7 @@ export default function Config() {
       {/* Special sections */}
       <AuxiliaryModelsSection config={workingConfig} onChange={handleChange} />
       <PlatformToolsetsSection config={workingConfig} onChange={handleChange} />
+      <ChannelPromptsSection config={workingConfig} onChange={handleChange} />
       <ProviderRoutingSection config={workingConfig} />
       <PersonalityCreatorSection config={workingConfig} onChange={handleChange} />
       <SystemPromptSection />
