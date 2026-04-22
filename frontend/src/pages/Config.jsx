@@ -92,6 +92,13 @@ const SECTIONS = [
       { key: 'terminal.container_persistent', label: 'Persistent Container FS', type: 'toggle', desc: 'Persist the container filesystem across sessions. When enabled, files created inside the container survive restarts. Default: true.' },
       { key: 'terminal.docker_mount_cwd_to_workspace', label: 'Mount CWD to /workspace', type: 'toggle', desc: 'Mount the host\'s current working directory into /workspace inside the Docker container. Off by default because passing host directories weakens isolation.' },
       { key: 'terminal.env_passthrough', label: 'Env Passthrough', type: 'text', desc: 'Comma-separated list of environment variable names to pass through to sandboxed execution (terminal and execute_code). Skill-declared vars are passed automatically.' },
+      { key: 'terminal.modal_image', label: 'Modal Image', type: 'text', desc: 'Container image used when backend is "modal". Must include required tools. Example: "nikolaik/python-nodejs:python3.11-nodejs20".' },
+      { key: 'terminal.daytona_image', label: 'Daytona Image', type: 'text', desc: 'Container image used when backend is "daytona". Daytona provides cloud dev environments.' },
+      { key: 'terminal.singularity_image', label: 'Singularity Image', type: 'text', desc: 'Container image used when backend is "singularity". Format: "docker://image:tag".' },
+      { key: 'terminal.modal_mode', label: 'Modal Mode', type: 'select', options: ['auto', 'manual'], desc: 'Modal app management mode. "auto" creates and manages apps automatically. "manual" expects a pre-configured Modal app.' },
+      { key: 'terminal.docker_volumes', label: 'Docker Volumes', type: 'text', desc: 'Comma-separated Docker volume mounts in format "host_path:container_path" or "volume_name:container_path". Example: "/data:/data,myvol:/workspace".' },
+      { key: 'terminal.docker_forward_env', label: 'Docker Forward Env', type: 'text', desc: 'Comma-separated env var names to forward from host into the Docker container. Unlike env_passthrough, these are passed at container start.' },
+      { key: 'terminal.lifetime_seconds', label: 'Container Lifetime (s)', type: 'number', min: 60, max: 86400, desc: 'Maximum lifetime of a cloud container in seconds before it is automatically destroyed. Only applies to modal/daytona backends. Default: 300 (5 min).' },
     ],
   },
   {
