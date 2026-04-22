@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio } from 'lucide-react'
+import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio, List } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 
@@ -504,6 +504,10 @@ export default function Tools() {
   const [toolConfig, setToolConfig] = useState(null)
   const [configLoading, setConfigLoading] = useState(false)
   const [selectedTool, setSelectedTool] = useState(null)
+  const [activeTab, setActiveTab] = useState('platforms')
+  const [registry, setRegistry] = useState(null)
+  const [registryLoading, setRegistryLoading] = useState(false)
+  const [registryFilter, setRegistryFilter] = useState('')
 
   const load = async () => {
     try {
@@ -527,6 +531,18 @@ export default function Tools() {
       // Config endpoint may not be available yet
     } finally {
       setConfigLoading(false)
+    }
+  }
+
+  const loadRegistry = async () => {
+    setRegistryLoading(true)
+    try {
+      const data = await api.getToolsRegistry()
+      setRegistry(data)
+    } catch (e) {
+      // ignore
+    } finally {
+      setRegistryLoading(false)
     }
   }
 
@@ -610,6 +626,71 @@ export default function Tools() {
 
       {error && <div className="error-box">{error}</div>}
 
+      {/* Top-level tabs */}
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <button className={`tab ${activeTab === 'platforms' ? 'active' : ''}`} onClick={() => setActiveTab('platforms')}>
+          Platforms ({toolEntries.length})
+        </button>
+        <button className={`tab ${activeTab === 'registry' ? 'active' : ''}`} onClick={() => { setActiveTab('registry'); if (!registry) loadRegistry() }}>
+          <List size={13} style={{ verticalAlign: 'middle' }} /> Registered Tools
+        </button>
+      </div>
+
+      {activeTab === 'registry' ? (
+        <div className="card">
+          {registryLoading ? <div className="spinner" /> : registry ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>All Registered Tools</span>
+                <span className="badge badge-success" style={{ fontSize: 10 }}>{registry.enabled_count}/{registry.total} enabled</span>
+                <input
+                  className="form-input"
+                  style={{ marginLeft: 'auto', maxWidth: 200, fontSize: 12 }}
+                  placeholder="Search tools..."
+                  value={registryFilter}
+                  onChange={e => setRegistryFilter(e.target.value)}
+                />
+                <button className="btn btn-sm" onClick={loadRegistry}><RefreshCw size={12} /></button>
+              </div>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 60 }}>Status</th>
+                      <th>Name <Tooltip text="The tool's unique identifier used in function calls." /></th>
+                      <th>Toolset <Tooltip text="Which toolset/group this tool belongs to." /></th>
+                      <th>Description <Tooltip text="What this tool does — provided to the AI model so it knows when to use it." /></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registry.tools
+                      .filter(t => !registryFilter || t.name.toLowerCase().includes(registryFilter.toLowerCase()) || t.description.toLowerCase().includes(registryFilter.toLowerCase()))
+                      .map(t => (
+                      <tr key={t.name}>
+                        <td>
+                          <span className={`badge ${t.enabled ? 'badge-success' : 'badge-error'}`} style={{ fontSize: 10 }}>
+                            {t.enabled ? 'ON' : 'OFF'}
+                          </span>
+                        </td>
+                        <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 13 }}>{t.name}</td>
+                        <td>
+                          <span className="badge badge-info" style={{ fontSize: 10 }}>{t.toolset}</span>
+                        </td>
+                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{t.description}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+              Failed to load registry. Click refresh to try again.
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       {/* Platform filter tabs */}
       {toolEntries.length > 0 && (
         <div className="tabs" style={{ marginBottom: 16 }}>
@@ -734,6 +815,8 @@ export default function Tools() {
         <div className="card">
           <pre>{output}</pre>
         </div>
+      )}
+      </>
       )}
 
       {/* Tool Config Panel */}

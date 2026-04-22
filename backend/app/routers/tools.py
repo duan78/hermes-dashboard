@@ -482,3 +482,41 @@ async def check_agent_reach():
     ar_channels = _get_agent_reach_channels()
     ar_list = _build_agent_reach_list(ar_channels)
     return {"channels": ar_list, "total": len(ar_list), "active": sum(1 for ch in ar_list if ch["status"] == "ok")}
+
+
+@router.get("/registry")
+async def tools_registry():
+    """List all tools from the Hermes agent registry with name, toolset, description, and enabled status."""
+    config = _load_yaml_config()
+    disabled_tools = set(config.get("skills", {}).get("disabled", []) if isinstance(config.get("skills"), dict) else [])
+    tools_disabled = set(config.get("tools", {}).get("disabled", []) if isinstance(config.get("tools"), dict) else [])
+
+    try:
+        output = await run_hermes("tools", "list", timeout=20)
+    except RuntimeError as e:
+        return {"tools": [], "error": str(e)}
+
+    tools = []
+    current_toolset = "builtin"
+    for line in output.splitlines():
+        stripped = line.strip()
+
+        ts_match = re.match(r"Built-in toolsets.*?(\w+)", stripped)
+        if ts_match:
+            current_toolset = ts_match.group(1)
+            continue
+
+        m = re.match(r"([✓✗])\s+(enabled|disabled)\s+(\w+)\s+(.+)", stripped)
+        if m:
+            tool_name = m.group(3)
+            toolset = "skill" if tool_name in disabled_tools else current_toolset
+            tools.append({
+                "name": tool_name,
+                "toolset": toolset,
+                "description": m.group(4).strip(),
+                "enabled": m.group(1) == "✓",
+                "disabled_config": tool_name in disabled_tools or tool_name in tools_disabled,
+            })
+
+    toolsets = sorted(set(t["toolset"] for t in tools))
+    return {"tools": tools, "toolsets": toolsets, "total": len(tools), "enabled_count": sum(1 for t in tools if t["enabled"])}
