@@ -217,6 +217,7 @@ const SECTIONS = [
       { key: 'session_reset.mode', label: 'Reset Mode', type: 'select', options: ['both', 'idle', 'scheduled', 'off'], desc: 'When to automatically reset sessions. "both" resets on idle AND on schedule. "idle" only after inactivity. "scheduled" only at a specific hour. "off" never auto-resets.' },
       { key: 'session_reset.idle_minutes', label: 'Idle Reset (min)', type: 'number', min: 10, max: 10080, desc: 'Minutes of inactivity before resetting a session. 1440 = 24 hours. The session context is cleared and a fresh conversation starts. Default: 1440.' },
       { key: 'session_reset.at_hour', label: 'Reset Hour', type: 'number', min: 0, max: 23, desc: 'Hour of the day (0-23, local timezone) to reset scheduled sessions. Default: 4 (4 AM). Choose off-peak hours to avoid disrupting active conversations.' },
+      { key: 'command_allowlist', label: 'Command Allowlist', type: 'textarea', desc: 'One command pattern per line. Commands matching these patterns are auto-approved without user confirmation. Supports wildcards (e.g. "ls*", "git status", "cat *"). Leave empty to require approval for all commands.' },
     ],
   },
   {
@@ -1460,6 +1461,121 @@ function TTSTestButton({ config }) {
   )
 }
 
+
+// ── Active Subagents Indicator ──
+
+function ActiveSubagentsIndicator() {
+  const [data, setData] = useState({ active: [], count: 0 })
+
+  useEffect(() => {
+    api.delegationActive().then(setData).catch(() => {})
+    const interval = setInterval(() => {
+      api.delegationActive().then(setData).catch(() => {})
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const count = data.count || 0
+  const color = count === 0 ? 'var(--success)' : 'var(--warning)'
+
+  return (
+    <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 13, fontWeight: 600 }}>Active Subagents</span>
+      <Tooltip text="Number of subagent child processes currently running. These are delegate_task child agents spawned by the parent agent for parallel execution." />
+      <span
+        className="badge"
+        style={{
+          fontSize: 12,
+          padding: '4px 10px',
+          background: count === 0 ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+          color: color,
+          border: `1px solid ${color}`,
+          fontWeight: 600,
+        }}
+      >
+        {count} active
+      </span>
+    </div>
+  )
+}
+
+// ── Approval History Section ──
+
+function ApprovalHistorySection() {
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    api.approvalHistory().then(data => {
+      setHistory(data.entries || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A'
+    try { return new Date(dateStr.replace(' ', 'T')).toLocaleString() } catch { return dateStr }
+  }
+
+  return (
+    <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>Approval History</span>
+        <Tooltip text="Recent approval decisions from log files. Shows whether tool calls and commands were approved or denied by the user or auto-approval system." />
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+          {history.length} entries
+        </span>
+      </div>
+      {loading ? (
+        <div className="spinner" style={{ margin: '10px auto' }} />
+      ) : history.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 16, color: 'var(--text-muted)', fontSize: 13 }}>
+          No approval history found in logs.
+        </div>
+      ) : (
+        <div style={{ maxHeight: 250, overflow: 'auto', borderRadius: 6, border: '1px solid var(--border)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-tertiary)' }}>
+                <th style={{ padding: '6px 10px', textAlign: 'left' }}>
+                  Date
+                  <Tooltip text="When the approval decision was made." />
+                </th>
+                <th style={{ padding: '6px 10px', textAlign: 'left' }}>
+                  Command
+                  <Tooltip text="The tool call or command that was evaluated." />
+                </th>
+                <th style={{ padding: '6px 10px', textAlign: 'center' }}>
+                  Status
+                  <Tooltip text="Whether the command was approved or denied." />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((entry, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '5px 10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: 11 }}>
+                    {formatDate(entry.date)}
+                  </td>
+                  <td style={{ padding: '5px 10px', fontFamily: 'var(--font-mono)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {entry.command}
+                  </td>
+                  <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                    <span className={`badge ${entry.status === 'approved' ? 'badge-success' : 'badge-error'}`} style={{ fontSize: 10 }}>
+                      {entry.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Component ──
 
 export default function Config() {
@@ -1642,6 +1758,14 @@ export default function Config() {
                     </div>
                   )
                 })}
+                {/* Active Subagents Indicator */}
+                {section.id === 'delegation' && (
+                  <ActiveSubagentsIndicator />
+                )}
+                {/* Approval History */}
+                {section.id === 'sessions' && (
+                  <ApprovalHistorySection />
+                )}
               </div>
             )}
           </div>
