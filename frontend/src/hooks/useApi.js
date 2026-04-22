@@ -315,43 +315,6 @@ export function useVectorMemoryUsage() {
   })
 }
 
-// ── Honcho Memory ────────────────────────────────────────────
-export function useHonchoStatus() {
-  return useQuery({
-    queryKey: ['honcho', 'status'],
-    queryFn: () => api.honchoStatus(),
-  })
-}
-
-export function useHonchoStats() {
-  return useQuery({
-    queryKey: ['honcho', 'stats'],
-    queryFn: () => api.honchoStats(),
-  })
-}
-
-export function useHonchoProfile() {
-  return useQuery({
-    queryKey: ['honcho', 'profile'],
-    queryFn: () => api.honchoProfile(),
-  })
-}
-
-export function useHonchoMemories(limit = 50) {
-  return useQuery({
-    queryKey: ['honcho', 'memories', limit],
-    queryFn: () => api.honchoMemories(limit),
-  })
-}
-
-export function useHonchoSearch(query, topK = 10) {
-  return useQuery({
-    queryKey: ['honcho', 'search', query, topK],
-    queryFn: () => api.honchoSearch(query, topK),
-    enabled: !!query,
-  })
-}
-
 // ── Tools ────────────────────────────────────────────────────
 export function useTools() {
   return useQuery({
