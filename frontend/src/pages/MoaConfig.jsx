@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Brain, Save, RefreshCw, Plus, Trash2, X, Check, AlertTriangle,
   Settings, Thermometer, Shield, Zap, Layers, ChevronDown, ChevronUp,
-  DollarSign, Info, Cpu, Server, Activity, Plug, CreditCard
+  DollarSign, Info, Cpu, Server, Activity, Plug, CreditCard, Play,
+  Clock, CheckCircle, XCircle, Send
 } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
@@ -101,6 +102,10 @@ export default function MoaConfig() {
   const [showAddProvider, setShowAddProvider] = useState(false)
   const [newProvider, setNewProvider] = useState({ ...EMPTY_PROVIDER })
   const [newProviderId, setNewProviderId] = useState('')
+  const [showTestModal, setShowTestModal] = useState(false)
+  const [testPrompt, setTestPrompt] = useState('')
+  const [moaRunning, setMoaRunning] = useState(false)
+  const [moaResult, setMoaResult] = useState(null)
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -146,6 +151,26 @@ export default function MoaConfig() {
       showToast(e.message, 'error')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleRunTest = async () => {
+    if (!testPrompt.trim()) return
+    try {
+      setMoaRunning(true)
+      setMoaResult(null)
+      const result = await api.runMoaTest(testPrompt)
+      setMoaResult(result)
+      if (result.success) {
+        showToast(`MOA completed in ${result.timing}s`)
+      } else {
+        showToast(result.response?.substring(0, 100) || 'MOA run failed', 'error')
+      }
+    } catch (e) {
+      showToast(e.message, 'error')
+      setMoaResult({ success: false, response: e.message, timing: 0, failed_models: [], proposer_results: [] })
+    } finally {
+      setMoaRunning(false)
     }
   }
 
@@ -265,6 +290,10 @@ export default function MoaConfig() {
           </div>
         </div>
         <div className="moa-actions">
+          <button className="btn btn-sm" onClick={() => { setShowTestModal(true); setMoaResult(null) }} disabled={saving || moaRunning}>
+            <Play size={14} /> Run Test
+            <Tooltip text="Run a MOA test with a custom prompt to verify the full pipeline: proposers + aggregator." />
+          </button>
           <button className="btn btn-sm" onClick={loadConfig} disabled={saving}>
             <RefreshCw size={14} /> Refresh
             <Tooltip text="Reload the MOA configuration from the server." />
@@ -883,6 +912,111 @@ export default function MoaConfig() {
             then the aggregator synthesizes them into a single high-quality response.
             Changes require Hermes restart to take effect in active sessions.
           </span>
+        </div>
+      )}
+
+      {/* MOA Test Modal */}
+      {showTestModal && (
+        <div className="moa-modal-overlay" onClick={() => !moaRunning && setShowTestModal(false)}>
+          <div className="moa-modal" onClick={e => e.stopPropagation()}>
+            <div className="moa-modal-header">
+              <h3><Play size={16} /> Run MOA Test</h3>
+              <button className="btn btn-sm" onClick={() => !moaRunning && setShowTestModal(false)} disabled={moaRunning}>
+                <X size={14} />
+              </button>
+            </div>
+            <div className="moa-modal-body">
+              <textarea
+                className="form-input moa-test-prompt"
+                placeholder="Enter a prompt to test the MOA pipeline (e.g. 'Explain quantum entanglement in simple terms')"
+                value={testPrompt}
+                onChange={e => setTestPrompt(e.target.value)}
+                rows={4}
+                disabled={moaRunning}
+                autoFocus
+              />
+              <div className="moa-test-actions">
+                <button
+                  className="btn btn-primary"
+                  onClick={handleRunTest}
+                  disabled={!testPrompt.trim() || moaRunning}
+                >
+                  {moaRunning ? <RefreshCw size={14} className="spin" /> : <Send size={14} />}
+                  {moaRunning ? 'Running MOA...' : 'Run'}
+                </button>
+                {moaRunning && (
+                  <span className="moa-test-hint">
+                    Running {config?.reference_models?.length || 3} proposers in parallel, then 1 aggregator...
+                  </span>
+                )}
+              </div>
+
+              {/* Results */}
+              {moaResult && (
+                <div className="moa-test-results">
+                  <div className={`moa-test-status ${moaResult.success ? 'success' : 'error'}`}>
+                    {moaResult.success
+                      ? <><CheckCircle size={16} /> Success</>
+                      : <><XCircle size={16} /> Failed</>
+                    }
+                    {moaResult.timing > 0 && (
+                      <span className="moa-test-timing">
+                        <Clock size={13} /> {moaResult.timing}s
+                      </span>
+                    )}
+                  </div>
+
+                  {moaResult.success && (
+                    <div className="moa-test-response">
+                      <h4>Aggregated Response</h4>
+                      <pre>{moaResult.response}</pre>
+                    </div>
+                  )}
+
+                  {!moaResult.success && (
+                    <div className="moa-test-error">
+                      <AlertTriangle size={14} />
+                      <span>{moaResult.response}</span>
+                    </div>
+                  )}
+
+                  {/* Proposer results */}
+                  {moaResult.proposer_results && moaResult.proposer_results.length > 0 && (
+                    <div className="moa-test-proposers">
+                      <h4>Proposer Results</h4>
+                      {moaResult.proposer_results.map((p, i) => (
+                        <div key={i} className={`moa-test-proposer ${p.success ? 'ok' : 'fail'}`}>
+                          <span className="moa-test-proposer-model">
+                            {p.success
+                              ? <CheckCircle size={13} style={{ color: 'var(--success, #4ade80)' }} />
+                              : <XCircle size={13} style={{ color: 'var(--danger, #e55)' }} />
+                            }
+                            {p.model}
+                          </span>
+                          <span className="moa-test-proposer-provider">
+                            via {p.provider || '—'}
+                          </span>
+                          <span className="moa-test-proposer-meta">
+                            {p.success
+                              ? `${p.content_length?.toLocaleString()} chars`
+                              : p.error?.substring(0, 80)
+                            }
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {moaResult.failed_models && moaResult.failed_models.length > 0 && (
+                    <div className="moa-test-failed">
+                      <AlertTriangle size={13} />
+                      Failed models: {moaResult.failed_models.join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

@@ -38,6 +38,13 @@ class MoaProviderTestRequest(BaseModel):
     prompt: str = Field("", description="Test prompt")
 
 
+class MoaRunRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, description="Prompt to process via MOA")
+    reference_models: list | None = Field(None, description="Override reference models")
+    aggregator_model: str | None = Field(None, description="Override aggregator model")
+    aggregator_provider: str | None = Field(None, description="Override aggregator provider")
+
+
 # ── API Keys ──
 
 class ApiKeySetRequest(BaseModel):

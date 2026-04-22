@@ -243,6 +243,7 @@ export const api = {
   getMoaProviders: () => request('/config/moa/providers'),
   saveMoaProviders: (data) => request('/config/moa/providers', { method: 'PUT', body: JSON.stringify(data) }),
   testMoaProvider: (providerId) => request('/config/moa/providers/test', { method: 'POST', body: JSON.stringify({ provider_id: providerId }) }),
+  runMoaTest: (prompt, overrides) => request('/config/moa/run', { method: 'POST', body: JSON.stringify({ prompt, ...overrides }) }),
 
   // Provider Routing
   listProviders: () => request('/config/providers'),

@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import logging
 import os
@@ -16,6 +17,7 @@ from ..schemas.requests import (
     MoaConfigUpdateRequest,
     MoaProvidersUpdateRequest,
     MoaProviderTestRequest,
+    MoaRunRequest,
     PersonalityCreateRequest,
     PersonalityDeleteRequest,
     ProviderCreateRequest,
@@ -23,6 +25,7 @@ from ..schemas.requests import (
     ProviderUpdateRequest,
     YamlSaveRequest,
 )
+from ..services.moa_engine import run_moa
 from ..utils import hermes_path, mask_secrets, run_hermes
 
 logger = logging.getLogger(__name__)
@@ -238,6 +241,56 @@ async def save_moa_config(body: MoaConfigUpdateRequest):
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
     return {"status": "saved"}
+
+
+# ── MOA Run ──
+
+@router.post("/moa/run")
+async def moa_run(body: MoaRunRequest):
+    """Execute a standalone MOA run directly from the dashboard.
+
+    Uses the dashboard's own moa_engine (no dependency on hermes-agent).
+    Falls back through Ollama Cloud → DeepSeek → Mistral on failures.
+    """
+    config_path = hermes_path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(404, "config.yaml not found")
+
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    moa_config = raw.get("moa", {})
+    providers = raw.get("moa_providers", {})
+
+    # Apply overrides from request
+    if body.reference_models is not None:
+        moa_config["reference_models"] = body.reference_models
+    if body.aggregator_model is not None:
+        moa_config["aggregator_model"] = body.aggregator_model
+    if body.aggregator_provider is not None:
+        moa_config["aggregator_provider"] = body.aggregator_provider
+
+    # Fill defaults if missing
+    if "reference_models" not in moa_config or not moa_config["reference_models"]:
+        moa_config["reference_models"] = [
+            "deepseek-v3.2",
+            "mistral-large-3:675b",
+            "gemma4:31b",
+        ]
+    if "aggregator_model" not in moa_config:
+        moa_config["aggregator_model"] = "mistral-large-3:675b"
+    if "aggregator_provider" not in moa_config:
+        moa_config["aggregator_provider"] = "ollama_cloud"
+
+    try:
+        result = await asyncio.wait_for(
+            run_moa(body.prompt, moa_config, providers),
+            timeout=120,
+        )
+        return result
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "MOA run timed out after 120 seconds")
+    except Exception as e:
+        logger.error("MOA run error: %s", e, exc_info=True)
+        raise HTTPException(500, f"MOA run failed: {e}")
 
 
 # ── MOA Providers ──
