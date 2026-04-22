@@ -155,6 +155,7 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
   const [selectedProvider, setSelectedProvider] = useState(null)
   const [saveMsg, setSaveMsg] = useState({})
   const [arRechecking, setArRechecking] = useState(false)
+  const [imgModel, setImgModel] = useState('')
 
   useEffect(() => {
     // Initialize values and detect active provider
@@ -163,7 +164,14 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
       if (activeIdx >= 0) setSelectedProvider(activeIdx)
       else if (toolInfo.providers.length > 0) setSelectedProvider(0)
     }
-  }, [toolInfo])
+    // Load image_gen model from config
+    if (toolKey === 'image_gen') {
+      api.getConfig().then(d => {
+        const cfg = d.config || d
+        setImgModel(cfg?.image_gen?.model || '')
+      }).catch(() => {})
+    }
+  }, [toolInfo, toolKey])
 
   const handleSaveEnv = async (key, configKey, configValue) => {
     const val = values[key]
@@ -402,6 +410,40 @@ function ToolConfigPanel({ toolKey, toolInfo, onClose, onSaved }) {
                   </label>
                 ))}
               </div>
+              {/* Image Gen Model Selection */}
+              {toolKey === 'image_gen' && toolInfo.models && toolInfo.models.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Model
+                    <Tooltip text="Select which image generation model to use. Models vary in quality, speed, and style." />
+                  </div>
+                  <select
+                    className="form-select"
+                    value={imgModel}
+                    onChange={async (e) => {
+                      const model = e.target.value
+                      setImgModel(model)
+                      try {
+                        await api.setConfigValue('image_gen.model', model)
+                        setSaveMsg(prev => ({ ...prev, '__img_model__': 'Model saved!' }))
+                        setTimeout(() => setSaveMsg(prev => ({ ...prev, '__img_model__': null })), 3000)
+                      } catch (err) {
+                        setSaveMsg(prev => ({ ...prev, '__img_model__': 'Error: ' + err.message }))
+                      }
+                    }}
+                    style={{ fontSize: 13, maxWidth: 400 }}
+                  >
+                    {toolInfo.models.map(m => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.speed})</option>
+                    ))}
+                  </select>
+                  {saveMsg['__img_model__'] && (
+                    <div style={{ fontSize: 11, marginTop: 4, color: saveMsg['__img_model__'].startsWith('Error') ? 'var(--error)' : 'var(--success)' }}>
+                      {saveMsg['__img_model__']}
+                    </div>
+                  )}
+                </div>
+              )}
               {/* Agent-Reach channels shown inside Web Search category */}
               {toolInfo.agent_reach_channels && toolInfo.agent_reach_channels.length > 0 && (
                 <AgentReachChannelList
@@ -508,6 +550,7 @@ export default function Tools() {
   const [registry, setRegistry] = useState(null)
   const [registryLoading, setRegistryLoading] = useState(false)
   const [registryFilter, setRegistryFilter] = useState('')
+  const [imageGenModel, setImageGenModel] = useState('')
 
   const load = async () => {
     try {

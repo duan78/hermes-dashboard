@@ -56,7 +56,17 @@ TOOL_CATEGORIES = {
         "name": "Image Generation",
         "icon": "image",
         "providers": [
-            {"name": "FAL.ai", "tag": "FLUX 2 Pro with auto-upscaling", "env_vars": [{"key": "FAL_KEY", "label": "FAL API key", "url": "https://fal.ai/dashboard/keys"}]},
+            {"name": "FAL.ai", "tag": "FLUX 2 Klein 9B / FLUX 2 Pro / Z-Image / Qwen / GPT Image", "env_vars": [{"key": "FAL_KEY", "label": "FAL API key", "url": "https://fal.ai/dashboard/keys"}]},
+        ],
+        "models": [
+            {"id": "fal-ai/flux-2/klein/9b", "name": "FLUX 2 Klein 9B", "speed": "<1s"},
+            {"id": "fal-ai/flux-2-pro", "name": "FLUX 2 Pro", "speed": "~6s"},
+            {"id": "fal-ai/z-image/turbo", "name": "Z-Image Turbo", "speed": "~2s"},
+            {"id": "fal-ai/nano-banana-pro", "name": "Nano Banana Pro (Gemini 3)", "speed": "~8s"},
+            {"id": "fal-ai/gpt-image-1.5", "name": "GPT Image 1.5", "speed": "~15s"},
+            {"id": "fal-ai/ideogram/v3", "name": "Ideogram V3", "speed": "~5s"},
+            {"id": "fal-ai/recraft/v4/pro/text-to-image", "name": "Recraft V4 Pro", "speed": "~8s"},
+            {"id": "fal-ai/qwen-image", "name": "Qwen Image", "speed": "~12s"},
         ],
     },
     "browser": {
@@ -395,6 +405,11 @@ async def get_tool_config():
                 entry["agent_reach_active_count"] = len(ar_active)
 
         result[ts_key] = entry
+
+    # Include image_gen model list and current model selection
+    if "image_gen" in TOOL_CATEGORIES and "models" in TOOL_CATEGORIES["image_gen"]:
+        result["image_gen"]["models"] = TOOL_CATEGORIES["image_gen"]["models"]
+        result["image_gen"]["current_model"] = config.get("image_gen", {}).get("model", "")
 
     # Process simple env-var-only tools
     for ts_key, info in TOOLSET_ENV_REQUIREMENTS.items():
