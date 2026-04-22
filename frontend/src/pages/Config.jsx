@@ -244,8 +244,10 @@ const SECTIONS = [
     fields: [
       { key: 'discord.require_mention', label: 'Require Mention', type: 'toggle', desc: 'Bot only responds when explicitly @mentioned in Discord channels. Prevents the bot from responding to every message. Recommended: enabled in busy servers.' },
       { key: 'discord.free_response_channels', label: 'Free Response Channels', type: 'text', desc: 'Comma-separated channel IDs where the bot responds without being @mentioned. Leave empty to require mentions everywhere.' },
+      { key: 'discord.allowed_channels', label: 'Allowed Channels', type: 'text', desc: 'Comma-separated channel IDs the bot is allowed to respond in. If set, the bot ignores messages from all other channels. Leave empty to allow all channels.' },
       { key: 'discord.auto_thread', label: 'Auto Thread', type: 'toggle', desc: 'Automatically create a Discord thread for each new conversation. Keeps channels organized by grouping related messages together.' },
       { key: 'discord.reactions', label: 'Reactions', type: 'toggle', desc: 'Add emoji reactions to messages for visual feedback (e.g., thinking indicator, completion checkmark). Makes the bot feel more interactive.' },
+      { key: 'discord.server_actions', label: 'Server Actions', type: 'text', desc: 'Comma-separated list of Discord server action patterns the bot is allowed to perform (e.g. "create_channel,send_embed"). Leave empty for default safe set.' },
     ],
   },
   {
