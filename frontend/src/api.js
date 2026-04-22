@@ -267,6 +267,11 @@ export const api = {
   createPersonality: (name, systemPrompt, description, tone, style) => request('/config/personalities', { method: 'POST', body: JSON.stringify({ name, system_prompt: systemPrompt, description, tone, style }) }),
   deletePersonality: (name) => request('/config/personalities', { method: 'DELETE', body: JSON.stringify({ name }) }),
 
+  // Checkpoints
+  listCheckpoints: () => request('/config/checkpoints'),
+  restoreCheckpoint: (sessionId) => request(`/config/checkpoints/${sessionId}/restore`, { method: 'POST' }),
+  deleteCheckpoint: (sessionId) => request(`/config/checkpoints/${sessionId}`, { method: 'DELETE' }),
+
   // Claude Code Monitor
   activeClaudeSessions: () => request('/claude-code/active'),
   claudeCodeHistory: (limit = 30, project = '') => {

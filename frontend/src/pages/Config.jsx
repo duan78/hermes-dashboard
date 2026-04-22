@@ -1183,6 +1183,193 @@ function ChannelPromptsSection({ config, onChange }) {
   )
 }
 
+// ── Checkpoint Manager Section ──
+
+function CheckpointManagerSection() {
+  const [checkpoints, setCheckpoints] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [restoring, setRestoring] = useState({})
+  const [deleting, setDeleting] = useState({})
+  const { toast } = useToast()
+
+  const loadCheckpoints = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await api.listCheckpoints()
+      setCheckpoints(data.checkpoints || [])
+      setLoaded(true)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    if (isOpen && !loaded) loadCheckpoints()
+  }, [isOpen, loaded, loadCheckpoints])
+
+  const handleRestore = async (sessionId) => {
+    setRestoring(prev => ({ ...prev, [sessionId]: true }))
+    try {
+      const result = await api.restoreCheckpoint(sessionId)
+      toast.success(`Checkpoint "${sessionId}" restored (commit ${result.commit})`)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setRestoring(prev => ({ ...prev, [sessionId]: false }))
+    }
+  }
+
+  const handleDelete = async (sessionId) => {
+    if (!confirm(`Delete checkpoint "${sessionId}"? This cannot be undone.`)) return
+    setDeleting(prev => ({ ...prev, [sessionId]: true }))
+    try {
+      await api.deleteCheckpoint(sessionId)
+      toast.success(`Checkpoint "${sessionId}" deleted`)
+      setCheckpoints(prev => prev.filter(c => c.session_id !== sessionId))
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setDeleting(prev => ({ ...prev, [sessionId]: false }))
+    }
+  }
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A'
+    try {
+      return new Date(dateStr).toLocaleString()
+    } catch {
+      return dateStr
+    }
+  }
+
+  const formatSize = (bytes) => {
+    if (bytes === 0) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
+  }
+
+  return (
+    <div className="accordion-card">
+      <div className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+        <Archive size={18} className="accordion-icon" />
+        <span className="accordion-title">Checkpoint Manager</span>
+        <span className="field-count">{checkpoints.length} snapshots</span>
+        <Tooltip text="View, restore, and delete session checkpoint snapshots. Checkpoints save conversation state periodically so you can resume interrupted sessions." />
+        <span className="accordion-chevron">
+          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </div>
+      {isOpen && (
+        <div className="accordion-body" style={{ padding: 0 }}>
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Session Snapshots</span>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={loadCheckpoints}
+              disabled={loading}
+              style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <RefreshCw size={12} className={loading ? 'spin' : ''} />
+              List Snapshots
+              <Tooltip text="Scan ~/.hermes/checkpoints/ for available snapshots and refresh the table." />
+            </button>
+          </div>
+          {loading && !checkpoints.length ? (
+            <div className="spinner" style={{ margin: 20 }} />
+          ) : checkpoints.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              No checkpoints found. Enable checkpoints in the Sessions & Approvals section above.
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-secondary)' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left' }}>
+                    Snapshot
+                    <Tooltip text="Session identifier for this checkpoint." />
+                  </th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left' }}>
+                    Date
+                    <Tooltip text="Date of the most recent commit in this checkpoint." />
+                  </th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left' }}>
+                    Commits
+                    <Tooltip text="Number of snapshots (commits) stored in this checkpoint." />
+                  </th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>
+                    Size
+                    <Tooltip text="Total disk space used by this checkpoint." />
+                  </th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', width: 160 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {checkpoints.map(cp => {
+                  const lastCommit = cp.commits?.[0]
+                  return (
+                    <tr key={cp.session_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '8px 12px' }}>
+                        <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                          {cp.session_id.slice(0, 16)}{cp.session_id.length > 16 ? '...' : ''}
+                        </div>
+                        {lastCommit?.message && (
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                            {lastCommit.message.slice(0, 50)}{lastCommit.message.length > 50 ? '...' : ''}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        {lastCommit ? formatDate(lastCommit.date) : 'N/A'}
+                      </td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <span className="badge badge-info" style={{ fontSize: 10 }}>
+                          {cp.commit_count || 0}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                        {formatSize(cp.total_size || 0)}
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => handleRestore(cp.session_id)}
+                            disabled={restoring[cp.session_id]}
+                            style={{ fontSize: 11, color: '#22c55e' }}
+                          >
+                            <RotateCcw size={11} />
+                            {restoring[cp.session_id] ? '...' : ' Restore'}
+                            <Tooltip text={`Restore checkpoint "${cp.session_id.slice(0, 12)}..." to its latest committed state.`} />
+                          </button>
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => handleDelete(cp.session_id)}
+                            disabled={deleting[cp.session_id]}
+                            style={{ fontSize: 11, color: '#ef4444' }}
+                          >
+                            <Trash2 size={11} />
+                            {deleting[cp.session_id] ? '...' : ' Delete'}
+                            <Tooltip text={`Permanently delete this checkpoint. This frees disk space and cannot be undone.`} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Component ──
 
 export default function Config() {
@@ -1372,6 +1559,7 @@ export default function Config() {
       <ProviderRoutingSection config={workingConfig} />
       <PersonalityCreatorSection config={workingConfig} onChange={handleChange} />
       <SystemPromptSection />
+      <CheckpointManagerSection />
 
     </div>
   )

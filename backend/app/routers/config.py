@@ -862,3 +862,119 @@ async def delete_personality(body: PersonalityDeleteRequest):
     yaml_str = yaml.dump(original, default_flow_style=False, allow_unicode=True, sort_keys=False)
     config_path.write_text(yaml_str)
     return {"status": "deleted", "personality": body.name}
+
+
+# ── Checkpoint Management ──
+
+@router.get("/checkpoints")
+async def list_checkpoints():
+    """List all checkpoint snapshots with name, date, and size."""
+    checkpoints_dir = HERMES_HOME / "checkpoints"
+    if not checkpoints_dir.exists():
+        return {"checkpoints": [], "total": 0}
+
+    results = []
+    for session_dir in checkpoints_dir.iterdir():
+        if not session_dir.is_dir():
+            continue
+        # Check if it's a git repo (checkpoint format)
+        if not (session_dir / "HEAD").exists():
+            continue
+
+        # Get git log for commit dates and messages
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "git", "log", "--format=%H|%ai|%s", "--all",
+                cwd=str(session_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            commits = []
+            for line in stdout.decode(errors="replace").strip().splitlines():
+                parts = line.split("|", 2)
+                if len(parts) >= 2:
+                    commits.append({
+                        "hash": parts[0][:8],
+                        "date": parts[1],
+                        "message": parts[2] if len(parts) > 2 else "",
+                    })
+        except Exception:
+            commits = []
+
+        # Calculate total size
+        total_size = sum(f.stat().st_size for f in session_dir.rglob("*") if f.is_file())
+
+        results.append({
+            "session_id": session_dir.name,
+            "commits": commits[:20],  # Cap at 20
+            "commit_count": len(commits),
+            "total_size": total_size,
+            "total_size_mb": round(total_size / (1024 * 1024), 2),
+        })
+
+    return {"checkpoints": results, "total": len(results)}
+
+
+@router.post("/checkpoints/{session_id}/restore")
+async def restore_checkpoint(session_id: str):
+    """Restore a checkpoint by resetting its working tree to HEAD."""
+    checkpoint_path = HERMES_HOME / "checkpoints" / session_id
+    if not checkpoint_path.exists() or not checkpoint_path.is_dir():
+        raise HTTPException(404, f"Checkpoint '{session_id}' not found")
+    if not str(checkpoint_path.resolve()).startswith(str((HERMES_HOME / "checkpoints").resolve())):
+        raise HTTPException(400, "Invalid checkpoint path")
+
+    # Get latest commit info
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "log", "-1", "--format=%H|%ai|%s",
+            cwd=str(checkpoint_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        parts = stdout.decode(errors="replace").strip().split("|", 2)
+        commit_hash = parts[0][:8] if parts else "unknown"
+        commit_date = parts[1] if len(parts) > 1 else ""
+        commit_msg = parts[2] if len(parts) > 2 else ""
+    except Exception:
+        commit_hash = "unknown"
+        commit_date = ""
+        commit_msg = ""
+
+    # Restore working tree to HEAD
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "checkout", "HEAD", "--", ".",
+            cwd=str(checkpoint_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+        if proc.returncode != 0:
+            logger.warning("git checkout failed: %s", stderr.decode(errors="replace"))
+    except Exception as e:
+        raise HTTPException(500, f"Restore failed: {e}")
+
+    return {
+        "status": "restored",
+        "checkpoint": session_id,
+        "commit": commit_hash,
+        "date": commit_date,
+        "message": commit_msg,
+    }
+
+
+@router.delete("/checkpoints/{session_id}")
+async def delete_checkpoint(session_id: str):
+    """Delete a checkpoint directory."""
+    import shutil
+    checkpoint_path = HERMES_HOME / "checkpoints" / session_id
+    if not checkpoint_path.exists() or not checkpoint_path.is_dir():
+        raise HTTPException(404, f"Checkpoint '{session_id}' not found")
+    # Safety: only allow deleting under checkpoints dir
+    if not str(checkpoint_path.resolve()).startswith(str((HERMES_HOME / "checkpoints").resolve())):
+        raise HTTPException(400, "Invalid checkpoint path")
+    shutil.rmtree(checkpoint_path)
+    return {"status": "deleted", "checkpoint": session_id}
