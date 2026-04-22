@@ -13,6 +13,12 @@ const TOOLTIPS = {
   toggle: "Enable or disable this MCP server without removing it. A disabled server won't connect on startup.",
   test: "Test the connection to the server and verify tools are accessible.",
   status: "Current server status. Enabled servers connect automatically on Hermes startup.",
+  sampling_enabled: "Enable LLM sampling callbacks for this MCP server. Some MCP servers can request LLM completions (e.g. for summarization, analysis). This controls whether Hermes responds to those requests.",
+  sampling_model: "Model to use for MCP sampling callbacks. Leave empty to use the main agent model.",
+  sampling_max_tokens: "Maximum tokens the model can generate per sampling request. Caps output length to prevent runaway generation.",
+  sampling_timeout: "Timeout in seconds for each sampling request. If the model takes longer, the request is cancelled.",
+  sampling_max_rpm: "Maximum sampling requests per minute. Rate-limits how often this server can call back to the LLM.",
+  sampling_allowed_models: "List of model names the server is allowed to request. If empty, only the default model is used. One model per line.",
 }
 
 function maskValue(val) {
@@ -45,6 +51,12 @@ function AddServerForm({ onClose, onAdded }) {
   const [loading, setLoading] = useState(false)
   const [testResult, setTestResult] = useState(null)
   const [testLoading, setTestLoading] = useState(false)
+  const [samplingEnabled, setSamplingEnabled] = useState(false)
+  const [samplingModel, setSamplingModel] = useState('')
+  const [samplingMaxTokens, setSamplingMaxTokens] = useState('')
+  const [samplingTimeout, setSamplingTimeout] = useState('')
+  const [samplingMaxRpm, setSamplingMaxRpm] = useState('')
+  const [samplingAllowedModels, setSamplingAllowedModels] = useState('')
 
   const addKv = (setter) => setter(prev => [...prev, { key: '', value: '' }])
   const updateKv = (setter, idx, field, val) => setter(prev => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item))
@@ -64,6 +76,14 @@ function AddServerForm({ onClose, onAdded }) {
       }
       if (timeout) body.timeout = parseInt(timeout)
       if (connectTimeout) body.connect_timeout = parseInt(connectTimeout)
+      if (samplingEnabled || samplingModel || samplingMaxTokens || samplingTimeout || samplingMaxRpm || samplingAllowedModels) {
+        body.sampling = { enabled: samplingEnabled }
+        if (samplingModel) body.sampling.model = samplingModel
+        if (samplingMaxTokens) body.sampling.max_tokens_cap = parseInt(samplingMaxTokens)
+        if (samplingTimeout) body.sampling.timeout = parseInt(samplingTimeout)
+        if (samplingMaxRpm) body.sampling.max_rpm = parseInt(samplingMaxRpm)
+        if (samplingAllowedModels.trim()) body.sampling.allowed_models = samplingAllowedModels.trim().split('\n').map(s => s.trim()).filter(Boolean)
+      }
       await api.mcpAdd(body)
       onAdded(name.trim())
     } catch (err) {
@@ -155,6 +175,59 @@ function AddServerForm({ onClose, onAdded }) {
             </div>
           </div>
         )}
+        <details className="mcp-sampling-details" style={{ marginTop: 12 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <ChevronRight size={14} />
+            Sampling Configuration
+            <Tooltip text="Configure LLM sampling callbacks for this server. Some MCP servers request the model to generate text (e.g. for summarization).">
+              <Info size={12} className="inline-icon" />
+            </Tooltip>
+          </summary>
+          <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+            <div className="mcp-form-row">
+              <label className="mcp-label">
+                Sampling Enabled <Tooltip text={TOOLTIPS.sampling_enabled}><Info size={12} className="inline-icon" /></Tooltip>
+              </label>
+              <label className="toggle-wrap" style={{ margin: 0 }}>
+                <input type="checkbox" checked={samplingEnabled} onChange={e => setSamplingEnabled(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+            <div className="mcp-form-row">
+              <label className="mcp-label">
+                Model <Tooltip text={TOOLTIPS.sampling_model}><Info size={12} className="inline-icon" /></Tooltip>
+              </label>
+              <input type="text" className="form-input" placeholder="Leave empty for main model" value={samplingModel} onChange={e => setSamplingModel(e.target.value)} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <div className="mcp-form-row">
+                <label className="mcp-label">
+                  Max Tokens <Tooltip text={TOOLTIPS.sampling_max_tokens}><Info size={12} className="inline-icon" /></Tooltip>
+                </label>
+                <input type="number" className="form-input" placeholder="e.g. 4096" value={samplingMaxTokens} onChange={e => setSamplingMaxTokens(e.target.value)} min="1" />
+              </div>
+              <div className="mcp-form-row">
+                <label className="mcp-label">
+                  Timeout (s) <Tooltip text={TOOLTIPS.sampling_timeout}><Info size={12} className="inline-icon" /></Tooltip>
+                </label>
+                <input type="number" className="form-input" placeholder="e.g. 30" value={samplingTimeout} onChange={e => setSamplingTimeout(e.target.value)} min="1" />
+              </div>
+              <div className="mcp-form-row">
+                <label className="mcp-label">
+                  Max RPM <Tooltip text={TOOLTIPS.sampling_max_rpm}><Info size={12} className="inline-icon" /></Tooltip>
+                </label>
+                <input type="number" className="form-input" placeholder="e.g. 60" value={samplingMaxRpm} onChange={e => setSamplingMaxRpm(e.target.value)} min="1" />
+              </div>
+            </div>
+            <div className="mcp-form-row">
+              <label className="mcp-label">
+                Allowed Models <Tooltip text={TOOLTIPS.sampling_allowed_models}><Info size={12} className="inline-icon" /></Tooltip>
+              </label>
+              <textarea className="form-textarea" placeholder="One model per line (e.g. claude-sonnet-4, gpt-4o)" value={samplingAllowedModels} onChange={e => setSamplingAllowedModels(e.target.value)} style={{ fontSize: 12, minHeight: 50 }} />
+            </div>
+          </div>
+        </details>
+
         {testResult && (
           <div className={`mcp-test-result ${testResult.success ? 'success' : 'error'}`}>
             {testResult.message}
@@ -186,6 +259,12 @@ function EditServerModal({ server, onClose, onSaved }) {
   const [url, setUrl] = useState('')
   const [timeout, setTimeout_] = useState('')
   const [connectTimeout, setConnectTimeout] = useState('')
+  const [samplingEnabled, setSamplingEnabled] = useState(false)
+  const [samplingModel, setSamplingModel] = useState('')
+  const [samplingMaxTokens, setSamplingMaxTokens] = useState('')
+  const [samplingTimeout, setSamplingTimeout] = useState('')
+  const [samplingMaxRpm, setSamplingMaxRpm] = useState('')
+  const [samplingAllowedModels, setSamplingAllowedModels] = useState('')
 
   useEffect(() => {
     (async () => {
@@ -202,6 +281,14 @@ function EditServerModal({ server, onClose, onSaved }) {
           setEnvVars(Object.keys(env).length > 0 ? Object.entries(env).map(([k, v]) => ({ key: k, value: v })) : [{ key: '', value: '' }])
           const hdrs = res.config.headers || {}
           setHeaders(Object.keys(hdrs).length > 0 ? Object.entries(hdrs).map(([k, v]) => ({ key: k, value: v })) : [{ key: '', value: '' }])
+          // Load sampling config
+          const samp = res.config.sampling || {}
+          setSamplingEnabled(!!samp.enabled)
+          setSamplingModel(samp.model || '')
+          setSamplingMaxTokens(samp.max_tokens_cap != null ? String(samp.max_tokens_cap) : '')
+          setSamplingTimeout(samp.timeout != null ? String(samp.timeout) : '')
+          setSamplingMaxRpm(samp.max_rpm != null ? String(samp.max_rpm) : '')
+          setSamplingAllowedModels((samp.allowed_models || []).join('\n'))
         }
       } catch {
         // ignore
@@ -231,6 +318,15 @@ function EditServerModal({ server, onClose, onSaved }) {
       const hdrObj = {}
       headers.filter(kv => kv.key.trim()).forEach(kv => { hdrObj[kv.key.trim()] = kv.value })
       newConfig.headers = Object.keys(hdrObj).length > 0 ? hdrObj : undefined
+      // Sampling config
+      if (samplingEnabled || samplingModel || samplingMaxTokens || samplingTimeout || samplingMaxRpm || samplingAllowedModels.trim()) {
+        newConfig.sampling = { enabled: samplingEnabled }
+        if (samplingModel) newConfig.sampling.model = samplingModel
+        if (samplingMaxTokens) newConfig.sampling.max_tokens_cap = parseInt(samplingMaxTokens)
+        if (samplingTimeout) newConfig.sampling.timeout = parseInt(samplingTimeout)
+        if (samplingMaxRpm) newConfig.sampling.max_rpm = parseInt(samplingMaxRpm)
+        if (samplingAllowedModels.trim()) newConfig.sampling.allowed_models = samplingAllowedModels.trim().split('\n').map(s => s.trim()).filter(Boolean)
+      }
       // Remove undefined values
       Object.keys(newConfig).forEach(k => newConfig[k] === undefined && delete newConfig[k])
       await api.mcpUpdateConfig(server.name, newConfig)
@@ -296,6 +392,59 @@ function EditServerModal({ server, onClose, onSaved }) {
               </button>
             </div>
           </div>
+          <details className="mcp-sampling-details" style={{ marginTop: 12 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ChevronRight size={14} />
+              Sampling Configuration
+              <Tooltip text="Configure LLM sampling callbacks for this server. Some MCP servers request the model to generate text (e.g. for summarization).">
+                <Info size={12} className="inline-icon" />
+              </Tooltip>
+            </summary>
+            <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+              <div className="mcp-form-row">
+                <label className="mcp-label">
+                  Sampling Enabled <Tooltip text={TOOLTIPS.sampling_enabled}><Info size={12} className="inline-icon" /></Tooltip>
+                </label>
+                <label className="toggle-wrap" style={{ margin: 0 }}>
+                  <input type="checkbox" checked={samplingEnabled} onChange={e => setSamplingEnabled(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              <div className="mcp-form-row">
+                <label className="mcp-label">
+                  Model <Tooltip text={TOOLTIPS.sampling_model}><Info size={12} className="inline-icon" /></Tooltip>
+                </label>
+                <input type="text" className="form-input" placeholder="Leave empty for main model" value={samplingModel} onChange={e => setSamplingModel(e.target.value)} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <div className="mcp-form-row">
+                  <label className="mcp-label">
+                    Max Tokens <Tooltip text={TOOLTIPS.sampling_max_tokens}><Info size={12} className="inline-icon" /></Tooltip>
+                  </label>
+                  <input type="number" className="form-input" placeholder="e.g. 4096" value={samplingMaxTokens} onChange={e => setSamplingMaxTokens(e.target.value)} min="1" />
+                </div>
+                <div className="mcp-form-row">
+                  <label className="mcp-label">
+                    Timeout (s) <Tooltip text={TOOLTIPS.sampling_timeout}><Info size={12} className="inline-icon" /></Tooltip>
+                  </label>
+                  <input type="number" className="form-input" placeholder="e.g. 30" value={samplingTimeout} onChange={e => setSamplingTimeout(e.target.value)} min="1" />
+                </div>
+                <div className="mcp-form-row">
+                  <label className="mcp-label">
+                    Max RPM <Tooltip text={TOOLTIPS.sampling_max_rpm}><Info size={12} className="inline-icon" /></Tooltip>
+                  </label>
+                  <input type="number" className="form-input" placeholder="e.g. 60" value={samplingMaxRpm} onChange={e => setSamplingMaxRpm(e.target.value)} min="1" />
+                </div>
+              </div>
+              <div className="mcp-form-row">
+                <label className="mcp-label">
+                  Allowed Models <Tooltip text={TOOLTIPS.sampling_allowed_models}><Info size={12} className="inline-icon" /></Tooltip>
+                </label>
+                <textarea className="form-textarea" placeholder="One model per line (e.g. claude-sonnet-4, gpt-4o)" value={samplingAllowedModels} onChange={e => setSamplingAllowedModels(e.target.value)} style={{ fontSize: 12, minHeight: 50 }} />
+              </div>
+            </div>
+          </details>
+
           <div className="mcp-form-actions">
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary" type="submit" disabled={saving}>
