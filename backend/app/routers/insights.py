@@ -1,6 +1,9 @@
+import json
+import os
 import re
 import time
 from datetime import UTC
+from pathlib import Path
 
 from fastapi import APIRouter, Query
 
@@ -8,12 +11,68 @@ from ..utils import run_hermes
 
 router = APIRouter(prefix="/api/insights", tags=["insights"])
 
-# In-memory cache to avoid rescanning thousands of sessions on every request
+# Two-layer cache: in-memory (hot) + disk (survives restarts)
 _insights_cache: dict = {}
 _INSIGHTS_CACHE_TTL = 300  # 5 minutes
+_DISK_CACHE_GRACE = 120    # serve stale disk cache unconditionally for 2 min
+_DISK_CACHE_MAX_AGE = 3600 # 1 hour hard limit
 
 # The actual emoji used as section headers in hermes insights output
 _RE_DASH = r"[\u2500\-]+"
+
+
+def _disk_cache_path(hermes_home: Path, days: int) -> Path:
+    return hermes_home / f".insights_cache_d{days}.json"
+
+
+def _sessions_newest_mtime(sessions_dir: Path) -> float:
+    """Fast O(n) stat-only scan to get the newest file mtime."""
+    newest = 0.0
+    try:
+        with os.scandir(str(sessions_dir)) as it:
+            for entry in it:
+                try:
+                    if entry.name.endswith((".json", ".jsonl")):
+                        mt = entry.stat(follow_symlinks=False).st_mtime
+                        if mt > newest:
+                            newest = mt
+                except OSError:
+                    continue
+    except OSError:
+        pass
+    return newest
+
+
+def _read_disk_cache(days: int, hermes_home: Path) -> dict | None:
+    """Load insights from disk cache if fresh enough."""
+    path = _disk_cache_path(hermes_home, days)
+    if not path.exists():
+        return None
+    try:
+        raw = json.loads(path.read_text())
+        cache_ts = raw.get("ts", 0)
+        age = time.time() - cache_ts
+        # Hard max age
+        if age > _DISK_CACHE_MAX_AGE:
+            return None
+        # Grace period: serve unconditionally if fresh enough
+        if age > _DISK_CACHE_GRACE:
+            # Check if sessions changed since cache was written
+            sessions_dir = hermes_home / "sessions"
+            if sessions_dir.exists() and _sessions_newest_mtime(sessions_dir) > cache_ts:
+                return None
+        return raw.get("data")
+    except (json.JSONDecodeError, KeyError, OSError):
+        return None
+
+
+def _write_disk_cache(days: int, hermes_home: Path, data: dict):
+    """Persist computed insights to disk."""
+    path = _disk_cache_path(hermes_home, days)
+    try:
+        path.write_text(json.dumps({"ts": time.time(), "data": data}, default=str))
+    except OSError:
+        pass
 
 
 def _parse_insights(raw: str) -> dict:
@@ -132,16 +191,26 @@ def _parse_insights(raw: str) -> dict:
 @router.get("")
 async def get_insights(days: int = Query(default=7)):
     """Get structured usage insights."""
-    # Check cache
     cache_key = f"d{days}"
+
+    # Layer 1: in-memory cache (hot, sub-ms)
     cached = _insights_cache.get(cache_key)
     if cached and time.monotonic() - cached["ts"] < _INSIGHTS_CACHE_TTL:
         return cached["data"]
 
+    # Layer 2: disk cache (survives restart, ~1ms read)
+    from ..config import HERMES_HOME
+
+    disk_data = _read_disk_cache(days, HERMES_HOME)
+    if disk_data is not None:
+        _insights_cache[cache_key] = {"ts": time.monotonic(), "data": disk_data}
+        return disk_data
+
+    # Layer 3: full computation (slow)
     result = await _compute_insights(days)
 
-    # Store in cache
     _insights_cache[cache_key] = {"ts": time.monotonic(), "data": result}
+    _write_disk_cache(days, HERMES_HOME, result)
     return result
 
 
@@ -158,8 +227,6 @@ async def _compute_insights(days: int) -> dict:
         }
 
     # Enrich with session-derived metrics
-    import json
-
     from ..config import HERMES_HOME
 
     sessions_dir = HERMES_HOME / "sessions"
