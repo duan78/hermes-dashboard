@@ -134,6 +134,7 @@ export const api = {
   revokePairing: (userId) => request('/platforms/pairing/revoke', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
   getPlatformEnvVars: () => request('/platforms/env-vars'),
   configurePlatform: (platform, vars) => request('/platforms/configure', { method: 'POST', body: JSON.stringify({ platform, vars }) }),
+  // Discord Listings
 
   // Insights
   getInsights: (days = 7) => request(`/insights?days=${days}`),
@@ -368,4 +369,86 @@ export const api = {
   userChangeRole: (userId, role) => request('/users/role', { method: 'POST', body: JSON.stringify({ user_id: userId, role }) }),
   userDelete: (userId) => request('/users/delete', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
   userRegistrationStatus: () => publicRequest('/users/status'),
+
+  // Skills Security (Task 1)
+  skillsGuardScan: () => request('/skills/guard-scan'),
+  skillsAuditLog: () => request('/skills/audit-log'),
+  skillsQuarantine: () => request('/skills/quarantine'),
+  skillsQuarantineRelease: (name) => request('/skills/quarantine/release', { method: 'POST', body: JSON.stringify({ name }) }),
+  skillsQuarantineDelete: (name) => request('/skills/quarantine/' + encodeURIComponent(name), { method: 'DELETE' }),
+  skillsTaps: () => request('/skills/taps'),
+  skillsTapsAdd: (url) => request('/skills/taps', { method: 'POST', body: JSON.stringify({ url }) }),
+  skillsTapsRemove: (url) => request('/skills/taps', { method: 'DELETE', body: JSON.stringify({ url }) }),
+
+  // MCP OAuth (Task 2)
+  mcpOAuthStatus: () => request('/mcp/oauth/status'),
+  mcpOAuthRevoke: (name) => request('/mcp/oauth/' + encodeURIComponent(name) + '/revoke', { method: 'POST' }),
+  mcpOAuthTest: (name) => request('/mcp/oauth/' + encodeURIComponent(name) + '/test', { method: 'POST' }),
+
+  // MCP Connection Status (Task 3)
+  mcpConnectionStatus: () => request('/mcp/connection-status'),
+
+  // Model Catalog (Task 5)
+  getModelCatalog: () => request('/models/catalog'),
+  refreshModelCache: () => request('/models/refresh-cache', { method: 'POST' }),
+
+  // Code Execution (Task 9)
+  codeExecutionStatus: () => request('/code-execution/status'),
+
+  // Delegation (Task 10)
+  delegationActive: () => request('/delegation/active'),
+
+  // Approvals (Task 11)
+  approvalHistory: () => request('/approvals/history'),
+
+  // Context (Task 12)
+  contextStatus: () => request('/context/status'),
+
+  // Vision Test (Task 13)
+  visionTest: (formData) => {
+    const userToken = localStorage.getItem('hermes_user_token') || '';
+    const legacyToken = localStorage.getItem('hermes_token') || '';
+    const token = userToken || legacyToken;
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch('/api/vision/test', { method: 'POST', headers, body: formData }).then(res => res.json());
+  },
+
+  // TTS Test (Task 14)
+  ttsTest: (text, provider) => {
+    const userToken = localStorage.getItem('hermes_user_token') || '';
+    const legacyToken = localStorage.getItem('hermes_token') || '';
+    const token = userToken || legacyToken;
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const params = new URLSearchParams({ text: text || 'Hello, this is a test.' });
+    if (provider) params.set('provider', provider);
+    return fetch('/api/tts/test?' + params, { headers }).then(res => res.blob());
+  },
+
+  // Image Gen Test (Task 15)
+  imageGenTest: (prompt) => request('/tools/image-gen/test', { method: 'POST', body: JSON.stringify({ prompt }) }),
+
+
+  // RL Training (Task 18)
+  rlTrainingStatus: () => request('/rl-training/status'),
+  rlTrainingCheckResults: () => request('/rl-training/check-results', { method: 'POST' }),
+
+  // Skills Security & Audit
+  skillsGuardScan: () => request('/skills/guard-scan'),
+  skillsAuditLog: () => request('/skills/audit-log'),
+  skillsQuarantine: () => request('/skills/quarantine'),
+  skillsQuarantineRelease: (name) => request('/skills/quarantine/release', { method: 'POST', body: JSON.stringify({ name }) }),
+  skillsQuarantineDelete: (name) => request('/skills/quarantine/' + encodeURIComponent(name), { method: 'DELETE' }),
+  skillsTaps: () => request('/skills/taps'),
+  skillsTapsAdd: (url) => request('/skills/taps', { method: 'POST', body: JSON.stringify({ url }) }),
+  skillsTapsRemove: (url) => request('/skills/taps', { method: 'DELETE', body: JSON.stringify({ url }) }),
+
+  // MCP OAuth
+  mcpOAuthStatus: () => request('/mcp/oauth/status'),
+  mcpOAuthRevoke: (name) => request('/mcp/oauth/' + encodeURIComponent(name) + '/revoke', { method: 'POST' }),
+  mcpOAuthTest: (name) => request('/mcp/oauth/' + encodeURIComponent(name) + '/test', { method: 'POST' }),
+
+  // MCP Connection Status
+  mcpConnectionStatus: () => request('/mcp/connection-status'),
 };

@@ -726,3 +726,10 @@ pre {
   color: var(--accent);
   text-decoration: underline;
 }
+
+
+/* Platform status pulse animation for "Connecting" state */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -498,6 +499,92 @@ async def check_agent_reach():
     ar_channels = _get_agent_reach_channels()
     ar_list = _build_agent_reach_list(ar_channels)
     return {"channels": ar_list, "total": len(ar_list), "active": sum(1 for ch in ar_list if ch["status"] == "ok")}
+
+
+
+
+@router.post("/image-gen/test")
+async def image_gen_test(body: dict):
+    """Test image generation with a prompt using FAL.ai."""
+    import httpx
+
+    prompt = body.get("prompt", "")
+    if not prompt:
+        raise HTTPException(400, "prompt is required")
+
+    fal_key = _get_env_value("FAL_KEY")
+    if not fal_key:
+        raise HTTPException(400, "FAL_KEY not configured. Set it in the Image Generation tool config.")
+
+    config = _load_yaml_config()
+    model = config.get("image_gen", {}).get("model", "fal-ai/flux-2/klein/9b")
+
+    # Use FAL.ai REST API
+    payload = {
+        "prompt": prompt,
+        "image_size": "landscape_16_9",
+        "num_images": 1,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            # Submit the request
+            resp = await client.post(
+                f"https://queue.fal.run/{model}",
+                headers={
+                    "Authorization": f"Key {fal_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+
+            if resp.status_code == 401:
+                raise HTTPException(401, "Invalid FAL_KEY")
+            if resp.status_code != 200:
+                error_text = resp.text[:500]
+                raise HTTPException(502, f"FAL.ai error: {error_text}")
+
+            data = resp.json()
+            request_id = data.get("request_id")
+
+            if not request_id:
+                # Some models return directly
+                images = data.get("images", [])
+                if images:
+                    return {"status": "ok", "model": model, "images": images}
+                raise HTTPException(502, f"Unexpected response from FAL.ai: {str(data)[:300]}")
+
+            # Poll for result
+            for _ in range(60):  # max 60 seconds
+                await asyncio.sleep(1)
+                status_resp = await client.get(
+                    f"https://queue.fal.run/{model}/requests/{request_id}/status",
+                    headers={"Authorization": f"Key {fal_key}"},
+                )
+                if status_resp.status_code == 200:
+                    status_data = status_resp.json()
+                    if status_data.get("status") == "COMPLETED":
+                        # Get the result
+                        result_resp = await client.get(
+                            f"https://queue.fal.run/{model}/requests/{request_id}",
+                            headers={"Authorization": f"Key {fal_key}"},
+                        )
+                        if result_resp.status_code == 200:
+                            result_data = result_resp.json()
+                            images = result_data.get("images", [])
+                            return {"status": "ok", "model": model, "images": images}
+                        break
+                    elif status_data.get("status") == "FAILED":
+                        raise HTTPException(502, f"FAL.ai generation failed: {status_data.get('error', 'unknown')}")
+                # Still IN_PROGRESS, continue polling
+
+            raise HTTPException(504, "Image generation timed out (60s)")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Image gen test error: %s", e)
+        raise HTTPException(500, f"Image generation failed: {str(e)}")
 
 
 @router.get("/registry")

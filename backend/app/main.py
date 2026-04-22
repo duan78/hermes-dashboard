@@ -48,6 +48,7 @@ from .routers import (
     skills,
     skills_security,
     tools,
+    discord_listings,
     tts_test,
     users,
     vision,
@@ -275,6 +276,7 @@ app.include_router(config.router)
 app.include_router(sessions.router)
 app.include_router(memory.router)
 app.include_router(tools.router)
+app.include_router(discord_listings.router)
 app.include_router(vision.router)
 app.include_router(tts_test.router)
 app.include_router(skills.router)

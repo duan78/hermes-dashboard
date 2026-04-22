@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Radio, RefreshCw, Wifi, WifiOff, Users, Key, Check, X, Loader2, Settings, Eye, EyeOff, Save, Send, MessageCircle, Smartphone, Shield, Hash, Grid, Home, Mail } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
@@ -239,6 +239,41 @@ export default function Platforms() {
 
   useEffect(() => { load(); loadPairing() }, [])
 
+  // WebSocket for real-time platform status updates
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/ws/hub`
+    const ws = new WebSocket(wsUrl)
+    const userToken = localStorage.getItem('hermes_user_token') || ''
+    const legacyToken = localStorage.getItem('hermes_token') || ''
+    const token = userToken || legacyToken
+
+    ws.onopen = () => {
+      // Authenticate on connect
+      if (token) {
+        ws.send(JSON.stringify({ type: 'auth', token }))
+      }
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.type === 'platform:status' && data.data) {
+          const { platform, state } = data.data
+          if (platform && state) {
+            setPlatforms(prev => ({
+              ...prev,
+              [platform]: { ...(prev[platform] || {}), state }
+            }))
+          }
+        }
+      } catch {}
+    }
+
+    ws.onerror = () => {}
+    return () => ws.close()
+  }, [])
+
   const parsePairingEntries = (text) => {
     if (!text) return []
     const entries = []
@@ -298,9 +333,20 @@ export default function Platforms() {
                   <span style={{ fontSize: 16, fontWeight: 600, textTransform: 'capitalize' }}>{name.replace('_', ' ')}</span>
                   <Tooltip text={pInfo?.desc || `${name} platform integration`} />
                 </div>
-                <span className={`badge ${isConnected ? 'badge-success' : isNotConfigured ? 'badge-warning' : 'badge-error'}`}>
-                  {isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
-                  {state}
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }}>
+                  <span style={{
+                    width: 10, height: 10, borderRadius: '50%', display: 'inline-block',
+                    background: state === 'connected' ? '#22c55e' : state === 'connecting' ? '#eab308' : isNotConfigured ? '#6b7280' : '#ef4444',
+                    animation: state === 'connecting' ? 'status-pulse 1.2s ease-in-out infinite' : 'none',
+                    boxShadow: state === 'connected' ? '0 0 6px rgba(34,197,94,0.5)' : 'none',
+                  }} />
+                  <Tooltip text={state === 'connected' ? 'Platform is connected and active.' : state === 'connecting' ? 'Platform is attempting to connect...' : isNotConfigured ? 'Platform has not been configured yet.' : 'Platform is disconnected or encountered an error.'} />
+                  <span style={{
+                    color: state === 'connected' ? 'var(--success)' : state === 'connecting' ? 'var(--warning)' : isNotConfigured ? 'var(--text-muted)' : 'var(--error)',
+                    textTransform: 'capitalize',
+                  }}>
+                    {state.replace('_', ' ')}
+                  </span>
                 </span>
               </div>
 
