@@ -1,4 +1,5 @@
 import re
+import time
 from datetime import UTC
 
 from fastapi import APIRouter, Query
@@ -6,6 +7,10 @@ from fastapi import APIRouter, Query
 from ..utils import run_hermes
 
 router = APIRouter(prefix="/api/insights", tags=["insights"])
+
+# In-memory cache to avoid rescanning thousands of sessions on every request
+_insights_cache: dict = {}
+_INSIGHTS_CACHE_TTL = 300  # 5 minutes
 
 # The actual emoji used as section headers in hermes insights output
 _RE_DASH = r"[\u2500\-]+"
@@ -127,6 +132,20 @@ def _parse_insights(raw: str) -> dict:
 @router.get("")
 async def get_insights(days: int = Query(default=7)):
     """Get structured usage insights."""
+    # Check cache
+    cache_key = f"d{days}"
+    cached = _insights_cache.get(cache_key)
+    if cached and time.monotonic() - cached["ts"] < _INSIGHTS_CACHE_TTL:
+        return cached["data"]
+
+    result = await _compute_insights(days)
+
+    # Store in cache
+    _insights_cache[cache_key] = {"ts": time.monotonic(), "data": result}
+    return result
+
+
+async def _compute_insights(days: int) -> dict:
     try:
         output = await run_hermes("insights", "--days", str(days), timeout=30)
         parsed = _parse_insights(output)

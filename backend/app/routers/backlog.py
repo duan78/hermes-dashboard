@@ -733,6 +733,62 @@ async def auto_feed_history():
     }
 
 
+@router.get("/auto-feed/trigger")
+async def auto_feed_trigger():
+    """Seed the backlog with initial items based on project context if backlog is empty."""
+    data = _read_backlog()
+    items = data.get("items", [])
+
+    if items:
+        return {"status": "already_populated", "total": len(items), "added": 0}
+
+    now = datetime.now().isoformat()
+    seed_items = [
+        {
+            "id": "optimiser-requetes-insights",
+            "title": "Optimiser les requêtes insights du dashboard",
+            "description": "L'endpoint /api/insights met plus de 4s à répondre. Mettre en cache les résultats ou optimiser le scan des 3000+ sessions JSONL.",
+            "category": "dashboard",
+            "priority": "normale",
+            "status": "pending",
+            "created": now,
+        },
+        {
+            "id": "ajout-monitoring-ppfmultisites",
+            "title": "Ajouter le monitoring PPFMultiSites au dashboard",
+            "description": "Intégrer les métriques PPFMultiSites (statuts de scrapers, résultats de crawling) dans le dashboard Hermes.",
+            "category": "dashboard",
+            "priority": "haute",
+            "status": "pending",
+            "created": now,
+        },
+        {
+            "id": "automatiser-deploiement-dashboard",
+            "title": "Automatiser le déploiement du dashboard via CI/CD",
+            "description": "Le dashboard est déployé manuellement via systemctl. Configurer un pipeline de build automatique du frontend et redémarrage du service.",
+            "category": "devops",
+            "priority": "normale",
+            "status": "pending",
+            "created": now,
+        },
+        {
+            "id": "ajout-tests-endpoints-api",
+            "title": "Ajouter des tests pour les endpoints API du dashboard",
+            "description": "Les endpoints du dashboard n'ont pas de tests automatisés. Écrire des tests pytest pour les routers critiques (sessions, memory, backlog).",
+            "category": "dashboard",
+            "priority": "bassee",
+            "status": "pending",
+            "created": now,
+        },
+    ]
+
+    data["items"] = seed_items
+    _write_backlog(data)
+    logger.info("Seeded backlog with %d initial items", len(seed_items))
+
+    return {"status": "seeded", "total": len(seed_items), "added": len(seed_items)}
+
+
 @router.post("")
 async def create_backlog_item(body: BacklogItemCreate):
     """Create a new backlog item. ID is auto-generated from title."""

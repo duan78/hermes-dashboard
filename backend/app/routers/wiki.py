@@ -70,6 +70,14 @@ async def wiki_stats():
 
     return stats
 
+
+@router.get("/schema")
+async def wiki_schema():
+    """Return the wiki SCHEMA.md content."""
+    if not SCHEMA_PATH.exists():
+        return {"content": "", "exists": False}
+    return {"content": SCHEMA_PATH.read_text(), "exists": True}
+
 @router.get("/index")
 async def wiki_index():
     """Get the wiki index.md content."""

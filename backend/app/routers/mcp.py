@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 import yaml
@@ -47,8 +48,6 @@ def _parse_mcp_list(output: str) -> list:
             continue
         if not in_table:
             continue
-        # Split on 2+ spaces but preserve the transport field which may contain spaces
-        # Format: Name<spaces>Transport<spaces>Tools<spaces>Status
         parts = re.split(r"\s{2,}", stripped.strip())
         if len(parts) < 4:
             continue
@@ -67,6 +66,72 @@ def _parse_mcp_list(output: str) -> list:
     return servers
 
 
+def _parse_mcporter_list(output: str) -> list:
+    """Parse mcporter list output into server dicts."""
+    servers = []
+    for line in output.splitlines():
+        m = re.match(r"^-\s+(\S+)\s+\((\d+)\s+tools?,\s+[\d.]+s\)", line.strip())
+        if m:
+            servers.append({
+                "name": m.group(1),
+                "type": "http",
+                "transport": "mcporter",
+                "tools_count": m.group(2),
+                "status": "enabled",
+                "source": "mcporter",
+            })
+    return servers
+
+
+async def _run_mcporter_list() -> str:
+    """Run mcporter list and return stdout."""
+    proc = await asyncio.create_subprocess_exec(
+        "mcporter", "list",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+    return stdout.decode(errors="replace")
+
+
+async def _run_mcporter_detail(name: str) -> str:
+    """Run mcporter list {name} --schema and return stdout."""
+    proc = await asyncio.create_subprocess_exec(
+        "mcporter", "list", name, "--schema",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+    return stdout.decode(errors="replace")
+
+
+def _parse_mcporter_detail(output: str) -> list:
+    """Parse mcporter detail output into tool dicts with JSDoc + JSON schema."""
+    tools = []
+    # Parse JSDoc blocks:  /** ... */  followed by function name(...); followed by JSON schema
+    jsdoc_blocks = re.finditer(
+        r'/\*\*\s*(.*?)\s*\*/\s*function\s+(\w+)\s*\([^)]*\)\s*;',
+        output, re.DOTALL
+    )
+    for m in jsdoc_blocks:
+        desc_block = m.group(1)
+        func_name = m.group(2)
+        # Clean description — strip leading * on each line
+        desc_lines = []
+        for line in desc_block.splitlines():
+            line = line.strip().lstrip('*').strip()
+            if line and not line.startswith('@param'):
+                desc_lines.append(line)
+        description = ' '.join(desc_lines)
+        tools.append({"name": func_name, "description": description})
+
+    # If JSDoc parsing found nothing, try simple name extraction
+    if not tools:
+        for m in re.finditer(r'^\s+(\w+)\s*\(', output, re.MULTILINE):
+            tools.append({"name": m.group(1), "description": ""})
+    return tools
+
+
 def _parse_mcp_test(output: str) -> list:
     tools = []
     in_tools = False
@@ -81,7 +146,6 @@ def _parse_mcp_test(output: str) -> list:
             continue
         if not stripped:
             continue
-        # Tool format: name<spaces>description (description may contain ...)
         m = re.match(r"^(\S+)\s+(.+)$", stripped)
         if m:
             tools.append({"name": m.group(1), "description": m.group(2)})
@@ -90,20 +154,47 @@ def _parse_mcp_test(output: str) -> list:
 
 @router.get("/list")
 async def list_mcp_servers():
+    servers = []
+    error = None
+
+    # Try hermes mcp list first
     try:
         output = await run_hermes("mcp", "list", timeout=15)
         servers = _parse_mcp_list(output)
     except Exception as e:
-        return {"servers": [], "error": str(e)}
-    return {"servers": servers}
+        error = str(e)
+
+    # Fallback to mcporter if hermes returned empty
+    if not servers:
+        try:
+            output = await _run_mcporter_list()
+            mcporter_servers = _parse_mcporter_list(output)
+            if mcporter_servers:
+                servers = mcporter_servers
+                error = None
+        except Exception as e:
+            if not error:
+                error = str(e)
+
+    return {"servers": servers, "error": error}
 
 
 @router.get("/detail/{name}")
 async def mcp_detail(name: str):
+    # Try hermes mcp test first
     try:
         output = await run_hermes("mcp", "test", name, timeout=30)
         tools = _parse_mcp_test(output)
-        return {"name": name, "tools": tools, "success": True}
+        if tools:
+            return {"name": name, "tools": tools, "success": True}
+    except Exception:
+        pass
+
+    # Fallback to mcporter list {name} --schema
+    try:
+        output = await _run_mcporter_detail(name)
+        tools = _parse_mcporter_detail(output)
+        return {"name": name, "tools": tools, "success": bool(tools)}
     except Exception as e:
         return {"name": name, "tools": [], "success": False, "error": str(e)}
 
