@@ -459,7 +459,6 @@ export const api = {
   mcpConnectionStatus: () => request('/mcp/oauth/connection-status'),
 
 
-  /  imageGenTest: (prompt) => request('/tools/image-gen/test', { method: 'POST', body: JSON.stringify({ prompt }) }),
 
   // Delegation Monitoring
   delegationActive: () => request('/delegation/active'),

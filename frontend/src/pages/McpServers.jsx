@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Network, RefreshCw, Plus, Trash2, Zap, Loader2, X, ChevronDown, ChevronRight, Edit3, Power, Info } from 'lucide-react'
+import { Network, RefreshCw, Plus, Trash2, Zap, Loader2, X, ChevronDown, ChevronRight, Edit3, Power, Info, Key, Wifi, WifiOff, Shield, AlertCircle, CheckCircle2, XCircle, Circle } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 import ConfirmModal from '../components/ConfirmModal'
@@ -19,6 +19,11 @@ const TOOLTIPS = {
   sampling_timeout: "Timeout in seconds for each sampling request. If the model takes longer, the request is cancelled.",
   sampling_max_rpm: "Maximum sampling requests per minute. Rate-limits how often this server can call back to the LLM.",
   sampling_allowed_models: "List of model names the server is allowed to request. If empty, only the default model is used. One model per line.",
+  connection_status: "Real-time connection status of this MCP server. Green = connected, Yellow = reconnecting, Red = disconnected.",
+  oauth_status: "Status of OAuth authentication for this MCP server.",
+  oauth_revoke: "Revoke the OAuth token. You will need to re-authorize to reconnect.",
+  oauth_test: "Test whether the OAuth token is still valid and not expired.",
+  oauth_authorize: "Configure OAuth authorization for MCP servers that require it.",
 }
 
 function maskValue(val) {
@@ -458,7 +463,34 @@ function EditServerModal({ server, onClose, onSaved }) {
   )
 }
 
-function ServerCard({ server, onToggle, onRemove, onEdit }) {
+
+// Task 3: Connection status indicator
+function ConnectionStatusDot({ serverName, connectionStatuses }) {
+  const status = connectionStatuses?.find(s => s.name === serverName)
+  if (!status) return null
+
+  const dotStyles = {
+    connected: { color: '#22c55e', label: 'Connected' },
+    connecting: { color: '#eab308', label: 'Connecting...' },
+    disconnected: { color: '#ef4444', label: 'Disconnected' },
+    disabled: { color: '#94a3b8', label: 'Disabled' },
+  }
+  const info = dotStyles[status.status] || dotStyles.disabled
+
+  return (
+    <Tooltip text={TOOLTIPS.connection_status}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+        <Circle size={8} fill={info.color} stroke={info.color} />
+        <span style={{ color: info.color }}>{info.label}</span>
+        {status.retry_count > 0 && (
+          <span style={{ color: '#eab308', fontSize: 10 }}>(retry #{status.retry_count})</span>
+        )}
+      </span>
+    </Tooltip>
+  )
+}
+
+function ServerCard({ server, onToggle, onRemove, onEdit, connectionStatuses }) {
   const [expanded, setExpanded] = useState(false)
   const [tools, setTools] = useState(null)
   const [toolsLoading, setToolsLoading] = useState(false)
@@ -550,6 +582,7 @@ function ServerCard({ server, onToggle, onRemove, onEdit }) {
               {isEnabled ? '● enabled' : '○ disabled'}
             </span>
           </Tooltip>
+          <ConnectionStatusDot serverName={server.name} connectionStatuses={connectionStatuses} />
         </div>
         <div className="mcp-card-actions">
           <Tooltip text={TOOLTIPS.toggle}>
@@ -660,6 +693,93 @@ function ServerCard({ server, onToggle, onRemove, onEdit }) {
   )
 }
 
+
+// Task 2: OAuth Connections section
+function OAuthConnections({ connections, loading, onRevoke, onTest }) {
+  const statusBadge = (status) => {
+    const styles = {
+      connected: { background: 'var(--success-bg, #d4edda)', color: 'var(--success, #155724)' },
+      disconnected: { background: 'var(--error-bg, #f8d7da)', color: 'var(--error, #721c24)' },
+      error: { background: 'var(--error-bg, #f8d7da)', color: 'var(--error, #721c24)' },
+    }
+    const icons = { connected: CheckCircle2, disconnected: XCircle, error: AlertCircle }
+    const Icon = icons[status] || AlertCircle
+    return (
+      <span className="badge" style={{ ...styles[status] || styles.error, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <Icon size={12} /> {status}
+      </span>
+    )
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-header">
+        <span className="card-title">
+          <Key size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+          OAuth Connections
+          <Tooltip text="OAuth tokens for MCP servers that require authentication. Tokens are stored in ~/.hermes/.mcp_oauth/." />
+        </span>
+      </div>
+      {loading ? <div className="spinner" style={{ padding: 16 }} /> : (
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Server Name <Tooltip text="The MCP server name associated with this OAuth token." /></th>
+                <th>Status <Tooltip text="connected = valid token, disconnected = no token or expired." /></th>
+                <th>Token Type <Tooltip text="The type of OAuth token (e.g. Bearer)." /></th>
+                <th>Expiry <Tooltip text="When the OAuth token expires." /></th>
+                <th>Scope <Tooltip text="OAuth scopes/permissions granted by the token." /></th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {connections.map((conn, i) => (
+                <tr key={i}>
+                  <td style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{conn.server_name}</td>
+                  <td>{statusBadge(conn.status)}</td>
+                  <td><span className="badge badge-info">{conn.token_type}</span></td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{conn.expires_at || '-'}</td>
+                  <td style={{ fontSize: 12 }}>{conn.scope || '-'}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <Tooltip text={TOOLTIPS.oauth_test}>
+                        <button className="btn btn-sm" onClick={() => onTest(conn.server_name)}>
+                          <Zap size={12} /> Test
+                        </button>
+                      </Tooltip>
+                      <Tooltip text={TOOLTIPS.oauth_revoke}>
+                        <button className="btn btn-sm btn-danger" onClick={() => onRevoke(conn.server_name)}>
+                          <Shield size={12} /> Revoke
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {connections.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="empty-state">
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <Key size={32} style={{ opacity: 0.3 }} />
+                      <span>No OAuth connections configured</span>
+                      <Tooltip text={TOOLTIPS.oauth_authorize}>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          OAuth tokens are created when connecting to MCP servers that require authentication.
+                        </span>
+                      </Tooltip>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function McpServers() {
   const [servers, setServers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -671,6 +791,11 @@ export default function McpServers() {
   const [editTarget, setEditTarget] = useState(null)
   const [removeTarget, setRemoveTarget] = useState(null)
   const [removeLoading, setRemoveLoading] = useState(false)
+  const [oauthConnections, setOauthConnections] = useState([])
+  const [oauthLoading, setOauthLoading] = useState(false)
+  const [connStatuses, setConnStatuses] = useState([])
+  const [connLoading, setConnLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('servers')
 
   const showFeedback = (msg, type) => {
     if (feedbackTimer.current) clearTimeout(feedbackTimer.current)
@@ -691,6 +816,51 @@ export default function McpServers() {
   }, [])
 
   useEffect(() => { loadServers() }, [loadServers])
+
+  // Load OAuth and connection status, poll connection status every 30 seconds
+  useEffect(() => {
+    loadOAuth()
+    loadConnStatus()
+    const interval = setInterval(loadConnStatus, 30000)
+    return () => clearInterval(interval)
+  }, [loadOAuth, loadConnStatus])
+
+  const loadOAuth = useCallback(async () => {
+    setOauthLoading(true)
+    try {
+      const data = await api.mcpOAuthStatus()
+      setOauthConnections(data.connections || [])
+    } catch {}
+    finally { setOauthLoading(false) }
+  }, [])
+
+  const loadConnStatus = useCallback(async () => {
+    setConnLoading(true)
+    try {
+      const data = await api.mcpConnectionStatus()
+      setConnStatuses(data.servers || [])
+    } catch {}
+    finally { setConnLoading(false) }
+  }, [])
+
+  const revokeOAuth = async (name) => {
+    try {
+      await api.mcpOAuthRevoke(name)
+      showFeedback(`OAuth token for "${name}" revoked`, 'success')
+      loadOAuth()
+    } catch (e) {
+      showFeedback(`Revoke failed: ${e.message}`, 'error')
+    }
+  }
+
+  const testOAuth = async (name) => {
+    try {
+      const res = await api.mcpOAuthTest(name)
+      showFeedback(res.success ? `OAuth for "${name}" is valid` : `OAuth test failed: ${res.message}`, res.success ? 'success' : 'error')
+    } catch (e) {
+      showFeedback(`OAuth test failed: ${e.message}`, 'error')
+    }
+  }
 
   const handleAdded = (name) => {
     showFeedback(`Server "${name}" added`, 'success')
@@ -759,10 +929,13 @@ export default function McpServers() {
       ) : (
         <div className="mcp-list">
           {servers.map(s => (
-            <ServerCard key={s.name} server={s} onToggle={handleToggle} onRemove={setRemoveTarget} onEdit={setEditTarget} />
+            <ServerCard key={s.name} server={s} onToggle={handleToggle} onRemove={setRemoveTarget} onEdit={setEditTarget} connectionStatuses={connStatuses} />
           ))}
         </div>
       )}
+
+      {/* Task 2: OAuth Connections Section */}
+      <OAuthConnections connections={oauthConnections} loading={oauthLoading} onRevoke={revokeOAuth} onTest={testOAuth} />
 
       {removeTarget && (
         <ConfirmModal
