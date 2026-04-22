@@ -48,7 +48,9 @@ from .routers import (
     skills,
     skills_security,
     tools,
+    tts_test,
     users,
+    vision,
     webhooks,
     wiki,
 )
@@ -273,6 +275,8 @@ app.include_router(config.router)
 app.include_router(sessions.router)
 app.include_router(memory.router)
 app.include_router(tools.router)
+app.include_router(vision.router)
+app.include_router(tts_test.router)
 app.include_router(skills.router)
 app.include_router(skills_security.router)
 app.include_router(cron.router)
