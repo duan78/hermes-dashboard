@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Settings, Save, RotateCcw, ChevronDown, ChevronRight,
   Cpu, Sparkles, Terminal as TerminalIcon, Globe, Monitor,
@@ -6,6 +6,7 @@ import {
   Eye, EyeOff, Check, X, Brain, GitBranch, Wrench, Clock,
   Route, FileText, Plus, Trash2, RefreshCw, Zap as TestIcon,
   AlertTriangle, Skull, Smile, XCircle, Boxes, LayoutGrid, MessageSquare,
+  Loader2, Play,
 } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
@@ -340,6 +341,18 @@ function SecretField({ value, onChange }) {
   )
 }
 
+function TextareaField({ value, onChange }) {
+  return (
+    <textarea
+      className="form-textarea"
+      value={value ?? ''}
+      onChange={e => onChange(e.target.value || null)}
+      placeholder="not set"
+      style={{ minHeight: 80, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+    />
+  )
+}
+
 function FieldWidget({ field, value, onChange }) {
   switch (field.type) {
     case 'toggle':
@@ -350,6 +363,8 @@ function FieldWidget({ field, value, onChange }) {
       return <SelectField value={value} onChange={onChange} options={field.options} />
     case 'secret':
       return <SecretField value={value} onChange={onChange} />
+    case 'textarea':
+      return <TextareaField value={value} onChange={onChange} />
     default:
       return <TextField value={value} onChange={onChange} />
   }

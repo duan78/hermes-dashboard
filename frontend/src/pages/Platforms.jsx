@@ -524,6 +524,126 @@ export default function Platforms() {
         )}
       </div>
 
+      {/* Discord Server Browser */}
+      {discordConfigured && (
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">
+          <span className="card-title">
+            <Server size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+            Discord Server Browser
+            <Tooltip text="Browse Discord servers and channels your bot has access to. Useful for finding channel IDs needed for allowed_channels and free_response_channels config." />
+          </span>
+          <button className="btn btn-sm btn-primary" onClick={loadDiscordServers} disabled={discordLoading}>
+            {discordLoading ? <Loader2 size={14} className="spin" /> : <Server size={14} />}
+            {' '}List Servers
+            <Tooltip text="Fetch all servers (guilds) your Discord bot is a member of from the Discord API." />
+          </button>
+        </div>
+        {discordError && <div className="error-box" style={{ margin: '8px 0' }}>{discordError}</div>}
+        {discordLoading && <div className="spinner" style={{ margin: '20px auto' }} />}
+        {discordServers && !discordLoading && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+              {discordServers.length} server{discordServers.length !== 1 ? 's' : ''} found
+              <Tooltip text="Servers where your Discord bot has been invited and has access." />
+            </div>
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Server Name <Tooltip text="Discord server (guild) display name." /></th>
+                    <th>Members <Tooltip text="Approximate number of members in this server." /></th>
+                    <th>Server ID <Tooltip text="Discord guild ID. Unique identifier for this server." /></th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {discordServers.map(srv => (
+                    <tr key={srv.id}>
+                      <td style={{ fontWeight: 600 }}>{srv.name}</td>
+                      <td>{srv.member_count || '-'}</td>
+                      <td>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, cursor: 'pointer' }} onClick={() => copyToClipboard(srv.id)} title="Click to copy">
+                          {srv.id}
+                          <Copy size={10} style={{ marginLeft: 4, color: copiedId === srv.id ? 'var(--success)' : 'var(--text-muted)', verticalAlign: 'middle' }} />
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => loadDiscordChannels(srv.id)}
+                          disabled={channelsLoading && selectedDiscordServer === srv.id}
+                        >
+                          {channelsLoading && selectedDiscordServer === srv.id ? <Loader2 size={12} className="spin" /> : <ChevronRight size={12} />}
+                          {' '}Channels
+                          <Tooltip text={`Load all channels in "${srv.name}" server.`} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Channel listing for selected server */}
+            {selectedDiscordServer && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>Channels</span>
+                  <span className="badge badge-info" style={{ fontSize: 10 }}>
+                    {discordChannels ? discordChannels.length : '...'}
+                  </span>
+                  <Tooltip text="All channels in the selected server. Channel IDs can be used in discord.allowed_channels and discord.free_response_channels config." />
+                </div>
+                {channelsLoading ? (
+                  <div className="spinner" style={{ margin: '12px auto' }} />
+                ) : discordChannels && discordChannels.length > 0 ? (
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Name <Tooltip text="Channel display name." /></th>
+                          <th>Type <Tooltip text="Channel type: text, voice, category, forum, etc." /></th>
+                          <th>Channel ID <Tooltip text="Unique channel identifier. Copy this for use in allowed_channels or free_response_channels config." /></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {discordChannels.map(ch => (
+                          <tr key={ch.id}>
+                            <td>
+                              <span style={{ fontWeight: 500 }}>{ch.name || '(unnamed)'}</span>
+                              {ch.nsfw && <span className="badge badge-warning" style={{ marginLeft: 6, fontSize: 9 }}>NSFW</span>}
+                            </td>
+                            <td><span className="badge badge-info">{ch.type}</span></td>
+                            <td>
+                              <code
+                                style={{ fontSize: 12, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, background: copiedId === ch.id ? 'rgba(34,197,94,0.15)' : 'var(--bg-secondary)' }}
+                                onClick={() => copyToClipboard(ch.id)}
+                                title="Click to copy channel ID"
+                              >
+                                {ch.id}
+                                <Copy size={10} style={{ marginLeft: 4, color: copiedId === ch.id ? 'var(--success)' : 'var(--text-muted)', verticalAlign: 'middle' }} />
+                              </code>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : discordChannels ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12 }}>No channels found</div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
+        {!discordServers && !discordLoading && !discordError && (
+          <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            Click "List Servers" to browse Discord servers and channels
+          </div>
+        )}
+      </div>
+      )}
+
       {/* Channel Directory */}
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-header">

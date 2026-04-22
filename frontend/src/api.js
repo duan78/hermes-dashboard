@@ -392,7 +392,7 @@ export const api = {
   mcpOAuthTest: (name) => request('/mcp/oauth/' + encodeURIComponent(name) + '/test', { method: 'POST' }),
 
   // MCP Connection Status (Task 3)
-  mcpConnectionStatus: () => request('/mcp/connection-status'),
+  mcpConnectionStatus: () => request('/mcp/oauth/connection-status'),
 
   // Model Catalog (Task 5)
   getModelCatalog: () => request('/models/catalog'),
@@ -456,7 +456,7 @@ export const api = {
   mcpOAuthTest: (name) => request('/mcp/oauth/' + encodeURIComponent(name) + '/test', { method: 'POST' }),
 
   // MCP Connection Status
-  mcpConnectionStatus: () => request('/mcp/connection-status'),
+  mcpConnectionStatus: () => request('/mcp/oauth/connection-status'),
 
 
   // Vision Test

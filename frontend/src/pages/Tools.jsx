@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Wrench, RefreshCw, Loader2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Settings, X, Check, Eye, EyeOff, ExternalLink, Radio, List, Upload, Image as ImageIcon, Volume2, Play, Sparkles } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
@@ -156,7 +156,7 @@ function VisionTestSection() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [dragOver, setDragOver] = useState(false)
-  const fileInputRef = useState(null)
+  const fileInputRef = React.useRef(null)
 
   const handleFile = (file) => {
     if (!file || !file.type.startsWith('image/')) return

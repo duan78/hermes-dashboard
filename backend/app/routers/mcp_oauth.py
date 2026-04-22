@@ -64,3 +64,69 @@ async def test_oauth(name: str):
         return {"success": True, "message": "Token valid"}
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+
+@router.get("/connection-status")
+async def connection_status():
+    """Check real-time connection status for each MCP server."""
+    import yaml
+    from ..utils import run_hermes
+
+    config_path = HERMES_HOME / "config.yaml"
+    servers_status = []
+
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                cfg = yaml.safe_load(f) or {}
+            mcp_servers = cfg.get("mcp_servers", {})
+        except Exception:
+            mcp_servers = {}
+    else:
+        mcp_servers = {}
+
+    for name, server_cfg in mcp_servers.items():
+        is_disabled = server_cfg.get("disabled", False)
+        if is_disabled:
+            servers_status.append({
+                "name": name,
+                "status": "disabled",
+                "retry_count": 0,
+                "message": "Server is disabled",
+            })
+            continue
+
+        try:
+            output = await run_hermes("mcp", "test", name, timeout=10)
+            if "error" in output.lower() or "fail" in output.lower():
+                servers_status.append({
+                    "name": name,
+                    "status": "disconnected",
+                    "retry_count": 0,
+                    "message": "Connection test failed",
+                })
+            else:
+                servers_status.append({
+                    "name": name,
+                    "status": "connected",
+                    "retry_count": 0,
+                    "message": "Connected",
+                })
+        except Exception as e:
+            error_msg = str(e)
+            retry_count = 0
+            if "retry" in error_msg.lower():
+                import re
+                match = re.search(r'retry.*?(\d+)', error_msg, re.IGNORECASE)
+                if match:
+                    retry_count = int(match.group(1))
+
+            status = "connecting" if retry_count > 0 else "disconnected"
+            servers_status.append({
+                "name": name,
+                "status": status,
+                "retry_count": retry_count,
+                "message": error_msg[:200],
+            })
+
+    return {"servers": servers_status, "checked_at": datetime.now(UTC).isoformat()}
