@@ -22,7 +22,7 @@ const SOURCE_LABELS = {
 }
 
 function authHeaders() {
-  const token = localStorage.getItem('hermes_token') || ''
+  const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_token') || ''
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
   return headers
@@ -222,8 +222,8 @@ function PageModal({ page, onClose, onNavigate }) {
     setSaveError('')
     setSaveSuccess(false)
     fetch(`/api/wiki/page/${page.type}/${page.name}`, { headers: authHeaders() })
-      .then(r => r.json())
-      .then(data => { setContent(data.content); setLoading(false) })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { setContent(data?.content || 'Failed to load page.'); setLoading(false) })
       .catch(() => { setContent('Failed to load page.'); setLoading(false) })
   }, [page])
 
@@ -426,14 +426,15 @@ export default function Wiki() {
     setLoading(true)
     try {
       const [s, p, l, src] = await Promise.all([
-        fetch('/api/wiki/stats', { headers: authHeaders() }).then(r => r.json()),
-        fetch('/api/wiki/pages', { headers: authHeaders() }).then(r => r.json()),
-        fetch('/api/wiki/log?limit=20', { headers: authHeaders() }).then(r => r.json()),
-        fetch('/api/wiki/sources', { headers: authHeaders() }).then(r => r.json()),
+        fetch('/api/wiki/stats', { headers: authHeaders() }).then(r => r.ok ? r.json() : null),
+        fetch('/api/wiki/pages', { headers: authHeaders() }).then(r => r.ok ? r.json() : null),
+        fetch('/api/wiki/log?limit=20', { headers: authHeaders() }).then(r => r.ok ? r.json() : null),
+        fetch('/api/wiki/sources', { headers: authHeaders() }).then(r => r.ok ? r.json() : null),
       ])
+      if (!s || !s.exists) { setLoading(false); return }
       setStats(s)
-      setPages(p.pages || [])
-      setLogEntries(l.entries || [])
+      setPages(p?.pages || [])
+      setLogEntries(l?.entries || [])
       setSources(src)
     } catch (e) {
       console.error('Wiki load error:', e)

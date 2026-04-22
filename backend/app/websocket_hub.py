@@ -166,6 +166,7 @@ async def ws_hub_handler(ws: WebSocket):
             # Auth required as first message
             if msg.get("type") == "auth":
                 token=msg.get("token", "")
+                logger.warning("WS auth attempt: token=%s len=%d", token[:30] if token else "EMPTY", len(token) if token else 0)
                 from .auth import verify_token, _try_parse_jwt, _load_user_by_id
                 # Try JWT user token first (same logic as AuthMiddleware for HTTP)
                 authenticated=False

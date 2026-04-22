@@ -26,7 +26,8 @@ def _try_parse_jwt(token: str) -> dict | None:
         from .routers.users import JWT_ALGORITHM, JWT_SECRET
         payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         return payload
-    except Exception:
+    except Exception as e:
+        logger.warning("JWT decode failed: %s", e)
         return None
 
 
@@ -155,15 +156,16 @@ class AuthMiddleware:
             if jwt_payload:
                 user = _load_user_by_id(int(jwt_payload.get("sub", 0)))
                 if user:
-                    # Store user info for downstream access
-                    scope["user"] = {
+                    # Store user info in scope["state"] so Starlette's
+                    # request.state (backed by scope["state"]) exposes it
+                    # to all downstream endpoints.
+                    scope.setdefault("state", {})["user"] = {
                         "id": user["id"],
                         "username": user["username"],
                         "display_name": user.get("display_name", ""),
                         "role": user["role"],
                         "status": user["status"],
                     }
-                    # Also set a state-like dict that FastAPI can access via Request
                     await self.app(scope, receive, send)
                     return
 
