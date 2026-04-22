@@ -459,30 +459,7 @@ export const api = {
   mcpConnectionStatus: () => request('/mcp/oauth/connection-status'),
 
 
-  // Vision Test
-  visionTest: (formData) => {
-    const userToken = localStorage.getItem('hermes_user_token') || '';
-    const legacyToken = localStorage.getItem('hermes_token') || '';
-    const token = userToken || legacyToken;
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch('/api/vision/test', { method: 'POST', headers, body: formData })
-      .then(res => res.json());
-  },
-
-  // TTS Test
-  ttsTest: (text, provider) => {
-    const userToken = localStorage.getItem('hermes_user_token') || '';
-    const legacyToken = localStorage.getItem('hermes_token') || '';
-    const token = userToken || legacyToken;
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch('/api/tts/test?text=' + encodeURIComponent(text || 'Hello, this is a test.') + (provider ? '&provider=' + provider : ''), { headers })
-      .then(res => res.blob());
-  },
-
-  // Image Gen Test
-  imageGenTest: (prompt) => request('/tools/image-gen/test', { method: 'POST', body: JSON.stringify({ prompt }) }),
+  /  imageGenTest: (prompt) => request('/tools/image-gen/test', { method: 'POST', body: JSON.stringify({ prompt }) }),
 
   // Delegation Monitoring
   delegationActive: () => request('/delegation/active'),
