@@ -389,38 +389,68 @@ class BacklogIntelligence:
     # ── Source extractors ──
 
     def _extract_from_sessions(self) -> list[dict]:
-        """Scan last 20 sessions with enriched patterns and context extraction."""
+        """Scan recent session files — parse JSONL, extract ONLY human/assistant text."""
         sessions_dir = HERMES_HOME / "sessions"
         if not sessions_dir.exists():
             return []
 
-        files = sorted(sessions_dir.glob("*.jsonl"), reverse=True)[:20]
+        files = sorted(sessions_dir.glob("*.jsonl"), reverse=True)[:10]
         candidates = []
         all_patterns = (
             INTENTION_PATTERNS + DEMAND_PATTERNS + PROBLEM_PATTERNS +
             FUTURE_PATTERNS + DEFERRED_PATTERNS + BASIC_TASK_PATTERNS
         )
 
+        # Markers that indicate JSON/tool/code artifacts, not natural language
+        GARBAGE_MARKERS = [
+            '{"', '"timestamp"', '"function"', '"arguments"', '"tool"',
+            '\\n', '\\t', '```', 'git diff', 'npm run', 'tmux',
+        ]
+
         for sf in files:
             try:
-                content = sf.read_text(errors="ignore")
+                raw = sf.read_text(errors="ignore")
                 session_name = sf.stem
 
+                # Parse JSONL — only keep human/user/assistant text content
+                clean_parts = []
+                for line in raw.split('\n'):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+
+                    role = entry.get("role", entry.get("type", ""))
+                    if role not in ("human", "assistant", "user"):
+                        continue
+
+                    msg_content = entry.get("content", "")
+                    if isinstance(msg_content, str):
+                        clean_parts.append(msg_content)
+                    elif isinstance(msg_content, list):
+                        for block in msg_content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                clean_parts.append(block.get("text", ""))
+
+                clean_text = "\n".join(clean_parts)
+
                 for pattern in all_patterns:
-                    for m in re.finditer(pattern, content, re.IGNORECASE):
+                    for m in re.finditer(pattern, clean_text, re.IGNORECASE):
                         task_text = m.group(1) if m.lastindex else m.group(0)
                         task_text = re.sub(r'[\n\r]+', ' ', task_text).strip()[:120]
                         if len(task_text) < 15:
                             continue
 
-                        # Extract context (200 chars around match)
-                        start = max(0, m.start() - 200)
-                        end = min(len(content), m.end() + 200)
-                        context = content[start:end].replace('\n', ' ')
+                        # Skip if it looks like JSON, code, or tool output
+                        if any(marker in task_text for marker in GARBAGE_MARKERS):
+                            continue
 
                         candidates.append({
                             "title": task_text[:80],
-                            "description": f"Extrait de la session {session_name}:\n{context[:300]}",
+                            "description": f"Détecté dans la session {session_name}",
                             "raw_text": task_text,
                             "session": session_name,
                             "category_hint": "bug" if pattern in PROBLEM_PATTERNS else "",
@@ -516,6 +546,20 @@ class BacklogIntelligence:
         files = sorted(sessions_dir.glob("*.jsonl"), reverse=True)[:10]
         candidates = []
 
+        # Anti-garbage patterns — messages that are conversation, not tasks
+        CONVERSATION_NOISE = [
+            r"^(sam|claude|hey|bonjour|salut)[\s,]",
+            r"\?$",
+            r"^est-ce\s+que",
+            r"^c'est\s+quoi",
+            r"^pourquoi",
+            r"je\s+te\s+demande",
+            r"on\s+a\s+bien",
+            r"^dis\s+moi",
+            r"ça\s+serait\s+bien\s+de\s+",
+            r"il\s+y\s+a\s+quelque\s+chose\s+qui\s+ne\s+va\s+pas",
+        ]
+
         for sf in files:
             try:
                 content = sf.read_text(errors="ignore")
@@ -530,15 +574,22 @@ class BacklogIntelligence:
                     if entry.get("type") != "human":
                         continue
                     message = (entry.get("message") or "").strip()
-                    if len(message) < 20:
+
+                    # Length filters — real tasks are concise, not monologues
+                    if len(message) < 20 or len(message) > 500:
                         continue
+
+                    # Skip conversational noise (greetings, questions, voice-like)
+                    is_noise = any(re.search(p, message, re.IGNORECASE) for p in CONVERSATION_NOISE)
+                    if is_noise:
+                        continue
+
                     if not CONVERSATION_INTENT.search(message):
                         continue
 
-                    # Qualifying intent message
                     candidates.append({
                         "title": message[:80].rstrip(),
-                        "description": f"Message de {session_name}: {message[:300]}",
+                        "description": f"Message de {session_name}",
                         "raw_text": message[:200],
                         "session": session_name,
                     })
@@ -769,17 +820,65 @@ Répondre UNIQUEMENT avec le tableau JSON, aucun autre texte."""
 
     @staticmethod
     def _fallback_validate(candidates):
+        """Strict heuristic validation when LLM is unavailable."""
+        validated = []
+
+        GARBAGE_MARKERS = [
+            'timestamp', '"function"', '"arguments"', '"tool"',
+            '\\"', '\\n', '```', 'git diff', 'npm run', 'tmux capture',
+            'json', 'content":', '"role":', '"type":',
+        ]
+
+        # Lowercase-starting verbs that are legitimate task starters
+        TASK_STARTERS = {
+            "ajouter", "ajoute", "corriger", "corrige", "créer", "crée",
+            "fix", "implement", "modifie", "modifier", "supprimer", "supprime",
+            "mettre", "mets", "enlever", "enlève", "refactor", "update",
+            "add", "remove", "delete", "create", "build", "deploy",
+        }
+
         for c in candidates:
+            title = c.get("title", "")
+            raw = c.get("raw_text", title)
+
+            # Reject anything with JSON/tool artifacts
+            if any(m in raw for m in GARBAGE_MARKERS):
+                c["is_valid"] = False
+                c["reject_reason"] = "contains non-task artifacts (JSON/tool output)"
+                c["confidence"] = 0.1
+                continue
+
+            # Reject if title contains escape sequence artifacts
+            if '\\\\' in title or '\\n' in title:
+                c["is_valid"] = False
+                c["reject_reason"] = "contains escape sequence artifacts"
+                c["confidence"] = 0.1
+                continue
+
+            # Reject if title starts with lowercase (likely mid-sentence fragment)
+            # unless it's a recognized task-starting verb
+            if title and title[0].islower():
+                first_word = title.split()[0].lower() if title.split() else ""
+                if first_word not in TASK_STARTERS:
+                    c["is_valid"] = False
+                    c["reject_reason"] = "title starts with lowercase (likely fragment)"
+                    c["confidence"] = 0.1
+                    continue
+
+            # Accept but with confidence below suggestion threshold (0.3)
+            # → won't be auto-added or suggested
             c["is_valid"] = True
-            c["confidence"] = 0.5
+            c["confidence"] = 0.25
             c["llm_title"] = c.get("title", "")
             c["llm_description"] = c.get("description", "")
-            c["llm_category"] = "other"
-            c["llm_priority"] = "normale"
+            c["llm_category"] = c.get("category_hint", "other") or "other"
+            c["llm_priority"] = "basse"
             c["llm_task_prompt"] = ""
             c["llm_tags"] = []
             c["llm_project_id"] = c.get("project_id")
-        return candidates
+            validated.append(c)
+
+        return validated
 
     # ── Helpers ──
 
