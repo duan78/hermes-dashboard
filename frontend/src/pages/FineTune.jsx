@@ -863,7 +863,10 @@ export default function FineTune() {
               {filteredPairs.length === 0 && (
                 <div className="ft-empty-state">
                   <Mic size={48} />
-                  <p>No fine-tune pairs found</p>
+                  <p>No voice data yet</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Fine-Tune uses voice recordings to create custom TTS models. Record samples via the Voice Collector tool.
+                  </p>
                 </div>
               )}
             </div>

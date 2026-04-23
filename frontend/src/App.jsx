@@ -116,8 +116,8 @@ const NAV_ITEMS = [
   { to: '/models', icon: Cpu, label: 'Models' },
   { to: '/platforms', icon: Radio, label: 'Platforms' },
   { to: '/api-keys', icon: Key, label: 'API Keys' },
-  { to: '/moa', icon: Layers, label: 'MOA', feature: 'moa' },
-  { to: '/fine-tune', icon: Mic, label: 'Fine-Tune', feature: 'fineTune' },
+  { to: '/moa', icon: Layers, label: 'MOA' },
+  { to: '/fine-tune', icon: Mic, label: 'Fine-Tune' },
   { to: '/insights', icon: BarChart3, label: 'Insights' },
   { to: '/diagnostics', icon: Stethoscope, label: 'Diagnostics' },
   { to: '/webhooks', icon: Webhook, label: 'Webhooks' },
@@ -125,7 +125,7 @@ const NAV_ITEMS = [
   { to: '/plugins', icon: Puzzle, label: 'Plugins' },
   { to: '/mcp', icon: Network, label: 'MCP Servers' },
   { to: '/auth-pairing', icon: UserCheck, label: 'Auth & Pairing' },
-  { to: '/users', icon: Users, label: 'Users', adminOnly: true },
+  { to: '/users', icon: Users, label: 'Users' },
   { to: '/profiles', icon: Users, label: 'Profiles' },
   { to: '/backup', icon: HardDrive, label: 'Backup' },
   { to: '/projects', icon: FolderKanban, label: 'Projets' },
@@ -174,7 +174,6 @@ function AuthGuard({ currentUser, children }) {
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [features, setFeatures] = useState({})
   const [currentUser, setCurrentUser] = useState(undefined) // undefined = loading, null = no user system
   const [cmdOpen, setCmdOpen] = useState(false)
   const location = useLocation()
@@ -248,24 +247,8 @@ function App() {
     window.dispatchEvent(new CustomEvent('auth-changed'))
   }
 
-  useEffect(() => {
-    api.fineTuneAvailable().then(data => {
-      if (data.available) setFeatures(prev => ({ ...prev, fineTune: true }))
-    }).catch(() => {})
-    api.getConfigSections().then(sections => {
-      const toolsets = sections?.toolsets || []
-      if (toolsets.includes('moa')) {
-        setFeatures(prev => ({ ...prev, moa: true }))
-      }
-    }).catch(() => {})
-  }, [])
-
   const isAdmin = currentUser && currentUser.role === 'admin'
-  const visibleNavItems = NAV_ITEMS.filter(item => {
-    if (item.feature && !features[item.feature]) return false
-    if (item.adminOnly && !isAdmin) return false
-    return true
-  })
+  const visibleNavItems = NAV_ITEMS
 
   // Auth pages rendered without dashboard chrome
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register'

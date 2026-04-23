@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
+import EmptyState from '../components/EmptyState'
 import './moa.css'
 
 const DEFAULT_CONFIG = {
@@ -88,6 +89,7 @@ export default function MoaConfig() {
   const [config, setConfig] = useState(null)
   const [providers, setProviders] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [moaAvailable, setMoaAvailable] = useState(true)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
   const [editing, setEditing] = useState(false)
@@ -115,6 +117,14 @@ export default function MoaConfig() {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
+      // Check if MOA toolset is enabled
+      try {
+        const sections = await api.getConfigSections()
+        const toolsets = sections?.toolsets || []
+        setMoaAvailable(toolsets.includes('moa'))
+      } catch {
+        // Can't check config — assume available (will show the page)
+      }
       const [moaData, provData] = await Promise.all([
         api.getMoaConfig(),
         api.getMoaProviders().catch(() => ({})),
@@ -262,6 +272,28 @@ export default function MoaConfig() {
   }
 
   if (loading) return <div className="spinner" />
+
+  if (!moaAvailable) {
+    return (
+      <div className="moa-config">
+        <div className="page-title">
+          <Layers size={28} />
+          MOA
+          <Tooltip text="Mixture of Agents — combine multiple LLMs for better responses" />
+        </div>
+        <EmptyState
+          icon={<Layers size={48} strokeWidth={1} />}
+          title="MOA not configured"
+          message="Add 'moa' to the toolsets list in your config.yaml to enable Mixture of Agents. This allows combining multiple LLMs for improved response quality."
+          action={
+            <button className="btn btn-sm" onClick={() => { setMoaAvailable(true); loadConfig() }}>
+              Retry
+            </button>
+          }
+        />
+      </div>
+    )
+  }
 
   const cfg = editing ? editConfig : config || DEFAULT_CONFIG
   const provs = editing ? editProviders : providers || {}
