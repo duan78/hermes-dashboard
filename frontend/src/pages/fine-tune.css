@@ -774,11 +774,6 @@
   color: var(--text-muted);
 }
 
-/* ── Spinner animation ── */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 .spin {
   animation: spin 1s linear infinite;
 }

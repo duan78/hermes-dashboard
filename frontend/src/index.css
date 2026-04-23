@@ -440,6 +440,38 @@ pre {
   opacity: 0.5;
 }
 
+.empty-state-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state-wrap .empty-state-icon {
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.empty-state-wrap .empty-state-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.empty-state-wrap .empty-state-msg {
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 360px;
+}
+
+.empty-state-wrap .empty-state-action {
+  margin-top: 16px;
+}
+
 /* Search */
 .search-bar {
   display: flex;

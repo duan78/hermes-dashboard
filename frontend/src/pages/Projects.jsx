@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
@@ -63,6 +64,7 @@ function relativeDate(dateStr) {
 }
 
 export default function Projects() {
+  const navigate = useNavigate()
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -520,7 +522,9 @@ export default function Projects() {
 
               {/* Sessions */}
               <div className="projects-detail-section">
-                <h4><MessageSquare size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Sessions liées ({projectSessions.length})</h4>
+                <h4><MessageSquare size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Sessions liées ({projectSessions.length}){' '}
+                  <button onClick={function() { navigate('/sessions') }} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>View All</button>
+                </h4>
                 {projectSessions.length === 0 ? (
                   <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune session trouvée</p>
                 ) : (
@@ -544,7 +548,9 @@ export default function Projects() {
 
               {/* Backlog */}
               <div className="projects-detail-section">
-                <h4><ClipboardList size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tâches backlog ({projectBacklog.length})</h4>
+                <h4><ClipboardList size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tâches backlog ({projectBacklog.length}){' '}
+                <button onClick={function() { navigate('/backlog') }} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>View All</button>
+              </h4>
                 {projectBacklog.length === 0 ? (
                   <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune tâche backlog liée</p>
                 ) : (

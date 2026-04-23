@@ -22,7 +22,7 @@ export function useWebSocket(enabled = true) {
   const mounted = useRef(true)
 
   const connect = useCallback(() => {
-    const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_dashboard_token') || ''
+    const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_token') || ''
 
     if (!token) {
       // No token yet — retry later

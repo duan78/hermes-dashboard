@@ -179,7 +179,7 @@
 
 .status-working {
   background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  color: var(--success);
   animation: pulse-status 2s ease-in-out infinite;
 }
 
@@ -196,12 +196,12 @@
 
 .status-interrupted {
   background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  color: var(--error);
 }
 
 .status-completed {
   background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  color: var(--info);
 }
 
 .status-unknown {
@@ -265,7 +265,7 @@
 }
 
 .cc-btn-stop {
-  color: #ef4444;
+  color: var(--error);
   border-color: rgba(239, 68, 68, 0.3);
 }
 
@@ -274,7 +274,7 @@
 }
 
 .cc-btn-send {
-  color: #3b82f6;
+  color: var(--info);
   border-color: rgba(59, 130, 246, 0.3);
 }
 
@@ -499,9 +499,4 @@
 
 .spin {
   animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }

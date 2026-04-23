@@ -209,8 +209,8 @@
 
 .leads-btn-delete:hover {
   background: rgba(239, 68, 68, 0.1);
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--error);
+  color: var(--error);
 }
 
 /* ── Pagination ── */

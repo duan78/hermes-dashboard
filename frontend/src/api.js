@@ -129,9 +129,9 @@ export const api = {
   // Platforms
   getPlatformsStatus: () => request('/platforms/status'),
   getChannels: () => request('/platforms/channels'),
-  listPairing: () => request('/platforms/pairing'),
-  approvePairing: (code) => request('/platforms/pairing/approve', { method: 'POST', body: JSON.stringify({ code }) }),
-  revokePairing: (userId) => request('/platforms/pairing/revoke', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
+  platformListPairing: () => request('/platforms/pairing'),
+  platformApprovePairing: (code) => request('/platforms/pairing/approve', { method: 'POST', body: JSON.stringify({ code }) }),
+  platformRevokePairing: (userId) => request('/platforms/pairing/revoke', { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
   getPlatformEnvVars: () => request('/platforms/env-vars'),
   configurePlatform: (platform, vars) => request('/platforms/configure', { method: 'POST', body: JSON.stringify({ platform, vars }) }),
   // Discord Listings
@@ -221,12 +221,6 @@ export const api = {
   addMcpServer: (name, type, command, url, args) => request('/mcp/add', { method: 'POST', body: JSON.stringify({ name, type, command, url, args }) }),
   removeMcpServer: (name) => request('/mcp/remove', { method: 'POST', body: JSON.stringify({ name }) }),
   testMcpServer: (name) => request('/mcp/test', { method: 'POST', body: JSON.stringify({ name }) }),
-
-  // Auth & Pairing
-  listPairing: () => request('/auth-pairing/list'),
-  approvePairing: (code) => request('/auth-pairing/approve', { method: 'POST', body: JSON.stringify({ code }) }),
-  revokePairing: (user) => request('/auth-pairing/revoke', { method: 'POST', body: JSON.stringify({ user }) }),
-  clearPendingPairing: () => request('/auth-pairing/clear-pending', { method: 'POST' }),
 
   // Profiles
   listProfiles: () => request('/profiles/list'),
@@ -398,9 +392,6 @@ export const api = {
   getModelCatalog: () => request('/models/catalog'),
   refreshModelCache: () => request('/models/refresh-cache', { method: 'POST' }),
 
-  // Code Execution (Task 9)
-  codeExecutionStatus: () => request('/code-execution/status'),
-
   // Delegation (Task 10)
   delegationActive: () => request('/delegation/active'),
 
@@ -439,35 +430,6 @@ export const api = {
   // RL Training (Task 18)
   rlTrainingStatus: () => request('/rl-training/status'),
   rlTrainingCheckResults: () => request('/rl-training/check-results', { method: 'POST' }),
-
-  // Skills Security & Audit
-  skillsGuardScan: () => request('/skills/guard-scan'),
-  skillsAuditLog: () => request('/skills/audit-log'),
-  skillsQuarantine: () => request('/skills/quarantine'),
-  skillsQuarantineRelease: (name) => request('/skills/quarantine/release', { method: 'POST', body: JSON.stringify({ name }) }),
-  skillsQuarantineDelete: (name) => request('/skills/quarantine/' + encodeURIComponent(name), { method: 'DELETE' }),
-  skillsTaps: () => request('/skills/taps'),
-  skillsTapsAdd: (url) => request('/skills/taps', { method: 'POST', body: JSON.stringify({ url }) }),
-  skillsTapsRemove: (url) => request('/skills/taps', { method: 'DELETE', body: JSON.stringify({ url }) }),
-
-  // MCP OAuth
-  mcpOAuthStatus: () => request('/mcp/oauth/status'),
-  mcpOAuthRevoke: (name) => request('/mcp/oauth/' + encodeURIComponent(name) + '/revoke', { method: 'POST' }),
-  mcpOAuthTest: (name) => request('/mcp/oauth/' + encodeURIComponent(name) + '/test', { method: 'POST' }),
-
-  // MCP Connection Status
-  mcpConnectionStatus: () => request('/mcp/oauth/connection-status'),
-
-
-
-  // Delegation Monitoring
-  delegationActive: () => request('/delegation/active'),
-
-  // Approval History
-  approvalHistory: () => request('/approvals/history'),
-
-  // Context Compression Monitoring
-  contextStatus: () => request('/context/status'),
 
   // Projects
   fetchProjects: (params = {}) => {

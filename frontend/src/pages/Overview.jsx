@@ -232,9 +232,9 @@ function DashboardWidgets() {
         </div>
         {intelStatus && intelStatus.analysis_count > 0 && (
           <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-            <span>{intelStats.accepted || 0} auto</span>
-            <span>{intelStats.rejected || 0} rejetées</span>
-            {intelStats.analysis_count > 0 && <span>{intelStats.analysis_count} analyses</span>}
+            <span>{intelStatus.accepted || 0} auto</span>
+            <span>{intelStatus.rejected || 0} rejetées</span>
+            {intelStatus.analysis_count > 0 && <span>{intelStatus.analysis_count} analyses</span>}
           </div>
         )}
         {(Array.isArray(backlog) ? backlog : []).length === 0 ? (

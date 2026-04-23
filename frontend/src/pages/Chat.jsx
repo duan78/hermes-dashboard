@@ -278,6 +278,7 @@ export default function Chat() {
   const [streamingText, setStreamingText] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [error, setError] = useState(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
   const abortRef = useRef(null)
   const messagesEndRef = useRef(null)
 
@@ -336,7 +337,12 @@ export default function Chat() {
   }, [navigate])
 
   // Delete session
+  const confirmDeleteSession = useCallback((sid) => {
+    setDeleteConfirm(sid)
+  }, [])
+
   const deleteSession = useCallback(async (sid) => {
+    setDeleteConfirm(null)
     try { await api.deleteSession(sid) } catch {}
     loadSessions()
     if (sid === activeId) newSession()
@@ -470,7 +476,7 @@ export default function Chat() {
         activeId={activeId}
         onSelect={selectSession}
         onNew={newSession}
-        onDelete={deleteSession}
+        onDelete={confirmDeleteSession}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(v => !v)}
       />
@@ -501,6 +507,25 @@ export default function Chat() {
           onStop={stopStreaming}
         />
       </div>
+      {deleteConfirm && (
+        <div className="modal-overlay" onClick={() => setDeleteConfirm(null)} role="dialog" aria-modal="true">
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Delete Session</h3>
+              <button className="btn btn-sm" onClick={() => setDeleteConfirm(null)} aria-label="Close">X</button>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5, margin: '12px 0' }}>
+              This will permanently delete this chat session and all its messages. Continue?
+            </p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setDeleteConfirm(null)}>Cancel</button>
+              <button className="btn btn-danger" onClick={() => deleteSession(deleteConfirm)}>
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

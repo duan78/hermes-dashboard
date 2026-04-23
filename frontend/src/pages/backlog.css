@@ -191,24 +191,24 @@
 
 .backlog-btn-done:hover {
   background: rgba(34, 197, 94, 0.1);
-  border-color: #22c55e;
-  color: #22c55e;
+  border-color: var(--success);
+  color: var(--success);
 }
 
 .backlog-btn-delete:hover {
   background: rgba(239, 68, 68, 0.1);
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .backlog-btn-launch {
-  color: #22c55e;
+  color: var(--success);
   border-color: rgba(34, 197, 94, 0.3);
 }
 
 .backlog-btn-launch:hover {
   background: rgba(34, 197, 94, 0.15);
-  border-color: #22c55e;
+  border-color: var(--success);
 }
 
 .backlog-btn-launch:disabled {
@@ -217,17 +217,12 @@
 }
 
 .backlog-btn-launching {
-  color: #3b82f6;
+  color: var(--info);
   border-color: rgba(59, 130, 246, 0.3);
 }
 
 .backlog-btn-launching .spin {
   animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 /* ── Modal ── */
@@ -420,14 +415,14 @@
 
 .backlog-btn-accept:hover {
   background: rgba(34, 197, 94, 0.15);
-  border-color: #22c55e;
-  color: #22c55e;
+  border-color: var(--success);
+  color: var(--success);
 }
 
 .backlog-btn-reject:hover {
   background: rgba(239, 68, 68, 0.15);
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .backlog-suggestion-desc {

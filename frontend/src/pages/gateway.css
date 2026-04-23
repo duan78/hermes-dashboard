@@ -237,49 +237,6 @@
   word-break: break-word;
 }
 
-/* Confirm Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  min-width: 360px;
-  max-width: 480px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-
 /* Action feedback */
 .action-feedback {
   padding: 8px 16px;

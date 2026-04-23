@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles, FolderKanban } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -46,6 +47,7 @@ function formatDate(dateStr) {
 }
 
 export default function Backlog() {
+  var navigate = useNavigate()
   var _useState = useState([])
   var items = _useState[0]
   var setItems = _useState[1]
@@ -387,6 +389,9 @@ export default function Backlog() {
           <Tooltip text="Task tracking system. Manage pending work, blocked items, and track progress across categories." />
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="btn btn-sm" onClick={function () { navigate('/projects') }}>
+            <FolderKanban size={14} /> Projects
+          </button>
           <button className="btn btn-sm" onClick={function () { fetchItems(); fetchStats() }} disabled={loading}>
             <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
             Refresh

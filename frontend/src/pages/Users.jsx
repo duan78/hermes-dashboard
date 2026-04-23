@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
+import './users.css'
 
 export default function Users() {
   const [users, setUsers] = useState([])
