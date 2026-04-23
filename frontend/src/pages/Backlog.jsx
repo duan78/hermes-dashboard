@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2 } from 'lucide-react'
+import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -98,6 +98,26 @@ export default function Backlog() {
   var launching = _useState13[0]
   var setLaunching = _useState13[1]
 
+  var _useState14 = useState('')
+  var filterSource = _useState14[0]
+  var setFilterSource = _useState14[1]
+
+  var _useState15 = useState([])
+  var suggestions = _useState15[0]
+  var setSuggestions = _useState15[1]
+
+  var _useState16 = useState({})
+  var intelStats = _useState16[0]
+  var setIntelStats = _useState16[1]
+
+  var _useState17 = useState(false)
+  var showSuggestions = _useState17[0]
+  var setShowSuggestions = _useState17[1]
+
+  var _useState18 = useState({})
+  var acceptingSuggestion = _useState18[0]
+  var setAcceptingSuggestion = _useState18[1]
+
   var toast = useToast().toast
 
   function handleLaunch(item) {
@@ -152,6 +172,12 @@ export default function Backlog() {
     api.getBacklogItems(qs)
       .then(function (data) {
         var list = Array.isArray(data) ? data : (data.items || [])
+        // Client-side source filter
+        if (filterSource === 'autofeed') {
+          list = list.filter(function (i) { return i.source === 'autofeed' || i.autofeed_source })
+        } else if (filterSource === 'manual') {
+          list = list.filter(function (i) { return i.source !== 'autofeed' && !i.autofeed_source })
+        }
         setItems(list)
       })
       .catch(function (err) {
@@ -160,7 +186,7 @@ export default function Backlog() {
       .finally(function () {
         setLoading(false)
       })
-  }, [filterStatus, filterCategory, filterPriority, toast])
+  }, [filterStatus, filterCategory, filterPriority, filterSource, toast])
 
   var fetchStats = useCallback(function () {
     api.backlogStats()
@@ -172,10 +198,28 @@ export default function Backlog() {
       })
   }, [toast])
 
+  var fetchSuggestions = useCallback(function () {
+    api.getBacklogSuggestions()
+      .then(function (data) {
+        setSuggestions(data.suggestions || [])
+      })
+      .catch(function () {})
+  }, [])
+
+  var fetchIntelStats = useCallback(function () {
+    api.getBacklogIntelligenceStatus()
+      .then(function (data) {
+        setIntelStats(data)
+      })
+      .catch(function () {})
+  }, [])
+
   useEffect(function () {
     fetchItems()
     fetchStats()
-  }, [fetchItems, fetchStats])
+    fetchSuggestions()
+    fetchIntelStats()
+  }, [fetchItems, fetchStats, fetchSuggestions, fetchIntelStats])
 
   function handleFormChange(field, value) {
     setFormData(function (prev) {
@@ -298,10 +342,37 @@ export default function Backlog() {
     setFilterStatus(function (prev) { return prev === status ? '' : status })
   }
 
+  function handleAcceptSuggestion(id) {
+    setAcceptingSuggestion(function (prev) { var n = {}; n[id] = true; return Object.assign({}, prev, n) })
+    api.acceptBacklogSuggestion(id)
+      .then(function () {
+        toast('Suggestion acceptée et ajoutée au backlog', 'success')
+        fetchSuggestions()
+        fetchItems()
+        fetchStats()
+        fetchIntelStats()
+      })
+      .catch(function (err) { toast('Erreur: ' + err.message, 'error') })
+      .finally(function () {
+        setAcceptingSuggestion(function (prev) { var n = {}; n[id] = false; return Object.assign({}, prev, n) })
+      })
+  }
+
+  function handleRejectSuggestion(id) {
+    api.rejectBacklogSuggestion(id)
+      .then(function () {
+        toast('Suggestion rejetée', 'success')
+        fetchSuggestions()
+        fetchIntelStats()
+      })
+      .catch(function (err) { toast('Erreur: ' + err.message, 'error') })
+  }
+
   function resetFilters() {
     setFilterStatus('')
     setFilterCategory('')
     setFilterPriority('')
+    setFilterSource('')
   }
 
   var byStatus = stats.by_status || {}
@@ -368,18 +439,92 @@ export default function Backlog() {
           <option value="">All Priorities</option>
           {PRIORITIES.map(function (p) { return <option key={p} value={p}>{p}</option> })}
         </select>
-        {(filterStatus || filterCategory || filterPriority) && (
+        <select className="backlog-filter-select" value={filterSource} onChange={function (e) { setFilterSource(e.target.value) }}>
+          <option value="">Toutes sources</option>
+          <option value="autofeed">Auto-détectées</option>
+          <option value="manual">Manuelles</option>
+        </select>
+        {(filterStatus || filterCategory || filterPriority || filterSource) && (
           <button className="btn btn-sm" onClick={resetFilters}>
             <X size={14} /> Reset
           </button>
         )}
         <div style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 13 }}>
           {items.length} item{items.length !== 1 ? 's' : ''}
-          {!filterStatus && !filterCategory && !filterPriority && totalActive > 0 && (
+          {!filterStatus && !filterCategory && !filterPriority && !filterSource && totalActive > 0 && (
             <span> &middot; {totalActive} active</span>
           )}
         </div>
       </div>
+
+      {/* Intelligence Stats */}
+      {intelStats.analysis_count > 0 && (
+        <div className="backlog-intel-stats">
+          <Zap size={14} />
+          <span>{intelStats.accepted || 0} auto-détectées</span>
+          <span className="backlog-intel-stat-sep">&middot;</span>
+          <span>{suggestions.length} suggestions</span>
+          <span className="backlog-intel-stat-sep">&middot;</span>
+          <span>{intelStats.rejected || 0} rejetées</span>
+          {intelStats.last_analysis && (
+            <>
+              <span className="backlog-intel-stat-sep">&middot;</span>
+              <span>Dernière analyse: {new Date(intelStats.last_analysis).toLocaleTimeString()}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Suggestions Section */}
+      {suggestions.length > 0 && (
+        <div className="backlog-suggestions-section">
+          <button className="backlog-suggestions-toggle" onClick={function () { setShowSuggestions(!showSuggestions) }}>
+            <Sparkles size={16} />
+            <span>{suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} en attente</span>
+            {showSuggestions ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+          {showSuggestions && (
+            <div className="backlog-suggestions-list">
+              {suggestions.map(function (s) {
+                var conf = s.confidence || 0.4
+                var confColor = conf >= 0.7 ? '#22c55e' : conf >= 0.5 ? '#f59e0b' : '#6b7280'
+                return (
+                  <div className="backlog-suggestion-card" key={s.id}>
+                    <div className="backlog-suggestion-header">
+                      <span className="backlog-suggestion-title">{s.title}</span>
+                      <div className="backlog-suggestion-actions">
+                        <button
+                          className="backlog-btn backlog-btn-accept"
+                          disabled={acceptingSuggestion && acceptingSuggestion[s.id]}
+                          onClick={function () { handleAcceptSuggestion(s.id) }}
+                          title="Accepter"
+                        >
+                          {acceptingSuggestion && acceptingSuggestion[s.id] ? <Loader2 size={14} /> : <ThumbsUp size={14} />}
+                        </button>
+                        <button className="backlog-btn backlog-btn-reject" onClick={function () { handleRejectSuggestion(s.id) }} title="Rejeter">
+                          <ThumbsDown size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    {s.description && <div className="backlog-suggestion-desc">{s.description.substring(0, 150)}</div>}
+                    <div className="backlog-suggestion-meta">
+                      <span className="backlog-source-badge">{s.source || 'unknown'}</span>
+                      <span className="backlog-badge" style={{ backgroundColor: (PRIORITY_COLORS[s.priority] || '#3b82f6') + '20', color: PRIORITY_COLORS[s.priority] || '#3b82f6', fontSize: 11 }}>
+                        {s.priority}
+                      </span>
+                      <span className="backlog-badge" style={{ fontSize: 11 }}>{s.category}</span>
+                      <div className="backlog-confidence-bar" title={'Confiance: ' + Math.round(conf * 100) + '%'}>
+                        <div className="backlog-confidence-fill" style={{ width: Math.round(conf * 100) + '%', background: confColor }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: confColor }}>{Math.round(conf * 100)}%</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Items list */}
       {loading ? (

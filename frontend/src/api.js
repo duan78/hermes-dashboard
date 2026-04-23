@@ -529,4 +529,12 @@ export const api = {
   triggerAutofeedScan: () => request('/autofeed/trigger', { method: 'POST' }),
   getAutofeedConfig: () => request('/autofeed/config'),
   updateAutofeedConfig: (interval) => request('/autofeed/config', { method: 'PATCH', body: JSON.stringify({ interval }) }),
+
+  // Backlog Intelligence
+  getBacklogIntelligenceStatus: () => request('/backlog/intelligence/status'),
+  getBacklogSuggestions: () => request('/backlog/intelligence/suggestions'),
+  acceptBacklogSuggestion: (id) => request('/backlog/intelligence/accept/' + encodeURIComponent(id), { method: 'POST' }),
+  rejectBacklogSuggestion: (id, reason) => request('/backlog/intelligence/reject/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify({ reason: reason || '' }) }),
+  triggerBacklogIntelligence: () => request('/backlog/intelligence/trigger', { method: 'POST' }),
+  getBacklogRejectionLog: (limit) => request('/backlog/intelligence/rejection-log?limit=' + (limit || 100)),
 };

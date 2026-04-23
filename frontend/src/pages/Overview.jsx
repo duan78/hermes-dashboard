@@ -193,6 +193,12 @@ function DashboardWidgets() {
     staleTime: 60000,
   })
 
+  const { data: intelStatus } = useQuery({
+    queryKey: ['backlog-intel-status'],
+    queryFn: () => api.getBacklogIntelligenceStatus(),
+    staleTime: 60000,
+  })
+
   const projects = projectsData?.items || []
   const backlog = backlogData?.items || backlogData || []
   const activities = activityData?.entries || activityData || []
@@ -224,6 +230,13 @@ function DashboardWidgets() {
         <div className="overview-widget-title" onClick={() => navigate('/backlog')} style={{ cursor: 'pointer' }}>
           <ClipboardList size={14} /> Backlog Digest
         </div>
+        {intelStatus && intelStatus.analysis_count > 0 && (
+          <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+            <span>{intelStats.accepted || 0} auto</span>
+            <span>{intelStats.rejected || 0} rejetées</span>
+            {intelStats.analysis_count > 0 && <span>{intelStats.analysis_count} analyses</span>}
+          </div>
+        )}
         {(Array.isArray(backlog) ? backlog : []).length === 0 ? (
           <div className="overview-widget-empty">No pending items</div>
         ) : (
@@ -231,7 +244,10 @@ function DashboardWidgets() {
             {(Array.isArray(backlog) ? backlog : []).slice(0, 5).map(item => (
               <li key={item.id} className="overview-widget-item">
                 <span className="overview-widget-item-name">{item.title}</span>
-                <span className="overview-widget-item-meta">{item.priority || 'normal'}</span>
+                <span className="overview-widget-item-meta">
+                  {item.priority || 'normal'}
+                  {(item.source === 'autofeed' || item.autofeed_source) && ' ★'}
+                </span>
               </li>
             ))}
           </ul>

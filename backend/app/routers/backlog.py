@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -744,6 +744,64 @@ async def auto_feed_history():
         "autofed_by_status": autofed_by_status,
         "autofed_by_category": autofed_by_category,
     }
+
+
+# ── Intelligence endpoints ──
+
+@router.get("/intelligence/status")
+async def intelligence_status():
+    """Return backlog intelligence stats."""
+    from ..services.backlog_intelligence import backlog_intelligence
+    return backlog_intelligence.get_status()
+
+
+@router.get("/intelligence/suggestions")
+async def intelligence_suggestions():
+    """Return pending suggestions awaiting user validation."""
+    from ..services.backlog_intelligence import backlog_intelligence
+    return {"suggestions": backlog_intelligence.get_suggestions()}
+
+
+@router.post("/intelligence/accept/{suggestion_id}")
+async def intelligence_accept(suggestion_id: str):
+    """Accept a suggestion and create a backlog item."""
+    from ..services.backlog_intelligence import backlog_intelligence
+    item = backlog_intelligence.accept_suggestion(suggestion_id)
+    if not item:
+        raise HTTPException(404, "Suggestion not found or already processed")
+    return {"success": True, "item": item}
+
+
+@router.post("/intelligence/reject/{suggestion_id}")
+async def intelligence_reject(suggestion_id: str, request: Request = None):
+    """Reject a suggestion and log the reason."""
+    from ..services.backlog_intelligence import backlog_intelligence
+    reason = ""
+    if request:
+        try:
+            body = await request.json()
+            reason = body.get("reason", "")
+        except Exception:
+            pass
+    ok = backlog_intelligence.reject_suggestion(suggestion_id, reason)
+    if not ok:
+        raise HTTPException(404, "Suggestion not found or already processed")
+    return {"success": True}
+
+
+@router.post("/intelligence/trigger")
+async def intelligence_trigger():
+    """Force a full intelligence analysis."""
+    from ..services.backlog_intelligence import backlog_intelligence
+    result = await backlog_intelligence.analyze_and_suggest()
+    return {"success": True, "result": result}
+
+
+@router.get("/intelligence/rejection-log")
+async def intelligence_rejection_log(limit: int = Query(100, le=500)):
+    """Return the LLM rejection audit log."""
+    from ..services.backlog_intelligence import backlog_intelligence
+    return {"entries": backlog_intelligence.get_rejection_log(limit)}
 
 
 @router.get("/auto-feed/trigger")

@@ -100,13 +100,16 @@ class AutofeedService:
         except Exception as e:
             logger.error("Scan 1 (sessions→projects) error: %s", e)
 
-        # Scan 2: Sessions → Backlog
+        # Scan 2: Sessions → Backlog (via BacklogIntelligence)
         try:
-            created, n = await self._scan_sessions_backlog()
-            self.stats["backlog_items_created"] += created
-            notif_count += n
+            from .backlog_intelligence import backlog_intelligence
+            result = await backlog_intelligence.analyze_and_suggest()
+            self.stats["backlog_items_created"] += result.get("auto_added", 0)
+            notif_count += result.get("auto_added", 0)  # Each auto-add creates a notif
+            # Also run reprioritization
+            await backlog_intelligence.reprioritize_backlog()
         except Exception as e:
-            logger.error("Scan 2 (sessions→backlog) error: %s", e)
+            logger.error("Scan 2 (backlog intelligence) error: %s", e)
 
         # Scan 3: Memory → Wiki
         try:
