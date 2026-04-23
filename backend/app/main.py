@@ -46,6 +46,7 @@ from .routers import (
     platforms,
     plugins_router,
     profiles,
+    projects,
     search_history,
     sessions,
     skills,
@@ -309,6 +310,7 @@ app.include_router(claude_code.router)
 app.include_router(wiki.router)
 app.include_router(code_execution.router)
 app.include_router(backlog.router)
+app.include_router(projects.router)
 app.include_router(users.router)
 app.include_router(leads.router)
 app.include_router(github_config.router)

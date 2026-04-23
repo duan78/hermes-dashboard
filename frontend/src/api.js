@@ -468,4 +468,17 @@ export const api = {
 
   // Context Compression Monitoring
   contextStatus: () => request('/context/status'),
+
+  // Projects
+  fetchProjects: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request('/projects' + (qs ? '?' + qs : ''))
+  },
+  fetchProject: (id) => request('/projects/' + encodeURIComponent(id)),
+  createProject: (data) => request('/projects', { method: 'POST', body: JSON.stringify(data) }),
+  updateProject: (id, data) => request('/projects/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(data) }),
+  deleteProject: (id) => request('/projects/' + encodeURIComponent(id), { method: 'DELETE' }),
+  fetchProjectSessions: (id) => request('/projects/' + encodeURIComponent(id) + '/sessions'),
+  fetchProjectBacklog: (id) => request('/projects/' + encodeURIComponent(id) + '/backlog'),
+  autoDetectProjects: () => request('/projects/auto-detect', { method: 'POST' }),
 };

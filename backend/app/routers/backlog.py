@@ -66,6 +66,7 @@ class BacklogItemCreate(BaseModel):
     priority: str = "normale"
     status: str = "pending"
     blocked_reason: str = ""
+    project_id: str | None = None
 
 class BacklogItemUpdate(BaseModel):
     title: str | None = None
@@ -76,6 +77,7 @@ class BacklogItemUpdate(BaseModel):
     blocked_reason: str | None = None
     done_date: str | None = None
     result: str | None = None
+    project_id: str | None = None
 
 class StatusPatch(BaseModel):
     status: str
@@ -486,6 +488,7 @@ async def list_backlog_items(
     status: str | None = Query(None),
     category: str | None = Query(None),
     priority: str | None = Query(None),
+    project_id: str | None = Query(None),
 ):
     """List all backlog items, with optional filtering."""
     data = _read_backlog()
@@ -497,6 +500,8 @@ async def list_backlog_items(
         items = [i for i in items if i.get("category") == category]
     if priority:
         items = [i for i in items if i.get("priority") == priority]
+    if project_id:
+        items = [i for i in items if i.get("project_id") == project_id]
 
     return {"items": items, "total": len(items)}
 
@@ -509,13 +514,16 @@ async def backlog_stats():
 
     by_status = {}
     by_category = {}
+    by_project = {}
     for item in items:
         s = item.get("status", "unknown")
         by_status[s] = by_status.get(s, 0) + 1
         c = item.get("category", "unknown")
         by_category[c] = by_category.get(c, 0) + 1
+        pid = item.get("project_id") or "none"
+        by_project[pid] = by_project.get(pid, 0) + 1
 
-    return {"total": len(items), "by_status": by_status, "by_category": by_category}
+    return {"total": len(items), "by_status": by_status, "by_category": by_category, "by_project": by_project}
 
 
 @router.post("/auto-feed")
@@ -814,6 +822,8 @@ async def create_backlog_item(body: BacklogItemCreate):
         "status": body.status,
         "created": now,
     }
+    if body.project_id:
+        new_item["project_id"] = body.project_id
     if body.blocked_reason:
         new_item["blocked_reason"] = body.blocked_reason
     if body.status == "done":

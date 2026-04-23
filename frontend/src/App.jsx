@@ -4,7 +4,7 @@ import {
  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText, ClipboardList,
- Search as SearchIcon,
+ Search as SearchIcon, FolderKanban,
  LogOut
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
@@ -50,6 +50,7 @@ const ClaudeCodePage = lazy(() => import('./pages/ClaudeCode'))
 const WikiPage = lazy(() => import('./pages/Wiki'))
 const MoaConfig = lazy(() => import('./pages/MoaConfig'))
 const Backlog = lazy(() => import('./pages/Backlog'))
+const Projects = lazy(() => import('./pages/Projects'))
 const UsersPage = lazy(() => import('./pages/Users'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const SearchHistory = lazy(() => import('./pages/SearchHistory'))
@@ -86,6 +87,7 @@ const BoundedClaudeCode = withErrorBoundary(ClaudeCodePage, 'Claude Code')
 const BoundedWiki = withErrorBoundary(WikiPage, 'Wiki')
 const BoundedMoa = withErrorBoundary(MoaConfig, 'MOA')
 const BoundedBacklog = withErrorBoundary(Backlog, 'Backlog')
+const BoundedProjects = withErrorBoundary(Projects, 'Projects')
 const BoundedNotFound = withErrorBoundary(NotFound, 'Not Found')
 const BoundedSearchHistory = withErrorBoundary(SearchHistory, 'Search History')
 
@@ -120,6 +122,7 @@ const NAV_ITEMS = [
   { to: '/users', icon: Users, label: 'Users', adminOnly: true },
   { to: '/profiles', icon: Users, label: 'Profiles' },
   { to: '/backup', icon: HardDrive, label: 'Backup' },
+  { to: '/projects', icon: FolderKanban, label: 'Projets' },
   { to: '/backlog', icon: ClipboardList, label: 'Backlog' },
 ]
 
@@ -337,6 +340,7 @@ function App() {
             <Route path="/claude-code" element={<BoundedClaudeCode />} />
             <Route path="/wiki" element={<BoundedWiki />} />
             <Route path="/moa" element={<BoundedMoa />} />
+            <Route path="/projects" element={<BoundedProjects />} />
             <Route path="/backlog" element={<BoundedBacklog />} />
             <Route path="*" element={<BoundedNotFound />} />
           </Routes>
