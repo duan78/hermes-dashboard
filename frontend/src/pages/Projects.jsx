@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
 import Tooltip from '../components/Tooltip'
+import TagSelector from '../components/TagSelector'
 import './projects.css'
 
 const TYPE_COLORS = {
@@ -32,6 +33,7 @@ const EMPTY_FORM = {
   github_repo: '',
   keywords: '',
   status: 'active',
+  tags: [],
 }
 
 function formatDate(dateStr) {
@@ -154,6 +156,7 @@ export default function Projects() {
       github_repo: project.github_repo || '',
       keywords: (project.keywords || []).join(', '),
       status: project.status || 'active',
+      tags: project.tags || [],
     })
     setEditingProject(project)
     setShowCreateModal(true)
@@ -194,6 +197,7 @@ export default function Projects() {
       github_repo: formData.github_repo.trim(),
       keywords: keywords,
       status: formData.status,
+      tags: formData.tags || [],
     }
 
     var promise = editingProject
@@ -636,6 +640,13 @@ export default function Projects() {
                 value={formData.keywords}
                 onChange={function (e) { handleFormChange('keywords', e.target.value) }}
                 placeholder="mot1, mot2, mot3"
+              />
+            </div>
+            <div className="projects-form-group">
+              <label className="form-label">Tags</label>
+              <TagSelector
+                selected={formData.tags || []}
+                onChange={function (tags) { handleFormChange('tags', tags) }}
               />
             </div>
             <div className="projects-form-actions">

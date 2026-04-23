@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
 import Tooltip from '../components/Tooltip'
+import TagSelector from '../components/TagSelector'
 import './backlog.css'
 
 const STATUS_COLORS = {
@@ -31,6 +32,7 @@ const EMPTY_FORM = {
   priority: 'normale',
   status: 'pending',
   blocked_reason: '',
+  tags: [],
 }
 
 function formatDate(dateStr) {
@@ -198,6 +200,7 @@ export default function Backlog() {
       priority: item.priority || 'normale',
       status: item.status || 'pending',
       blocked_reason: item.blocked_reason || '',
+      tags: item.tags || [],
     })
     setEditItem(item)
     setShowForm(true)
@@ -226,6 +229,9 @@ export default function Backlog() {
       if (formData.status !== editItem.status) updates.status = formData.status
       var oldBlocked = editItem.blocked_reason || ''
       if (formData.blocked_reason !== oldBlocked) updates.blocked_reason = formData.blocked_reason
+      var oldTags = JSON.stringify(editItem.tags || [])
+      var newTags = JSON.stringify(formData.tags || [])
+      if (oldTags !== newTags) updates.tags = formData.tags
 
       api.updateBacklogItem(editItem.id, updates)
         .then(function () {
@@ -502,6 +508,13 @@ export default function Backlog() {
             <div className="backlog-form-group">
               <label className="form-label">Blocked Reason</label>
               <textarea className="form-textarea" value={formData.blocked_reason} onChange={function (e) { handleFormChange('blocked_reason', e.target.value) }} placeholder="Why is this blocked?" rows={2} />
+            </div>
+            <div className="backlog-form-group">
+              <label className="form-label">Tags</label>
+              <TagSelector
+                selected={formData.tags || []}
+                onChange={function (tags) { handleFormChange('tags', tags) }}
+              />
             </div>
             <div className="backlog-form-actions">
               <button className="btn" onClick={closeForm} disabled={saving}>Cancel</button>

@@ -1,8 +1,7 @@
-"""Global search router — searches across projects, backlog, wiki, sessions, skills."""
+"""Global search router — searches across projects, backlog, wiki, sessions, skills, tags, notifications, activity."""
 
 import json
 import logging
-import re
 from pathlib import Path
 
 from fastapi import APIRouter, Query
@@ -19,45 +18,50 @@ async def global_search(
     q: str = Query(..., min_length=1),
     limit: int = Query(20, le=50),
 ):
-    """Search across all modules: projects, backlog, wiki, sessions, skills."""
+    """Search across all modules: projects, backlog, wiki, sessions, skills, tags, notifications, activity."""
     results = {
         "projects": [],
         "backlog": [],
         "wiki": [],
         "sessions": [],
         "skills": [],
+        "tags": [],
+        "notifications": [],
+        "activity": [],
     }
     query = q.lower().strip()
 
-    # ── Search projects ──
+    # ── Search projects (with tags) ──
     projects_file = HERMES_HOME / "projects.json"
     if projects_file.exists():
         try:
             with open(projects_file) as f:
                 pdata = json.load(f)
             for p in pdata.get("items", []):
-                if _matches(query, [p.get("name", ""), p.get("description", "")] + p.get("keywords", [])):
+                search_texts = [p.get("name", ""), p.get("description", "")] + p.get("keywords", []) + p.get("tags", [])
+                if _matches(query, search_texts):
                     results["projects"].append({
                         "id": p.get("id"),
                         "name": p.get("name"),
                         "description": (p.get("description") or "")[:100],
                         "status": p.get("status"),
                         "type": p.get("type"),
-                        "route": f"/projects",
+                        "route": "/projects",
                     })
                     if len(results["projects"]) >= limit:
                         break
         except Exception:
             pass
 
-    # ── Search backlog ──
+    # ── Search backlog (with tags) ──
     backlog_file = HERMES_HOME / "backlog.json"
     if backlog_file.exists():
         try:
             with open(backlog_file) as f:
                 bdata = json.load(f)
             for item in bdata.get("items", []):
-                if _matches(query, [item.get("title", ""), item.get("description", "")]):
+                search_texts = [item.get("title", ""), item.get("description", "")] + item.get("tags", [])
+                if _matches(query, search_texts):
                     results["backlog"].append({
                         "id": item.get("id"),
                         "title": item.get("title"),
@@ -82,7 +86,6 @@ async def global_search(
                 try:
                     content = f.read_text(errors="ignore")
                     title = f.stem.replace("-", " ").title()
-                    # Check frontmatter for title
                     if content.startswith("---"):
                         fm_end = content.find("---", 3)
                         if fm_end > 0:
@@ -91,7 +94,6 @@ async def global_search(
                                 if line.startswith("title:"):
                                     title = line.split(":", 1)[1].strip()
                                     break
-
                     if _matches(query, [title, content[:500]]):
                         results["wiki"].append({
                             "id": f"{subdir}/{f.stem}",
@@ -113,7 +115,6 @@ async def global_search(
                 try:
                     content = sf.read_text(errors="ignore")
                     if query in content.lower():
-                        # Extract first human message as preview
                         preview = ""
                         for line in content.split("\n")[:10]:
                             try:
@@ -123,7 +124,6 @@ async def global_search(
                                     break
                             except (json.JSONDecodeError, Exception):
                                 pass
-
                         results["sessions"].append({
                             "id": sf.stem,
                             "name": sf.stem,
@@ -155,6 +155,62 @@ async def global_search(
                             break
                 except Exception:
                     continue
+        except Exception:
+            pass
+
+    # ── Search tags ──
+    tags_file = HERMES_HOME / "tags.json"
+    if tags_file.exists():
+        try:
+            with open(tags_file) as f:
+                tdata = json.load(f)
+            for t in tdata.get("items", []):
+                if query in t.get("name", "").lower():
+                    results["tags"].append({
+                        "id": t.get("id"),
+                        "name": t.get("name"),
+                        "color": t.get("color"),
+                        "route": "/projects",
+                    })
+        except Exception:
+            pass
+
+    # ── Search notifications ──
+    notifs_file = HERMES_HOME / "notifications.json"
+    if notifs_file.exists():
+        try:
+            with open(notifs_file) as f:
+                ndata = json.load(f)
+            for n in ndata.get("items", []):
+                if _matches(query, [n.get("title", ""), n.get("description", "")]):
+                    results["notifications"].append({
+                        "id": n.get("id"),
+                        "name": n.get("title", "")[:60],
+                        "type": n.get("type"),
+                        "status": n.get("status"),
+                        "route": "/activity",
+                    })
+                    if len(results["notifications"]) >= 10:
+                        break
+        except Exception:
+            pass
+
+    # ── Search activity ──
+    activity_file = HERMES_HOME / "activity.json"
+    if activity_file.exists():
+        try:
+            with open(activity_file) as f:
+                adata = json.load(f)
+            for e in adata.get("entries", []):
+                if _matches(query, [e.get("entity_name", ""), e.get("action", ""), json.dumps(e.get("details", {}))]):
+                    results["activity"].append({
+                        "id": e.get("id"),
+                        "name": f"{e.get('action', '')} — {e.get('entity_name', '')}",
+                        "type": e.get("entity_type"),
+                        "route": "/activity",
+                    })
+                    if len(results["activity"]) >= 10:
+                        break
         except Exception:
             pass
 

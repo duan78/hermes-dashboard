@@ -830,6 +830,21 @@ async def create_backlog_item(body: BacklogItemCreate):
     }
     if body.project_id:
         new_item["project_id"] = body.project_id
+    else:
+        # Auto-match to existing project by title keywords
+        try:
+            projects_file = Path("/root/.hermes/projects.json")
+            if projects_file.exists():
+                with open(projects_file) as pf:
+                    pdata = json.load(pf)
+                title_lower = body.title.lower()
+                for p in pdata.get("items", []):
+                    terms = [p.get("name", "").lower()] + [k.lower() for k in p.get("keywords", [])]
+                    if any(t in title_lower for t in terms if len(t) >= 3):
+                        new_item["project_id"] = p["id"]
+                        break
+        except Exception:
+            pass
     if body.blocked_reason:
         new_item["blocked_reason"] = body.blocked_reason
     if body.status == "done":

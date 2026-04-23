@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Activity, Cpu, MessageSquare, Radio, RefreshCw, Package, ChevronDown, Loader2, RotateCcw, Database } from 'lucide-react'
+import { LayoutDashboard, Activity, Cpu, MessageSquare, Radio, RefreshCw, Package, ChevronDown, Loader2, RotateCcw, Database, FolderKanban, ClipboardList, Bell, Zap, Lightbulb } from 'lucide-react'
 import { useOverview, useLogs, useSystemMetrics, useHermesVersion, useHermesChangelog, useHermesUpdate } from '../hooks/useApi'
+import { useQuery } from '@tanstack/react-query'
 import Tooltip from '../components/Tooltip'
 import { api } from '../api'
+import { useNavigate } from 'react-router-dom'
 import './overview.css'
 
 function formatUptime(seconds) {
@@ -152,6 +154,157 @@ function ContextUsageCard() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Dashboard Widgets ──
+
+function DashboardWidgets() {
+  const navigate = useNavigate()
+
+  const { data: projectsData } = useQuery({
+    queryKey: ['projects-overview'],
+    queryFn: () => api.fetchProjects({ limit: 5 }),
+    staleTime: 60000,
+  })
+
+  const { data: backlogData } = useQuery({
+    queryKey: ['backlog-overview'],
+    queryFn: () => api.getBacklogItems('limit=5&status=todo'),
+    staleTime: 60000,
+  })
+
+  const { data: activityData } = useQuery({
+    queryKey: ['activity-overview'],
+    queryFn: () => api.getActivity({ limit: 5 }),
+    staleTime: 30000,
+  })
+
+  const { data: notifStats } = useQuery({
+    queryKey: ['notification-stats-overview'],
+    queryFn: () => api.getNotificationStats(),
+    staleTime: 30000,
+  })
+
+  const { data: autofeedStatus } = useQuery({
+    queryKey: ['autofeed-status'],
+    queryFn: () => api.getAutofeedStatus(),
+    staleTime: 60000,
+  })
+
+  const projects = projectsData?.items || []
+  const backlog = backlogData?.items || backlogData || []
+  const activities = activityData?.entries || activityData || []
+  const suggestions = autofeedStatus?.suggestions || []
+
+  return (
+    <div className="overview-widgets">
+      {/* Active Projects */}
+      <div className="overview-widget">
+        <div className="overview-widget-title" onClick={() => navigate('/projects')} style={{ cursor: 'pointer' }}>
+          <FolderKanban size={14} /> Active Projects
+        </div>
+        {projects.length === 0 ? (
+          <div className="overview-widget-empty">No projects yet</div>
+        ) : (
+          <ul className="overview-widget-list">
+            {projects.slice(0, 5).map(p => (
+              <li key={p.id} className="overview-widget-item">
+                <span className="overview-widget-item-name">{p.name}</span>
+                <span className="overview-widget-item-meta">{p.status || 'active'}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Backlog Digest */}
+      <div className="overview-widget">
+        <div className="overview-widget-title" onClick={() => navigate('/backlog')} style={{ cursor: 'pointer' }}>
+          <ClipboardList size={14} /> Backlog Digest
+        </div>
+        {(Array.isArray(backlog) ? backlog : []).length === 0 ? (
+          <div className="overview-widget-empty">No pending items</div>
+        ) : (
+          <ul className="overview-widget-list">
+            {(Array.isArray(backlog) ? backlog : []).slice(0, 5).map(item => (
+              <li key={item.id} className="overview-widget-item">
+                <span className="overview-widget-item-name">{item.title}</span>
+                <span className="overview-widget-item-meta">{item.priority || 'normal'}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Recent Activity */}
+      <div className="overview-widget">
+        <div className="overview-widget-title" onClick={() => navigate('/activity')} style={{ cursor: 'pointer' }}>
+          <Activity size={14} /> Recent Activity
+        </div>
+        {activities.length === 0 ? (
+          <div className="overview-widget-empty">No recent activity</div>
+        ) : (
+          <ul className="overview-widget-list">
+            {activities.slice(0, 5).map(e => (
+              <li key={e.id || e.timestamp} className="overview-widget-item">
+                <span className="overview-widget-item-name">
+                  {e.action} — {e.entity_name || e.entity_type}
+                </span>
+                <span className="overview-widget-item-meta">
+                  {e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Notifications Summary */}
+      <div className="overview-widget">
+        <div className="overview-widget-title" onClick={() => navigate('/activity')} style={{ cursor: 'pointer' }}>
+          <Bell size={14} /> Notifications
+        </div>
+        {!notifStats ? (
+          <div className="overview-widget-empty">Loading...</div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: notifStats.unread > 0 ? 'var(--warning)' : 'var(--text-primary)' }}>
+                {notifStats.unread || 0}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Unread</div>
+            </div>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {notifStats.total || 0}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Auto Suggestions */}
+      <div className="overview-widget">
+        <div className="overview-widget-title">
+          <Lightbulb size={14} /> Suggestions
+        </div>
+        {suggestions.length === 0 ? (
+          <div className="overview-widget-empty">
+            {autofeedStatus?.running ? 'No suggestions yet' : 'Autofeed idle'}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {suggestions.slice(0, 3).map((s, i) => (
+              <div key={i} className="overview-suggestion">
+                {s.message || s.title || s}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -322,6 +475,9 @@ export default function Overview() {
 
       {/* Context Usage Card */}
       <ContextUsageCard />
+
+      {/* Dashboard Widgets */}
+      <DashboardWidgets />
 
       {/* Row 3: Hermes Agent Version */}
       {versionInfo && (

@@ -523,4 +523,10 @@ export const api = {
   // User Preferences (theme)
   getUserPreferences: () => request('/users/preferences'),
   updateUserPreferences: (prefs) => request('/users/preferences', { method: 'PATCH', body: JSON.stringify(prefs) }),
+
+  // Autofeed
+  getAutofeedStatus: () => request('/autofeed/status'),
+  triggerAutofeedScan: () => request('/autofeed/trigger', { method: 'POST' }),
+  getAutofeedConfig: () => request('/autofeed/config'),
+  updateAutofeedConfig: (interval) => request('/autofeed/config', { method: 'PATCH', body: JSON.stringify({ interval }) }),
 };

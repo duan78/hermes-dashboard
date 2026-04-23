@@ -13,6 +13,7 @@ import { useWebSocket } from './hooks/useWebSocket'
 import { api } from './api'
 import { withErrorBoundary } from './components/PageErrorBoundary'
 import NotificationBell from './components/NotificationBell'
+import AutofeedIndicator from './components/AutofeedIndicator'
 import CommandPalette from './components/CommandPalette'
 import GlobalSearch from './components/GlobalSearch'
 import './pages/auth.css'
@@ -328,6 +329,7 @@ function App() {
         <header className="main-header">
           <GlobalSearch />
           <div className="main-header-actions">
+            <AutofeedIndicator />
             <NotificationBell />
           </div>
         </header>

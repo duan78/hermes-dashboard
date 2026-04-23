@@ -11,7 +11,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -344,9 +344,50 @@ async def dashboard_hub_ws(websocket: WebSocket):
 async def _start_poll_bridge():
     poll_bridge.start()
 
+# ── Autofeed endpoints ──
+from .services.autofeed import autofeed_service
+
+
+@app.get("/api/autofeed/status")
+async def autofeed_status():
+    return autofeed_service.get_status()
+
+
+@app.post("/api/autofeed/trigger")
+async def autofeed_trigger():
+    await autofeed_service.run_scan()
+    return {"status": "ok", **autofeed_service.get_status()}
+
+
+@app.get("/api/autofeed/config")
+async def autofeed_config_get():
+    return {"interval": autofeed_service.interval}
+
+
+class AutofeedConfigUpdate:
+    pass
+
+
+@app.patch("/api/autofeed/config")
+async def autofeed_config_update(request: Request):
+    body = await request.json()
+    if "interval" in body:
+        new_interval = int(body["interval"])
+        if new_interval < 60:
+            raise HTTPException(400, "Interval must be >= 60 seconds")
+        autofeed_service.interval = new_interval
+    return {"interval": autofeed_service.interval}
+
+
+@app.on_event("startup")
+async def _start_autofeed_service():
+    autofeed_service.start()
+
+
 @app.on_event("shutdown")
 async def _stop_poll_bridge():
     poll_bridge.stop()
+    autofeed_service.stop()
 
 
 # ── Terminal WebSocket (mounted directly on app for reliable registration) ──
