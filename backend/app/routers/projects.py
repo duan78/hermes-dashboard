@@ -106,6 +106,7 @@ class ProjectCreate(BaseModel):
     github_repo: str = ""
     keywords: list[str] = []
     status: str = "active"
+    tags: list[str] = []
 
 class ProjectUpdate(BaseModel):
     name: str | None = None
@@ -114,6 +115,7 @@ class ProjectUpdate(BaseModel):
     github_repo: str | None = None
     keywords: list[str] | None = None
     status: str | None = None
+    tags: list[str] | None = None
 
 
 # ── Endpoints ──
@@ -123,6 +125,7 @@ async def list_projects(
     status: str | None = Query(None),
     type: str | None = Query(None),
     search: str | None = Query(None),
+    tag: str | None = Query(None),
 ):
     data = _read_projects()
     items = data.get("items", [])
@@ -131,6 +134,8 @@ async def list_projects(
         items = [p for p in items if p.get("status") == status]
     if type:
         items = [p for p in items if p.get("type") == type]
+    if tag:
+        items = [p for p in items if tag in p.get("tags", [])]
     if search:
         s = search.lower()
         items = [
@@ -349,6 +354,7 @@ async def create_project(body: ProjectCreate):
         "github_repo": body.github_repo,
         "status": body.status,
         "keywords": body.keywords,
+        "tags": body.tags,
         "session_count": 0,
         "backlog_count": 0,
         "last_activity": now,
@@ -360,6 +366,14 @@ async def create_project(body: ProjectCreate):
     data["items"] = items
     _write_projects(data)
     logger.info("Created project: %s", item_id)
+
+    # Log activity
+    try:
+        from .activity import log_activity
+        log_activity("project.created", "project", item_id, body.name)
+    except Exception:
+        pass
+
     return new_project
 
 
@@ -381,6 +395,14 @@ async def update_project(project_id: str, body: ProjectUpdate):
             data["items"] = items
             _write_projects(data)
             logger.info("Updated project: %s", project_id)
+
+            # Log activity
+            try:
+                from .activity import log_activity
+                log_activity("project.updated", "project", project_id, items[i].get("name", ""))
+            except Exception:
+                pass
+
             return items[i]
 
     raise HTTPException(404, "Project not found")
@@ -390,6 +412,11 @@ async def update_project(project_id: str, body: ProjectUpdate):
 async def delete_project(project_id: str):
     data = _read_projects()
     items = data.get("items", [])
+    project_name = ""
+    for p in items:
+        if p.get("id") == project_id:
+            project_name = p.get("name", "")
+            break
 
     new_items = [p for p in items if p.get("id") != project_id]
     if len(new_items) == len(items):
@@ -398,6 +425,14 @@ async def delete_project(project_id: str):
     data["items"] = new_items
     _write_projects(data)
     logger.info("Deleted project: %s", project_id)
+
+    # Log activity
+    try:
+        from .activity import log_activity
+        log_activity("project.deleted", "project", project_id, project_name)
+    except Exception:
+        pass
+
     return {"status": "deleted", "id": project_id}
 
 

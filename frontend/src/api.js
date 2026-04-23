@@ -481,4 +481,46 @@ export const api = {
   fetchProjectSessions: (id) => request('/projects/' + encodeURIComponent(id) + '/sessions'),
   fetchProjectBacklog: (id) => request('/projects/' + encodeURIComponent(id) + '/backlog'),
   autoDetectProjects: () => request('/projects/auto-detect', { method: 'POST' }),
+
+  // Notifications
+  getNotifications: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request('/notifications' + (qs ? '?' + qs : ''))
+  },
+  getNotificationStats: () => request('/notifications/stats'),
+  createNotification: (data) => request('/notifications', { method: 'POST', body: JSON.stringify(data) }),
+  patchNotification: (id, data) => request('/notifications/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteNotification: (id) => request('/notifications/' + encodeURIComponent(id), { method: 'DELETE' }),
+  bulkNotifications: (action) => request('/notifications/bulk', { method: 'POST', body: JSON.stringify({ action }) }),
+
+  // Tags
+  getTags: () => request('/tags'),
+  getTagPresets: () => request('/tags/presets'),
+  createTag: (data) => request('/tags', { method: 'POST', body: JSON.stringify(data) }),
+  updateTag: (id, data) => request('/tags/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteTag: (id) => request('/tags/' + encodeURIComponent(id), { method: 'DELETE' }),
+
+  // Activity
+  getActivity: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request('/activity' + (qs ? '?' + qs : ''))
+  },
+  getActivityStats: () => request('/activity/stats'),
+
+  // Global Search
+  globalSearch: (q, limit = 20) => request('/search?q=' + encodeURIComponent(q) + '&limit=' + limit),
+
+  // Export
+  exportModule: (module, format = 'json') => {
+    const userToken = localStorage.getItem('hermes_user_token') || ''
+    const legacyToken = localStorage.getItem('hermes_token') || ''
+    const token = userToken || legacyToken
+    const headers = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return fetch(`/api/export/${module}?format=${format}`, { headers }).then(res => res.blob())
+  },
+
+  // User Preferences (theme)
+  getUserPreferences: () => request('/users/preferences'),
+  updateUserPreferences: (prefs) => request('/users/preferences', { method: 'PATCH', body: JSON.stringify(prefs) }),
 };

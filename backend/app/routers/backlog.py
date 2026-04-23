@@ -67,6 +67,7 @@ class BacklogItemCreate(BaseModel):
     status: str = "pending"
     blocked_reason: str = ""
     project_id: str | None = None
+    tags: list[str] = []
 
 class BacklogItemUpdate(BaseModel):
     title: str | None = None
@@ -78,6 +79,7 @@ class BacklogItemUpdate(BaseModel):
     done_date: str | None = None
     result: str | None = None
     project_id: str | None = None
+    tags: list[str] | None = None
 
 class StatusPatch(BaseModel):
     status: str
@@ -489,6 +491,7 @@ async def list_backlog_items(
     category: str | None = Query(None),
     priority: str | None = Query(None),
     project_id: str | None = Query(None),
+    tag: str | None = Query(None),
 ):
     """List all backlog items, with optional filtering."""
     data = _read_backlog()
@@ -502,6 +505,8 @@ async def list_backlog_items(
         items = [i for i in items if i.get("priority") == priority]
     if project_id:
         items = [i for i in items if i.get("project_id") == project_id]
+    if tag:
+        items = [i for i in items if tag in i.get("tags", [])]
 
     return {"items": items, "total": len(items)}
 
@@ -820,6 +825,7 @@ async def create_backlog_item(body: BacklogItemCreate):
         "category": body.category,
         "priority": body.priority,
         "status": body.status,
+        "tags": body.tags,
         "created": now,
     }
     if body.project_id:
@@ -833,6 +839,14 @@ async def create_backlog_item(body: BacklogItemCreate):
     data["items"] = items
     _write_backlog(data)
     logger.info("Created backlog item: %s", item_id)
+
+    # Log activity
+    try:
+        from .activity import log_activity
+        log_activity("backlog.created", "backlog", item_id, body.title)
+    except Exception:
+        pass
+
     return new_item
 
 
@@ -855,6 +869,15 @@ async def update_backlog_item(item_id: str, body: BacklogItemUpdate):
             data["items"] = items
             _write_backlog(data)
             logger.info("Updated backlog item: %s", item_id)
+
+            # Log activity
+            try:
+                from .activity import log_activity
+                action = "backlog.status_changed" if "status" in updates else "backlog.updated"
+                log_activity(action, "backlog", item_id, items[i].get("title", ""))
+            except Exception:
+                pass
+
             return items[i]
 
     raise HTTPException(404, "Backlog item not found")
@@ -865,6 +888,11 @@ async def delete_backlog_item(item_id: str):
     """Delete a backlog item by ID."""
     data = _read_backlog()
     items = data.get("items", [])
+    item_title = ""
+    for it in items:
+        if it.get("id") == item_id:
+            item_title = it.get("title", "")
+            break
 
     new_items = [i for i in items if i.get("id") != item_id]
     if len(new_items) == len(items):
@@ -873,6 +901,14 @@ async def delete_backlog_item(item_id: str):
     data["items"] = new_items
     _write_backlog(data)
     logger.info("Deleted backlog item: %s", item_id)
+
+    # Log activity
+    try:
+        from .activity import log_activity
+        log_activity("backlog.deleted", "backlog", item_id, item_title)
+    except Exception:
+        pass
+
     return {"status": "deleted", "id": item_id}
 
 

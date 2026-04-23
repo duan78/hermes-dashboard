@@ -232,6 +232,14 @@ async def save_wiki_page(page_path: str, body: WikiPageSave):
 
     full_path.write_text(body.content, encoding="utf-8")
     logger.info(f"Wiki page saved: {page_path} ({len(body.content)} bytes)")
+
+    # Log activity
+    try:
+        from .activity import log_activity
+        log_activity("wiki.updated", "wiki", page_path, page_path)
+    except Exception:
+        pass
+
     return {"success": True, "path": str(full_path.relative_to(WIKI_PATH)), "size": len(body.content)}
 
 
@@ -282,6 +290,13 @@ sources: []
 
     file_path.write_text(frontmatter, encoding="utf-8")
     logger.info(f"Wiki page created: {page_type}/{slug}.md")
+
+    # Log activity
+    try:
+        from .activity import log_activity
+        log_activity("wiki.created", "wiki", f"{page_type}/{slug}", body.title)
+    except Exception:
+        pass
 
     return {
         "success": True,

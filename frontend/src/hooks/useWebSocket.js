@@ -10,6 +10,8 @@ const EVENT_INVALIDATIONS = {
   'platform:status': [['platforms', 'status'], ['overview']],
   'cost:update': [['overview'], ['insights']],
   'cron:output': [['cron']],
+  'notification:new': [['notifications'], ['notification-stats']],
+  'activity:new': [['activity']],
 }
 
 export function useWebSocket(enabled = true) {

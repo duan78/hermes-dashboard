@@ -1,10 +1,10 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
 import {
  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText, ClipboardList,
- Search as SearchIcon, FolderKanban,
+ Search as SearchIcon, FolderKanban, Download,
  LogOut
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
@@ -12,6 +12,9 @@ import { ToastProvider } from './contexts/ToastContext'
 import { useWebSocket } from './hooks/useWebSocket'
 import { api } from './api'
 import { withErrorBoundary } from './components/PageErrorBoundary'
+import NotificationBell from './components/NotificationBell'
+import CommandPalette from './components/CommandPalette'
+import GlobalSearch from './components/GlobalSearch'
 import './pages/auth.css'
 
 // Eager imports — most frequently accessed / shell pages
@@ -54,6 +57,7 @@ const Projects = lazy(() => import('./pages/Projects'))
 const UsersPage = lazy(() => import('./pages/Users'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const SearchHistory = lazy(() => import('./pages/SearchHistory'))
+const ActivityPage = lazy(() => import('./pages/Activity'))
 
 // Page-level error boundaries — each page gets its own boundary
 // so a crash in one page doesn't take down the entire dashboard
@@ -90,6 +94,7 @@ const BoundedBacklog = withErrorBoundary(Backlog, 'Backlog')
 const BoundedProjects = withErrorBoundary(Projects, 'Projects')
 const BoundedNotFound = withErrorBoundary(NotFound, 'Not Found')
 const BoundedSearchHistory = withErrorBoundary(SearchHistory, 'Search History')
+const BoundedActivity = withErrorBoundary(ActivityPage, 'Activit\u00e9')
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -124,6 +129,7 @@ const NAV_ITEMS = [
   { to: '/backup', icon: HardDrive, label: 'Backup' },
   { to: '/projects', icon: FolderKanban, label: 'Projets' },
   { to: '/backlog', icon: ClipboardList, label: 'Backlog' },
+  { to: '/activity', icon: Activity, label: 'Activit\u00e9' },
 ]
 
 function Spinner() {
@@ -169,6 +175,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [features, setFeatures] = useState({})
   const [currentUser, setCurrentUser] = useState(undefined) // undefined = loading, null = no user system
+  const [cmdOpen, setCmdOpen] = useState(false)
   const location = useLocation()
 
   // Only connect WebSocket when authenticated and inside dashboard
@@ -177,6 +184,18 @@ function App() {
   useEffect(() => {
     setSidebarOpen(false)
   }, [location])
+
+  // Ctrl+K for command palette
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setCmdOpen(prev => !prev)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // Check auth state on mount and when auth events fire
   useEffect(() => {
@@ -306,6 +325,13 @@ function App() {
       </aside>
 
       <main className="main-content" role="main">
+        <header className="main-header">
+          <GlobalSearch />
+          <div className="main-header-actions">
+            <NotificationBell />
+          </div>
+        </header>
+        <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
         <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path="/" element={<BoundedOverview />} />
@@ -342,6 +368,7 @@ function App() {
             <Route path="/moa" element={<BoundedMoa />} />
             <Route path="/projects" element={<BoundedProjects />} />
             <Route path="/backlog" element={<BoundedBacklog />} />
+            <Route path="/activity" element={<BoundedActivity />} />
             <Route path="*" element={<BoundedNotFound />} />
           </Routes>
         </Suspense>

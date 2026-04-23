@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from .auth import AuthMiddleware
 from .config import HERMES_HOME, HOST, PORT
 from .routers import (
+    activity,
     api_keys,
     approvals,
     auth_pairing,
@@ -26,12 +27,14 @@ from .routers import (
     backup,
     chat,
     claude_code,
+    code_execution,
     config,
     context,
     cron,
     diagnostics,
     delegation,
     env_vars,
+    export,
     files,
     fine_tune,
     gateway,
@@ -42,15 +45,18 @@ from .routers import (
     mcp_oauth,
     memory,
     models,
+    notifications,
     overview,
     platforms,
     plugins_router,
     profiles,
     projects,
+    search,
     search_history,
     sessions,
     skills,
     skills_security,
+    tags,
     tools,
     discord_listings,
     rl_training,
@@ -59,7 +65,6 @@ from .routers import (
     vision,
     webhooks,
     wiki,
-    code_execution,
 )
 
 # ── Structured logging setup ──
@@ -318,6 +323,11 @@ app.include_router(search_history.router)
 app.include_router(delegation.router)
 app.include_router(approvals.router)
 app.include_router(context.router)
+app.include_router(notifications.router)
+app.include_router(tags.router)
+app.include_router(activity.router)
+app.include_router(search.router)
+app.include_router(export.router)
 
 
 # ── WebSocket Hub for real-time dashboard updates ──

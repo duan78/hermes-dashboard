@@ -388,3 +388,48 @@ async def registration_status():
         "active_count": sum(1 for u in users if u["status"] == "active"),
         "has_admin": any(u["role"] == "admin" for u in users),
     }
+
+
+PREFS_FILE = HERMES_HOME / "user_preferences.json"
+
+def _read_prefs():
+    if not PREFS_FILE.exists():
+        return {}
+    with open(PREFS_FILE) as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+        try:
+            return json.load(f)
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+def _write_prefs(data):
+    PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(PREFS_FILE, "w") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
+@router.get("/preferences")
+async def get_preferences(request: Request):
+    """Get current user preferences (theme, etc.)."""
+    user = request.scope.get("user") or {}
+    user_id = str(user.get("id", "default"))
+    prefs = _read_prefs()
+    return prefs.get(user_id, {"theme": "dark"})
+
+
+@router.patch("/preferences")
+async def update_preferences(request: Request):
+    """Update current user preferences."""
+    user = request.scope.get("user") or {}
+    user_id = str(user.get("id", "default"))
+    body = await request.json()
+    prefs = _read_prefs()
+    if user_id not in prefs:
+        prefs[user_id] = {"theme": "dark"}
+    prefs[user_id].update(body)
+    _write_prefs(prefs)
+    return prefs[user_id]

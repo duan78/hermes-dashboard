@@ -119,6 +119,20 @@ body {
   min-height: 100vh;
 }
 
+/* Header bar */
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.main-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Cards */
 .card {
   background: var(--bg-secondary);

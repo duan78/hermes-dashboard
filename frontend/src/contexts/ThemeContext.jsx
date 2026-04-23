@@ -1,26 +1,58 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import { Sun, Moon } from 'lucide-react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { Sun, Moon, Monitor } from 'lucide-react'
 
 const ThemeContext = createContext()
 
-function getInitialTheme() {
-  const stored = localStorage.getItem('hermes_theme')
-  if (stored === 'light' || stored === 'dark') return stored
+const THEME_MODES = ['dark', 'light', 'auto']
+
+function getSystemTheme() {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
+function getInitialTheme() {
+  const stored = localStorage.getItem('hermes_theme')
+  if (stored && THEME_MODES.includes(stored)) return stored
+  return 'dark'
+}
+
+function resolveTheme(mode) {
+  if (mode === 'auto') return getSystemTheme()
+  return mode
+}
+
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(getInitialTheme)
+  const [mode, setMode] = useState(getInitialTheme)
+  const [theme, setTheme] = useState(() => resolveTheme(getInitialTheme()))
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('hermes_theme', theme)
-  }, [theme])
+    const resolved = resolveTheme(mode)
+    setTheme(resolved)
+    document.documentElement.setAttribute('data-theme', resolved)
+    localStorage.setItem('hermes_theme', mode)
+  }, [mode])
 
-  const toggle = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
+  // Listen to OS preference changes when in auto mode
+  useEffect(() => {
+    if (mode !== 'auto') return
+    const mq = window.matchMedia('(prefers-color-scheme: light)')
+    const handler = (e) => {
+      const resolved = e.matches ? 'light' : 'dark'
+      setTheme(resolved)
+      document.documentElement.setAttribute('data-theme', resolved)
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [mode])
+
+  const cycle = useCallback(() => {
+    setMode(prev => {
+      const idx = THEME_MODES.indexOf(prev)
+      return THEME_MODES[(idx + 1) % THEME_MODES.length]
+    })
+  }, [])
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider value={{ theme, mode, cycle }}>
       {children}
     </ThemeContext.Provider>
   )
@@ -31,15 +63,17 @@ export function useTheme() {
 }
 
 export function ThemeToggle() {
-  const { theme, toggle } = useTheme()
+  const { theme, mode, cycle } = useTheme()
+  const icon = mode === 'dark' ? <Sun size={16} /> : mode === 'light' ? <Moon size={16} /> : <Monitor size={16} />
+  const label = mode === 'dark' ? 'Mode Clair' : mode === 'light' ? 'Mode Auto' : 'Mode Sombre'
   return (
     <button
       className="sidebar-link theme-toggle"
-      onClick={toggle}
-      title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      onClick={cycle}
+      title={`Thème actuel: ${theme} — cliquez pour changer`}
     >
-      {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-      {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+      {icon}
+      {label}
     </button>
   )
 }
