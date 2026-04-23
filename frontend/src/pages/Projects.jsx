@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, RefreshCw } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -81,6 +81,8 @@ export default function Projects() {
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const { toast } = useToast()
+  const detailCacheRef = useRef({})
+  const [mobileShowDetail, setMobileShowDetail] = useState(false)
 
   const loadProjects = useCallback(function () {
     setLoading(true)
@@ -111,13 +113,27 @@ export default function Projects() {
 
   var loadProjectDetail = useCallback(function (project) {
     setSelectedProject(project)
+    setMobileShowDetail(true)
+
+    // Check cache first
+    var cached = detailCacheRef.current[project.id]
+    if (cached) {
+      setProjectSessions(cached.sessions)
+      setProjectBacklog(cached.backlog)
+      setDetailLoading(false)
+      return
+    }
+
     setDetailLoading(true)
     Promise.all([
       api.fetchProjectSessions(project.id).catch(function () { return { sessions: [] } }),
       api.fetchProjectBacklog(project.id).catch(function () { return { items: [] } }),
     ]).then(function (results) {
-      setProjectSessions(results[0].sessions || [])
-      setProjectBacklog(results[1].items || [])
+      var sessions = results[0].sessions || []
+      var backlog = results[1].items || []
+      setProjectSessions(sessions)
+      setProjectBacklog(backlog)
+      detailCacheRef.current[project.id] = { sessions: sessions, backlog: backlog }
     }).finally(function () {
       setDetailLoading(false)
     })
@@ -333,96 +349,61 @@ export default function Projects() {
         </div>
       </div>
 
-      {/* Main content: grid + detail drawer */}
+      {/* Main content: sidebar + detail panel */}
       <div className="projects-layout">
-        <div className="projects-grid-wrap">
+        {/* Mobile project selector (hidden on desktop) */}
+        <div className="projects-mobile-select">
+          <select
+            className="projects-filter-select"
+            value={selectedProject ? selectedProject.id : ''}
+            onChange={function (e) {
+              var p = filteredProjects.find(function (pr) { return pr.id === e.target.value })
+              if (p) loadProjectDetail(p)
+            }}
+          >
+            <option value="">Sélectionnez un projet...</option>
+            {filteredProjects.map(function (p) {
+              return <option key={p.id} value={p.id}>{p.name}</option>
+            })}
+          </select>
+        </div>
+
+        {/* Sidebar */}
+        <div className="projects-sidebar">
           {loading ? (
             <div className="projects-loading">
               <div className="spinner" />
             </div>
           ) : filteredProjects.length === 0 ? (
             <div className="projects-empty">
-              <FolderKanban size={48} />
-              <p>Aucun projet trouvé</p>
-              {(typeFilter || statusFilter || search) && (
-                <button className="btn btn-sm" onClick={function () { setSearch(''); setTypeFilter(''); setStatusFilter('') }}>
-                  Effacer les filtres
-                </button>
-              )}
+              <FolderKanban size={32} />
+              <p>Aucun projet</p>
             </div>
           ) : (
-            <div className="projects-grid">
+            <div className="projects-sidebar-list">
               {filteredProjects.map(function (project) {
-                var typeColor = TYPE_COLORS[project.type] || '#6b7280'
-                var statusColor = STATUS_COLORS[project.status] || '#6b7280'
-                var isSelected = selectedProject && selectedProject.id === project.id
-
                 return (
                   <div
-                    className={'projects-card' + (isSelected ? ' projects-card-selected' : '')}
+                    className={'projects-sidebar-item' + (selectedProject && selectedProject.id === project.id ? ' projects-sidebar-item-active' : '')}
                     key={project.id}
                     onClick={function () { loadProjectDetail(project) }}
                   >
-                    <div className="projects-card-header">
-                      <h3 className="projects-card-title">{project.name}</h3>
-                      <div className="projects-card-badges">
-                        <Tooltip text={"Type: " + project.type}>
-                          <span className="projects-badge" style={{ backgroundColor: typeColor + '20', color: typeColor, borderColor: typeColor + '40' }}>
-                            {project.type}
-                          </span>
-                        </Tooltip>
-                        <Tooltip text={"Statut: " + project.status}>
-                          <span className="projects-badge" style={{ backgroundColor: statusColor + '20', color: statusColor, borderColor: statusColor + '40' }}>
-                            {project.status}
-                          </span>
-                        </Tooltip>
-                      </div>
+                    <div className="projects-sidebar-item-header">
+                      <span className="projects-sidebar-item-name">{project.name}</span>
+                      <span className="projects-badge projects-badge-small" style={{
+                        backgroundColor: (TYPE_COLORS[project.type] || '#6b7280') + '20',
+                        color: TYPE_COLORS[project.type] || '#6b7280',
+                        borderColor: (TYPE_COLORS[project.type] || '#6b7280') + '40',
+                      }}>
+                        {project.type}
+                      </span>
                     </div>
-
-                    {project.description && (
-                      <div className="projects-card-desc">{project.description}</div>
-                    )}
-
-                    {project.github_repo && (
-                      <div className="projects-card-github">
-                        <GitBranch size={12} />
-                        <a
-                          href={'https://github.com/' + project.github_repo}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={function (e) { e.stopPropagation() }}
-                        >
-                          {project.github_repo}
-                          <ExternalLink size={10} />
-                        </a>
-                      </div>
-                    )}
-
-                    <div className="projects-card-stats">
-                      <span>
-                        <MessageSquare size={12} /> {project.session_count || 0} sessions
-                      </span>
-                      <span>
-                        <ClipboardList size={12} /> {project.backlog_count || 0} tâches
-                      </span>
+                    <div className="projects-sidebar-item-meta">
+                      <span><MessageSquare size={11} /> {project.session_count || 0}</span>
+                      <span><ClipboardList size={11} /> {project.backlog_count || 0}</span>
                       {project.last_activity && (
-                        <span className="projects-card-date">
-                          {relativeDate(project.last_activity)}
-                        </span>
+                        <span className="projects-sidebar-item-date">{relativeDate(project.last_activity)}</span>
                       )}
-                    </div>
-
-                    <div className="projects-card-actions">
-                      <Tooltip text="Modifier ce projet">
-                        <button className="projects-btn" onClick={function (e) { e.stopPropagation(); openEditModal(project) }}>
-                          <Edit3 size={14} />
-                        </button>
-                      </Tooltip>
-                      <Tooltip text="Supprimer ce projet">
-                        <button className="projects-btn projects-btn-danger" onClick={function (e) { e.stopPropagation(); setDeleteTarget(project) }}>
-                          <Trash2 size={14} />
-                        </button>
-                      </Tooltip>
                     </div>
                   </div>
                 )
@@ -431,143 +412,170 @@ export default function Projects() {
           )}
         </div>
 
-        {/* Detail drawer */}
-        {selectedProject && (
-          <div className="projects-drawer">
-            <div className="projects-drawer-header">
-              <div>
-                <h2 className="projects-drawer-title">{selectedProject.name}</h2>
-                <div className="projects-card-badges" style={{ marginTop: 6 }}>
-                  <span className="projects-badge" style={{
-                    backgroundColor: (TYPE_COLORS[selectedProject.type] || '#6b7280') + '20',
-                    color: TYPE_COLORS[selectedProject.type] || '#6b7280',
-                    borderColor: (TYPE_COLORS[selectedProject.type] || '#6b7280') + '40',
-                  }}>
-                    {selectedProject.type}
-                  </span>
-                  <span className="projects-badge" style={{
-                    backgroundColor: (STATUS_COLORS[selectedProject.status] || '#6b7280') + '20',
-                    color: STATUS_COLORS[selectedProject.status] || '#6b7280',
-                    borderColor: (STATUS_COLORS[selectedProject.status] || '#6b7280') + '40',
-                  }}>
-                    {selectedProject.status}
-                  </span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <Tooltip text="Modifier">
-                  <button className="projects-btn" onClick={function () { openEditModal(selectedProject) }}>
-                    <Edit3 size={14} />
-                  </button>
-                </Tooltip>
-                <Tooltip text="Supprimer">
-                  <button className="projects-btn projects-btn-danger" onClick={function () { setDeleteTarget(selectedProject) }}>
-                    <Trash2 size={14} />
-                  </button>
-                </Tooltip>
-                <Tooltip text="Fermer le panneau">
-                  <button className="projects-btn" onClick={function () { setSelectedProject(null) }}>
-                    <X size={14} />
-                  </button>
-                </Tooltip>
-              </div>
+        {/* Detail panel */}
+        <div className="projects-detail">
+          {!selectedProject ? (
+            <div className="projects-detail-empty">
+              <FolderKanban size={48} />
+              <p>Sélectionnez un projet</p>
             </div>
-
-            {detailLoading ? (
-              <div className="projects-loading"><div className="spinner" /></div>
-            ) : (
-              <div className="projects-drawer-body">
-                {selectedProject.description && (
-                  <div className="projects-drawer-section">
-                    <h4>Description</h4>
-                    <p>{selectedProject.description}</p>
+          ) : detailLoading ? (
+            <div className="projects-loading"><div className="spinner" /></div>
+          ) : (
+            <>
+              {/* Detail header */}
+              <div className="projects-detail-header">
+                <div>
+                  <h2 className="projects-detail-title">{selectedProject.name}</h2>
+                  <div className="projects-card-badges" style={{ marginTop: 8 }}>
+                    <Tooltip text={"Type: " + selectedProject.type}>
+                      <span className="projects-badge" style={{
+                        backgroundColor: (TYPE_COLORS[selectedProject.type] || '#6b7280') + '20',
+                        color: TYPE_COLORS[selectedProject.type] || '#6b7280',
+                        borderColor: (TYPE_COLORS[selectedProject.type] || '#6b7280') + '40',
+                      }}>
+                        {selectedProject.type}
+                      </span>
+                    </Tooltip>
+                    <Tooltip text={"Statut: " + selectedProject.status}>
+                      <span className="projects-badge" style={{
+                        backgroundColor: (STATUS_COLORS[selectedProject.status] || '#6b7280') + '20',
+                        color: STATUS_COLORS[selectedProject.status] || '#6b7280',
+                        borderColor: (STATUS_COLORS[selectedProject.status] || '#6b7280') + '40',
+                      }}>
+                        {selectedProject.status}
+                      </span>
+                    </Tooltip>
                   </div>
-                )}
-
-                {selectedProject.github_repo && (
-                  <div className="projects-drawer-section">
-                    <h4>GitHub</h4>
-                    <a
-                      className="projects-drawer-link"
-                      href={'https://github.com/' + selectedProject.github_repo}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <GitBranch size={14} />
-                      {selectedProject.github_repo}
-                      <ExternalLink size={12} />
-                    </a>
-                  </div>
-                )}
-
-                {selectedProject.keywords && selectedProject.keywords.length > 0 && (
-                  <div className="projects-drawer-section">
-                    <h4><Tag size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Mots-clés</h4>
-                    <div className="projects-drawer-keywords">
-                      {selectedProject.keywords.map(function (kw, i) {
-                        return <span key={i} className="projects-keyword-tag">{kw}</span>
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div className="projects-drawer-section">
-                  <h4><MessageSquare size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Sessions liées ({projectSessions.length})</h4>
-                  {projectSessions.length === 0 ? (
-                    <p className="projects-drawer-empty">Aucune session trouvée</p>
-                  ) : (
-                    <div className="projects-drawer-list">
-                      {projectSessions.slice(0, 20).map(function (s, i) {
-                        return (
-                          <div key={i} className="projects-drawer-list-item">
-                            <div className="projects-drawer-list-item-title">{s.name || s.filename}</div>
-                            <div className="projects-drawer-list-item-meta">
-                              {s.platform && <span>{s.platform}</span>}
-                              {s.date && <span>{formatDate(s.date)}</span>}
-                            </div>
-                            {s.preview && <div className="projects-drawer-list-item-preview">{s.preview}</div>}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
                 </div>
-
-                <div className="projects-drawer-section">
-                  <h4><ClipboardList size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tâches backlog ({projectBacklog.length})</h4>
-                  {projectBacklog.length === 0 ? (
-                    <p className="projects-drawer-empty">Aucune tâche backlog liée</p>
-                  ) : (
-                    <div className="projects-drawer-list">
-                      {projectBacklog.map(function (item) {
-                        var statusColor = '#6b7280'
-                        if (item.status === 'done') statusColor = '#22c55e'
-                        else if (item.status === 'in-progress') statusColor = '#3b82f6'
-                        else if (item.status === 'blocked') statusColor = '#ef4444'
-                        else if (item.status === 'waiting-human') statusColor = '#f59e0b'
-
-                        return (
-                          <div key={item.id} className="projects-drawer-list-item">
-                            <div className="projects-drawer-list-item-title">{item.title}</div>
-                            <div className="projects-drawer-list-item-meta">
-                              <span style={{ color: statusColor }}>{item.status}</span>
-                              {item.priority && <span>{item.priority}</span>}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="projects-drawer-section projects-drawer-meta">
-                  <span>Créé: {formatDate(selectedProject.created)}</span>
-                  <span>Modifié: {formatDate(selectedProject.updated)}</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <Tooltip text="Modifier ce projet">
+                    <button className="projects-btn" onClick={function () { openEditModal(selectedProject) }}>
+                      <Edit3 size={14} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Supprimer ce projet">
+                    <button className="projects-btn projects-btn-danger" onClick={function () { setDeleteTarget(selectedProject) }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Description */}
+              {selectedProject.description && (
+                <div className="projects-detail-section">
+                  <h4>Description</h4>
+                  <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-primary)', lineHeight: 1.6 }}>
+                    {selectedProject.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Info row: GitHub + Status */}
+              {(selectedProject.github_repo || selectedProject.status) && (
+                <div className="projects-detail-section">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                    {selectedProject.github_repo && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+                        <GitBranch size={14} style={{ color: 'var(--text-muted)' }} />
+                        <a
+                          href={'https://github.com/' + selectedProject.github_repo}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: 'var(--accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        >
+                          {selectedProject.github_repo}
+                          <ExternalLink size={12} />
+                        </a>
+                      </span>
+                    )}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        backgroundColor: STATUS_COLORS[selectedProject.status] || '#6b7280',
+                        display: 'inline-block',
+                      }} />
+                      {selectedProject.status}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Keywords */}
+              {selectedProject.keywords && selectedProject.keywords.length > 0 && (
+                <div className="projects-detail-section">
+                  <h4><Tag size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Mots-clés</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {selectedProject.keywords.map(function (kw, i) {
+                      return <span key={i} className="projects-keyword-tag">{kw}</span>
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Sessions */}
+              <div className="projects-detail-section">
+                <h4><MessageSquare size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Sessions liées ({projectSessions.length})</h4>
+                {projectSessions.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune session trouvée</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {projectSessions.slice(0, 20).map(function (s, i) {
+                      return (
+                        <div key={i} className="projects-detail-session-item">
+                          <div className="projects-detail-session-date">
+                            {s.date ? formatDate(s.date) : ''}{s.date && s.platform ? ' · ' : ''}{s.platform || ''}
+                          </div>
+                          <div className="projects-detail-session-preview">
+                            {s.name || s.filename}
+                            {s.preview ? ' — ' + s.preview : ''}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Backlog */}
+              <div className="projects-detail-section">
+                <h4><ClipboardList size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tâches backlog ({projectBacklog.length})</h4>
+                {projectBacklog.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune tâche backlog liée</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {projectBacklog.map(function (item) {
+                      var stColor = '#6b7280'
+                      if (item.status === 'done') stColor = '#22c55e'
+                      else if (item.status === 'in-progress') stColor = '#3b82f6'
+                      else if (item.status === 'blocked') stColor = '#ef4444'
+                      else if (item.status === 'waiting-human') stColor = '#f59e0b'
+
+                      return (
+                        <div key={item.id} className="projects-detail-backlog-item">
+                          <span style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            backgroundColor: stColor, flexShrink: 0, display: 'inline-block',
+                          }} />
+                          <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>{item.title}</span>
+                          <span style={{ fontSize: 11, color: stColor, fontWeight: 600 }}>{item.status}</span>
+                          {item.priority && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.priority}</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Meta footer */}
+              <div className="projects-detail-meta">
+                <span>Créé: {formatDate(selectedProject.created)}</span>
+                <span>Modifié: {formatDate(selectedProject.updated)}</span>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Create/Edit Modal */}
