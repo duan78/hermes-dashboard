@@ -181,7 +181,8 @@ async def get_linked_projects():
         return {"mappings": {}}
 
     import re
-    projects = json.loads(projects_file.read_text())
+    projects_data = json.loads(projects_file.read_text())
+    projects = projects_data.get("items", projects_data) if isinstance(projects_data, dict) else projects_data
     sessions_dir = hermes_path("sessions")
     if not sessions_dir.exists():
         return {"mappings": {}}
