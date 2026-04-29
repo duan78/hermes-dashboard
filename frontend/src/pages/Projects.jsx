@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight, Clock, Check, Play, Loader2, Pencil, ArrowRight } from 'lucide-react'
+import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight, Clock, Check, Play, Loader2, Pencil, ArrowRight, FileText, Link2, BookOpen, Save } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -98,6 +98,25 @@ export default function Projects() {
   const [sessionLoading, setSessionLoading] = useState(false)
   const [backlogDrawer, setBacklogDrawer] = useState(null)
 
+  // Wiki states
+  const [projectWiki, setProjectWiki] = useState([])
+  const [wikiDrawer, setWikiDrawer] = useState(null)
+  const [wikiContent, setWikiContent] = useState('')
+  const [wikiEditing, setWikiEditing] = useState(false)
+  const [wikiSaving, setWikiSaving] = useState(false)
+  const [wikiLoading, setWikiLoading] = useState(false)
+  const [newWikiPageName, setNewWikiPageName] = useState('')
+  const [showNewWikiPage, setShowNewWikiPage] = useState(false)
+
+  // Links states
+  const [projectLinks, setProjectLinks] = useState([])
+  const [showAddLink, setShowAddLink] = useState(false)
+  const [linkForm, setLinkForm] = useState({ title: '', url: '', category: 'other' })
+  const [linkSaving, setLinkSaving] = useState(false)
+
+  // Cross-references
+  const [crossRefs, setCrossRefs] = useState(null)
+
   const { toast } = useToast()
   const detailCacheRef = useRef({})
   const [mobileShowDetail, setMobileShowDetail] = useState(false)
@@ -133,11 +152,19 @@ export default function Projects() {
     setSelectedProject(project)
     setMobileShowDetail(true)
 
+    // Reset wiki/links/xref state
+    setWikiDrawer(null)
+    setWikiEditing(false)
+    setShowNewWikiPage(false)
+
     // Check cache first
     var cached = detailCacheRef.current[project.id]
     if (cached) {
       setProjectSessions(cached.sessions)
       setProjectBacklog(cached.backlog)
+      setProjectWiki(cached.wiki || [])
+      setProjectLinks(cached.links || [])
+      setCrossRefs(cached.xref || null)
       setDetailLoading(false)
       return
     }
@@ -146,12 +173,21 @@ export default function Projects() {
     Promise.all([
       api.fetchProjectSessions(project.id).catch(function () { return { sessions: [] } }),
       api.fetchProjectBacklog(project.id).catch(function () { return { items: [] } }),
+      api.projectWikiPages(project.id).catch(function () { return { pages: [] } }),
+      api.projectLinks(project.id).catch(function () { return { links: [] } }),
+      api.crossReferences('project', project.id).catch(function () { return null }),
     ]).then(function (results) {
       var sessions = results[0].sessions || []
       var backlog = results[1].items || []
+      var wiki = results[2].pages || []
+      var links = results[3].links || []
+      var xref = results[4]
       setProjectSessions(sessions)
       setProjectBacklog(backlog)
-      detailCacheRef.current[project.id] = { sessions: sessions, backlog: backlog }
+      setProjectWiki(wiki)
+      setProjectLinks(links)
+      setCrossRefs(xref)
+      detailCacheRef.current[project.id] = { sessions: sessions, backlog: backlog, wiki: wiki, links: links, xref: xref }
     }).finally(function () {
       setDetailLoading(false)
     })
@@ -375,6 +411,123 @@ export default function Projects() {
       })
       .catch(function (err) {
         toast('Erreur au lancement : ' + (err.message || 'inconnu'), 'error')
+      })
+  }
+
+  // Wiki handlers
+  function openWikiPage(page) {
+    setWikiLoading(true)
+    setWikiDrawer(page)
+    setWikiEditing(false)
+    api.projectWikiPage(selectedProject.id, page.name)
+      .then(function (data) {
+        setWikiContent(data.content || '')
+      })
+      .catch(function () {
+        setWikiContent('')
+      })
+      .finally(function () {
+        setWikiLoading(false)
+      })
+  }
+
+  function closeWikiDrawer() {
+    setWikiDrawer(null)
+    setWikiContent('')
+    setWikiEditing(false)
+  }
+
+  function handleWikiSave() {
+    if (!wikiDrawer) return
+    setWikiSaving(true)
+    api.projectWikiSave(selectedProject.id, wikiDrawer.name, wikiContent)
+      .then(function () {
+        toast('Page wiki sauvegardée', 'success')
+        setWikiEditing(false)
+        delete detailCacheRef.current[selectedProject.id]
+      })
+      .catch(function (err) {
+        toast('Erreur sauvegarde: ' + err.message, 'error')
+      })
+      .finally(function () {
+        setWikiSaving(false)
+      })
+  }
+
+  function handleWikiInit() {
+    api.projectWikiInit(selectedProject.id)
+      .then(function (data) {
+        toast(data.created.length + ' page(s) créée(s)', 'success')
+        delete detailCacheRef.current[selectedProject.id]
+        loadProjectDetail(selectedProject)
+      })
+      .catch(function (err) {
+        toast('Erreur initialisation: ' + err.message, 'error')
+      })
+  }
+
+  function handleWikiDelete(pageName) {
+    api.projectWikiDelete(selectedProject.id, pageName)
+      .then(function () {
+        toast('Page supprimée', 'success')
+        closeWikiDrawer()
+        delete detailCacheRef.current[selectedProject.id]
+        loadProjectDetail(selectedProject)
+      })
+      .catch(function (err) {
+        toast('Erreur suppression: ' + err.message, 'error')
+      })
+  }
+
+  function handleNewWikiPage() {
+    if (!newWikiPageName.trim()) return
+    var slug = newWikiPageName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'untitled'
+    var content = '---\ntitle: ' + newWikiPageName + '\ntags: []\ncreated: ' + new Date().toISOString().split('T')[0] + '\nupdated: ' + new Date().toISOString().split('T')[0] + '\nproject_id: true\n---\n\n# ' + newWikiPageName + '\n\n'
+    api.projectWikiSave(selectedProject.id, slug, content)
+      .then(function () {
+        toast('Page créée', 'success')
+        setNewWikiPageName('')
+        setShowNewWikiPage(false)
+        delete detailCacheRef.current[selectedProject.id]
+        loadProjectDetail(selectedProject)
+      })
+      .catch(function (err) {
+        toast('Erreur création: ' + err.message, 'error')
+      })
+  }
+
+  // Link handlers
+  function handleAddLink() {
+    if (!linkForm.title.trim() || !linkForm.url.trim()) {
+      toast('Titre et URL requis', 'error')
+      return
+    }
+    setLinkSaving(true)
+    api.projectAddLink(selectedProject.id, linkForm)
+      .then(function () {
+        toast('Lien ajouté', 'success')
+        setLinkForm({ title: '', url: '', category: 'other' })
+        setShowAddLink(false)
+        delete detailCacheRef.current[selectedProject.id]
+        loadProjectDetail(selectedProject)
+      })
+      .catch(function (err) {
+        toast('Erreur: ' + err.message, 'error')
+      })
+      .finally(function () {
+        setLinkSaving(false)
+      })
+  }
+
+  function handleDeleteLink(linkId) {
+    api.projectDeleteLink(selectedProject.id, linkId)
+      .then(function () {
+        toast('Lien supprimé', 'success')
+        delete detailCacheRef.current[selectedProject.id]
+        loadProjectDetail(selectedProject)
+      })
+      .catch(function (err) {
+        toast('Erreur: ' + err.message, 'error')
       })
   }
 
@@ -709,7 +862,7 @@ export default function Projects() {
               {/* Backlog - Clickable */}
               <div className="projects-detail-section">
                 <h4><ClipboardList size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tâches backlog ({projectBacklog.length}){' '}
-                <button onClick={function() { navigate('/backlog') }} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>View All</button>
+                <button onClick={function() { navigate('/backlog') }} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>Tout voir</button>
               </h4>
                 {projectBacklog.length === 0 ? (
                   <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune tâche backlog liée</p>
@@ -742,6 +895,140 @@ export default function Projects() {
                   </div>
                 )}
               </div>
+
+              {/* Wiki section */}
+              <div className="projects-detail-section">
+                <h4><BookOpen size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Wiki du projet ({projectWiki.length})</h4>
+                {projectWiki.length === 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune page wiki</p>
+                    <button className="btn btn-sm" onClick={handleWikiInit} style={{ fontSize: 11, padding: '2px 8px' }}>
+                      Initialiser le wiki
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {projectWiki.map(function (page) {
+                      return (
+                        <div
+                          key={page.name}
+                          className="projects-detail-session-item projects-clickable-item"
+                          onClick={function () { openWikiPage(page) }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{page.title}</span>
+                            {page.updated && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{page.updated}</span>}
+                          </div>
+                          <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        </div>
+                      )
+                    })}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      {showNewWikiPage ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1 }}>
+                          <input
+                            className="form-input"
+                            style={{ fontSize: 12, padding: '4px 8px', flex: 1 }}
+                            placeholder="Nom de la page..."
+                            value={newWikiPageName}
+                            onChange={function (e) { setNewWikiPageName(e.target.value) }}
+                            onKeyDown={function (e) { if (e.key === 'Enter') handleNewWikiPage() }}
+                            autoFocus
+                          />
+                          <button className="btn btn-sm" onClick={handleNewWikiPage} style={{ fontSize: 11, padding: '2px 8px' }}>Créer</button>
+                          <button className="btn btn-sm" onClick={function () { setShowNewWikiPage(false); setNewWikiPageName('') }} style={{ fontSize: 11, padding: '2px 8px' }}>Annuler</button>
+                        </div>
+                      ) : (
+                        <button className="btn btn-sm" onClick={function () { setShowNewWikiPage(true) }} style={{ fontSize: 11, padding: '2px 8px' }}>
+                          <Plus size={12} /> Nouvelle page
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Links section */}
+              <div className="projects-detail-section">
+                <h4><Link2 size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Liens ({projectLinks.length})</h4>
+                {projectLinks.length === 0 && !showAddLink ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucun lien</p>
+                    <button className="btn btn-sm" onClick={function () { setShowAddLink(true) }} style={{ fontSize: 11, padding: '2px 8px' }}>
+                      <Plus size={12} /> Ajouter
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {projectLinks.map(function (link) {
+                      var catIcon = link.category === 'github' ? <GitBranch size={13} />
+                        : link.category === 'docs' ? <FileText size={13} />
+                        : <ExternalLink size={13} />
+                      return (
+                        <div key={link.id} className="projects-detail-session-item" style={{ padding: '6px 8px' }}>
+                          <a href={link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, color: 'var(--text-primary)', textDecoration: 'none', fontSize: 13 }}>
+                            {catIcon}
+                            {link.title}
+                            <ExternalLink size={11} style={{ color: 'var(--text-muted)' }} />
+                          </a>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{link.category}</span>
+                          <button className="projects-btn projects-btn-danger" onClick={function () { handleDeleteLink(link.id) }} style={{ padding: '2px 4px', marginLeft: 4 }}>
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                    {showAddLink ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px', background: 'var(--bg-secondary)', borderRadius: 6 }}>
+                        <input className="form-input" style={{ fontSize: 12, padding: '4px 8px' }} placeholder="Titre" value={linkForm.title} onChange={function (e) { setLinkForm(function (p) { return { ...p, title: e.target.value } }) }} />
+                        <input className="form-input" style={{ fontSize: 12, padding: '4px 8px' }} placeholder="https://..." value={linkForm.url} onChange={function (e) { setLinkForm(function (p) { return { ...p, url: e.target.value } }) }} />
+                        <select className="form-input" style={{ fontSize: 12, padding: '4px 8px' }} value={linkForm.category} onChange={function (e) { setLinkForm(function (p) { return { ...p, category: e.target.value } }) }}>
+                          <option value="github">GitHub</option>
+                          <option value="docs">Documentation</option>
+                          <option value="other">Autre</option>
+                        </select>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-primary btn-sm" onClick={handleAddLink} disabled={linkSaving} style={{ fontSize: 11, padding: '4px 12px' }}>
+                            {linkSaving ? 'Enregistrement...' : 'Ajouter'}
+                          </button>
+                          <button className="btn btn-sm" onClick={function () { setShowAddLink(false); setLinkForm({ title: '', url: '', category: 'other' }) }} style={{ fontSize: 11, padding: '4px 12px' }}>Annuler</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="btn btn-sm" onClick={function () { setShowAddLink(true) }} style={{ fontSize: 11, padding: '2px 8px', marginTop: 2 }}>
+                        <Plus size={12} /> Ajouter un lien
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Cross-references / Related */}
+              {crossRefs && (crossRefs.wiki_pages.length > 0 || crossRefs.links.length > 0) && (
+                <div className="projects-detail-section">
+                  <h4><FolderKanban size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Entités liées</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {crossRefs.wiki_pages.map(function (wp) {
+                      return (
+                        <div key={wp.id} className="projects-detail-session-item" style={{ padding: '4px 8px' }}>
+                          <BookOpen size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                          <span style={{ flex: 1, fontSize: 13 }}>{wp.title}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>wiki</span>
+                        </div>
+                      )
+                    })}
+                    {crossRefs.links.map(function (l) {
+                      return (
+                        <div key={l.id} className="projects-detail-session-item" style={{ padding: '4px 8px' }}>
+                          <Link2 size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                          <a href={l.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)', textDecoration: 'none' }}>{l.title}</a>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{l.category}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Meta footer */}
               <div className="projects-detail-meta">
@@ -911,6 +1198,52 @@ export default function Projects() {
               )}
               <button className="btn btn-sm" onClick={function () { navigate('/backlog') }}>
                 <ArrowRight size={14} /> View in Backlog
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wiki Drawer */}
+      {wikiDrawer && (
+        <div className="drawer-overlay" onClick={closeWikiDrawer}>
+          <div className="drawer-panel" onClick={function (e) { e.stopPropagation() }}>
+            <div className="drawer-header">
+              <h3 className="drawer-title">{wikiDrawer.title || wikiDrawer.name}</h3>
+              <button className="drawer-close-btn" onClick={closeWikiDrawer}><X size={18} /></button>
+            </div>
+            <div className="drawer-body">
+              {wikiLoading ? (
+                <div style={{ padding: 20, textAlign: 'center' }}><div className="spinner" /></div>
+              ) : wikiEditing ? (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <textarea
+                    className="form-textarea"
+                    style={{ flex: 1, minHeight: 400, fontSize: 13, fontFamily: 'monospace' }}
+                    value={wikiContent}
+                    onChange={function (e) { setWikiContent(e.target.value) }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button className="btn btn-primary btn-sm" onClick={handleWikiSave} disabled={wikiSaving}>
+                      <Save size={14} /> {wikiSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+                    </button>
+                    <button className="btn btn-sm" onClick={function () { setWikiEditing(false) }}>Annuler</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', maxHeight: '60vh', overflow: 'auto' }}>
+                  {wikiContent.replace(/^---[\s\S]*?---\n*/, '')}
+                </div>
+              )}
+            </div>
+            <div className="drawer-actions">
+              {!wikiEditing && (
+                <button className="btn btn-sm" onClick={function () { setWikiEditing(true) }}>
+                  <Edit3 size={14} /> Modifier
+                </button>
+              )}
+              <button className="btn btn-sm projects-btn-danger" onClick={function () { handleWikiDelete(wikiDrawer.name) }}>
+                <Trash2 size={14} /> Supprimer
               </button>
             </div>
           </div>

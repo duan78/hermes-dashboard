@@ -306,3 +306,161 @@ sources: []
         "type": page_type,
         "size": len(frontmatter),
     }
+
+
+# ── Project Wiki ──
+
+PROJECT_WIKI_BASE = Path(os.path.expanduser("~/.hermes/projects"))
+
+DEFAULT_PAGES = {
+    "overview": "# Vue d'ensemble\n\nDescription du projet.\n",
+    "architecture": "# Architecture\n\nArchitecture technique du projet.\n",
+    "decisions": "# Décisions\n\nJournal des décisions techniques.\n",
+    "notes": "# Notes\n\nNotes diverses.\n",
+}
+
+
+def _project_wiki_dir(project_id: str) -> Path:
+    d = PROJECT_WIKI_BASE / project_id / "wiki"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _parse_frontmatter(content: str) -> dict:
+    meta = {"title": "", "tags": [], "created": None, "updated": None}
+    if content.startswith("---"):
+        fm_end = content.find("---", 3)
+        if fm_end > 0:
+            for line in content[3:fm_end].splitlines():
+                if line.startswith("title:"):
+                    meta["title"] = line.split(":", 1)[1].strip()
+                elif line.startswith("tags:"):
+                    tags_str = line.split(":", 1)[1].strip().strip("[]")
+                    meta["tags"] = [t.strip() for t in tags_str.split(",") if t.strip()]
+                elif line.startswith("created:"):
+                    meta["created"] = line.split(":", 1)[1].strip()
+                elif line.startswith("updated:"):
+                    meta["updated"] = line.split(":", 1)[1].strip()
+    return meta
+
+
+def _make_frontmatter(title: str, tags: list[str] | None = None) -> str:
+    now = datetime.now().strftime("%Y-%m-%d")
+    tags_str = ", ".join(tags or [])
+    return f"---\ntitle: {title}\ntags: [{tags_str}]\ncreated: {now}\nupdated: {now}\nproject_id: true\n---\n\n"
+
+
+@router.get("/project/{project_id}/pages")
+async def list_project_wiki_pages(project_id: str):
+    """List all wiki pages for a project."""
+    wiki_dir = _project_wiki_dir(project_id)
+    pages = []
+    for f in sorted(wiki_dir.glob("*.md")):
+        content = f.read_text(errors="ignore")
+        meta = _parse_frontmatter(content)
+        title = meta["title"] or f.stem.replace("-", " ").title()
+        pages.append({
+            "name": f.stem,
+            "title": title,
+            "tags": meta["tags"],
+            "created": meta["created"],
+            "updated": meta["updated"],
+            "size": len(content),
+        })
+    return {"pages": pages, "project_id": project_id}
+
+
+@router.get("/project/{project_id}/page/{page_name:path}")
+async def get_project_wiki_page(project_id: str, page_name: str):
+    """Get a specific project wiki page."""
+    wiki_dir = _project_wiki_dir(project_id)
+    full_path = (wiki_dir / page_name).resolve()
+    if not str(full_path).startswith(str(wiki_dir.resolve())):
+        raise HTTPException(403, "Access denied")
+    if not full_path.suffix == ".md":
+        full_path = full_path.with_suffix(".md")
+    if not full_path.exists():
+        raise HTTPException(404, f"Page non trouvée: {page_name}")
+
+    content = full_path.read_text(errors="ignore")
+    meta = _parse_frontmatter(content)
+    return {"content": content, "name": full_path.stem, "title": meta["title"] or full_path.stem, "project_id": project_id}
+
+
+@router.put("/project/{project_id}/page/{page_name:path}")
+async def save_project_wiki_page(project_id: str, page_name: str, body: WikiPageSave):
+    """Create or update a project wiki page."""
+    wiki_dir = _project_wiki_dir(project_id)
+    full_path = (wiki_dir / page_name).resolve()
+    if not str(full_path).startswith(str(wiki_dir.resolve())):
+        raise HTTPException(403, "Access denied")
+    if not full_path.suffix == ".md":
+        full_path = full_path.with_suffix(".md")
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Update frontmatter updated date if present
+    content = body.content
+    now = datetime.now().strftime("%Y-%m-%d")
+    if content.startswith("---"):
+        fm_end = content.find("---", 3)
+        if fm_end > 0:
+            fm = content[3:fm_end]
+            lines = fm.splitlines()
+            updated_line_idx = None
+            for i, line in enumerate(lines):
+                if line.startswith("updated:"):
+                    updated_line_idx = i
+                    break
+            if updated_line_idx is not None:
+                lines[updated_line_idx] = f"updated: {now}"
+            else:
+                lines.append(f"updated: {now}")
+            content = "---\n" + "\n".join(lines) + "\n---" + content[fm_end + 3:]
+
+    full_path.write_text(content, encoding="utf-8")
+    logger.info(f"Project wiki page saved: {project_id}/{page_name}")
+
+    # Log activity
+    try:
+        from .activity import log_activity
+        log_activity("wiki.updated", "project_wiki", f"{project_id}/{page_name}", page_name)
+    except Exception:
+        pass
+
+    return {"success": True, "name": full_path.stem, "project_id": project_id}
+
+
+@router.delete("/project/{project_id}/page/{page_name:path}")
+async def delete_project_wiki_page(project_id: str, page_name: str):
+    """Delete a project wiki page."""
+    wiki_dir = _project_wiki_dir(project_id)
+    full_path = (wiki_dir / page_name).resolve()
+    if not str(full_path).startswith(str(wiki_dir.resolve())):
+        raise HTTPException(403, "Access denied")
+    if not full_path.suffix == ".md":
+        full_path = full_path.with_suffix(".md")
+    if not full_path.exists():
+        raise HTTPException(404, f"Page non trouvée: {page_name}")
+
+    full_path.unlink()
+    logger.info(f"Project wiki page deleted: {project_id}/{page_name}")
+    return {"success": True, "deleted": page_name}
+
+
+@router.post("/project/{project_id}/init")
+async def init_project_wiki(project_id: str):
+    """Initialize default wiki pages for a project."""
+    wiki_dir = _project_wiki_dir(project_id)
+    created = []
+    now = datetime.now().strftime("%Y-%m-%d")
+
+    for name, body in DEFAULT_PAGES.items():
+        file_path = wiki_dir / f"{name}.md"
+        if file_path.exists():
+            continue
+        title = name.replace("-", " ").title()
+        content = _make_frontmatter(title) + body
+        file_path.write_text(content, encoding="utf-8")
+        created.append(name)
+
+    return {"success": True, "created": created, "project_id": project_id}

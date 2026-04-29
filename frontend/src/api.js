@@ -473,6 +473,21 @@ export const api = {
   // Global Search
   globalSearch: (q, limit = 20) => request('/search?q=' + encodeURIComponent(q) + '&limit=' + limit),
 
+  // Project Wiki
+  projectWikiPages: (projectId) => request('/wiki/project/' + encodeURIComponent(projectId) + '/pages'),
+  projectWikiPage: (projectId, pageName) => request('/wiki/project/' + encodeURIComponent(projectId) + '/page/' + encodeURIComponent(pageName)),
+  projectWikiSave: (projectId, pageName, content) => request('/wiki/project/' + encodeURIComponent(projectId) + '/page/' + encodeURIComponent(pageName), { method: 'PUT', body: JSON.stringify({ content }) }),
+  projectWikiDelete: (projectId, pageName) => request('/wiki/project/' + encodeURIComponent(projectId) + '/page/' + encodeURIComponent(pageName), { method: 'DELETE' }),
+  projectWikiInit: (projectId) => request('/wiki/project/' + encodeURIComponent(projectId) + '/init', { method: 'POST' }),
+
+  // Project Links
+  projectLinks: (projectId) => request('/projects/' + encodeURIComponent(projectId) + '/links'),
+  projectAddLink: (projectId, data) => request('/projects/' + encodeURIComponent(projectId) + '/links', { method: 'POST', body: JSON.stringify(data) }),
+  projectDeleteLink: (projectId, linkId) => request('/projects/' + encodeURIComponent(projectId) + '/links/' + encodeURIComponent(linkId), { method: 'DELETE' }),
+
+  // Cross-references
+  crossReferences: (entityType, entityId) => request('/cross-references/' + encodeURIComponent(entityType) + '/' + encodeURIComponent(entityId)),
+
   // Export
   exportModule: (module, format = 'json') => {
     const userToken = localStorage.getItem('hermes_user_token') || ''

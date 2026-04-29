@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import subprocess
+import uuid
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -569,3 +570,89 @@ async def get_project_backlog(project_id: str):
             pass
 
     return {"items": linked_items, "total": len(linked_items), "project_id": project_id}
+
+
+# ── Project Links / Bookmarks ──
+
+class LinkCreate(BaseModel):
+    title: str
+    url: str
+    category: str = "other"  # github, docs, other
+
+
+def _read_links(project_id: str) -> list:
+    links_file = HERMES_HOME / "projects" / project_id / "links.json"
+    if not links_file.exists():
+        return []
+    try:
+        with open(links_file) as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            try:
+                data = json.load(f)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        return data.get("links", [])
+    except Exception:
+        return []
+
+
+def _write_links(project_id: str, links: list):
+    links_file = HERMES_HOME / "projects" / project_id / "links.json"
+    links_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(links_file, "w") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            json.dump({"links": links}, f, indent=2, ensure_ascii=False)
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
+@router.get("/{project_id}/links")
+async def get_project_links(project_id: str):
+    """List all links/bookmarks for a project."""
+    links = _read_links(project_id)
+    return {"links": links, "total": len(links), "project_id": project_id}
+
+
+@router.post("/{project_id}/links")
+async def add_project_link(project_id: str, body: LinkCreate):
+    """Add a link/bookmark to a project."""
+    links = _read_links(project_id)
+    link_id = _slugify(body.title) or str(uuid.uuid4())[:8]
+    existing_ids = {l.get("id") for l in links}
+    if link_id in existing_ids:
+        counter = 2
+        while f"{link_id}-{counter}" in existing_ids:
+            counter += 1
+        link_id = f"{link_id}-{counter}"
+
+    new_link = {
+        "id": link_id,
+        "title": body.title,
+        "url": body.url,
+        "category": body.category,
+        "created": datetime.now().isoformat(),
+    }
+    links.append(new_link)
+    _write_links(project_id, links)
+    logger.info("Added link to project %s: %s", project_id, body.title)
+
+    try:
+        from .activity import log_activity
+        log_activity("link.added", "project_link", link_id, body.title)
+    except Exception:
+        pass
+
+    return new_link
+
+
+@router.delete("/{project_id}/links/{link_id}")
+async def delete_project_link(project_id: str, link_id: str):
+    """Delete a link from a project."""
+    links = _read_links(project_id)
+    new_links = [l for l in links if l.get("id") != link_id]
+    if len(new_links) == len(links):
+        raise HTTPException(404, "Link not found")
+    _write_links(project_id, new_links)
+    logger.info("Deleted link %s from project %s", link_id, project_id)
+    return {"status": "deleted", "id": link_id}

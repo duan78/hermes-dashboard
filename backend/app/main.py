@@ -30,6 +30,7 @@ from .routers import (
     code_execution,
     config,
     context,
+    cross_references,
     cron,
     diagnostics,
     delegation,
@@ -328,6 +329,7 @@ app.include_router(tags.router)
 app.include_router(activity.router)
 app.include_router(search.router)
 app.include_router(export.router)
+app.include_router(cross_references.router)
 
 
 # ── WebSocket Hub for real-time dashboard updates ──
