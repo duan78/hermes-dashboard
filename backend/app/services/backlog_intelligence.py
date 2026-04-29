@@ -189,7 +189,7 @@ class BacklogIntelligence:
         mid_confidence = []
 
         for c in validated:
-            confidence = c.get("confidence", 0.5)
+            confidence = c.get("confidence", 0.0)
             if not c.get("is_valid"):
                 rejected_count += 1
                 self._log_rejection(c)
@@ -224,7 +224,7 @@ class BacklogIntelligence:
                 "tags": c.get("llm_tags") or [],
                 "source": "autofeed",
                 "autofeed_source": c.get("source", "unknown"),
-                "confidence": c.get("confidence", 0.5),
+                "confidence": c.get("confidence", 0.5),  # Only reached if confidence >= 0.5
                 "created": now,
             }
             if project_id:
@@ -389,7 +389,7 @@ class BacklogIntelligence:
     # ── Source extractors ──
 
     def _extract_from_sessions(self) -> list[dict]:
-        """Scan recent session files — parse JSONL, extract ONLY human/assistant text."""
+        """Scan recent session files — parse JSONL, extract ONLY human/user text."""
         sessions_dir = HERMES_HOME / "sessions"
         if not sessions_dir.exists():
             return []
@@ -405,6 +405,12 @@ class BacklogIntelligence:
         GARBAGE_MARKERS = [
             '{"', '"timestamp"', '"function"', '"arguments"', '"tool"',
             '\\n', '\\t', '```', 'git diff', 'npm run', 'tmux',
+            '\\\\', '\\"', 'tool_calls', 'finish_reason', 'reasoning',
+            'content":', '"role":', '"type":', '"model":',
+            'pipe_create', 'text_editor', 'bash_command',
+            'read_file', 'write_file', 'search_files',
+            'browser_', 'web_search', 'web_extract',
+            '●', '   ', 'clipboard', 'patch:',
         ]
 
         for sf in files:
@@ -412,8 +418,8 @@ class BacklogIntelligence:
                 raw = sf.read_text(errors="ignore")
                 session_name = sf.stem
 
-                # Parse JSONL — only keep human/user/assistant text content
-                clean_parts = []
+                # Parse JSONL — ONLY keep human/user text (not assistant!)
+                human_parts = []
                 for line in raw.split('\n'):
                     line = line.strip()
                     if not line:
@@ -424,18 +430,23 @@ class BacklogIntelligence:
                         continue
 
                     role = entry.get("role", entry.get("type", ""))
-                    if role not in ("human", "assistant", "user"):
+                    if role not in ("human", "user"):
                         continue
 
-                    msg_content = entry.get("content", "")
+                    # Skip voice transcriptions (contain too much noise)
+                    msg_type = entry.get("msg_type", "")
+                    if msg_type in ("voice", "audio", "stt"):
+                        continue
+
+                    msg_content = entry.get("content") or entry.get("message", "")
                     if isinstance(msg_content, str):
-                        clean_parts.append(msg_content)
+                        human_parts.append(msg_content)
                     elif isinstance(msg_content, list):
                         for block in msg_content:
                             if isinstance(block, dict) and block.get("type") == "text":
-                                clean_parts.append(block.get("text", ""))
+                                human_parts.append(block.get("text", ""))
 
-                clean_text = "\n".join(clean_parts)
+                clean_text = "\n".join(human_parts)
 
                 for pattern in all_patterns:
                     for m in re.finditer(pattern, clean_text, re.IGNORECASE):
@@ -446,6 +457,15 @@ class BacklogIntelligence:
 
                         # Skip if it looks like JSON, code, or tool output
                         if any(marker in task_text for marker in GARBAGE_MARKERS):
+                            continue
+
+                        # Skip if title has weird characters (escape sequences, code)
+                        if '\\' in task_text or '"' in task_text or '{' in task_text or '}' in task_text:
+                            continue
+
+                        # Skip if too many special chars (likely code/config)
+                        special_count = sum(1 for c in task_text if c in '=<>|/\\{}[]();')
+                        if special_count > 3:
                             continue
 
                         candidates.append({
@@ -560,6 +580,9 @@ class BacklogIntelligence:
             r"il\s+y\s+a\s+quelque\s+chose\s+qui\s+ne\s+va\s+pas",
         ]
 
+        # Additional anti-garbage for message content
+        CONTENT_GARBAGE = ['\\', '"', '{', '}', '`', 'tool_calls', 'finish_reason']
+
         for sf in files:
             try:
                 content = sf.read_text(errors="ignore")
@@ -573,10 +596,19 @@ class BacklogIntelligence:
 
                     if entry.get("type") != "human":
                         continue
-                    message = (entry.get("message") or "").strip()
+                    message = (entry.get("message") or entry.get("content") or "").strip()
 
                     # Length filters — real tasks are concise, not monologues
                     if len(message) < 20 or len(message) > 500:
+                        continue
+
+                    # Skip voice transcriptions
+                    msg_type = entry.get("msg_type", "")
+                    if msg_type in ("voice", "audio", "stt"):
+                        continue
+
+                    # Skip messages with code artifacts
+                    if any(g in message for g in CONTENT_GARBAGE):
                         continue
 
                     # Skip conversational noise (greetings, questions, voice-like)
@@ -585,6 +617,10 @@ class BacklogIntelligence:
                         continue
 
                     if not CONVERSATION_INTENT.search(message):
+                        continue
+
+                    # Final sanity: must not start with lowercase (likely fragment)
+                    if message[0].islower():
                         continue
 
                     candidates.append({
@@ -681,18 +717,8 @@ class BacklogIntelligence:
         """Validate and enrich candidates via LLM. Returns candidates with LLM fields."""
         llm_cfg = self._load_llm_config()
         if not llm_cfg or not llm_cfg.get("api_key"):
-            logger.warning("No LLM config — passing candidates through without validation")
-            for c in candidates:
-                c["is_valid"] = True
-                c["confidence"] = 0.5
-                c["llm_title"] = c.get("title", "")
-                c["llm_description"] = c.get("description", "")
-                c["llm_category"] = "other"
-                c["llm_priority"] = "normale"
-                c["llm_task_prompt"] = ""
-                c["llm_tags"] = []
-                c["llm_project_id"] = c.get("project_id")
-            return candidates
+            logger.warning("No LLM config — using strict fallback validation")
+            return self._fallback_validate(candidates)
 
         # Build context
         existing_titles = [i.get("title", "") for i in existing_items if i.get("status") != "done"]
@@ -810,7 +836,7 @@ Répondre UNIQUEMENT avec le tableau JSON, aucun autre texte."""
                 c["llm_task_prompt"] = r.get("task_prompt", "")
                 c["llm_tags"] = r.get("tags", [])
                 c["llm_project_id"] = r.get("project_id")
-                c["confidence"] = min(1.0, max(0.0, r.get("confidence", 0.5)))
+                c["confidence"] = min(1.0, max(0.0, r.get("confidence", 0.3)))
 
             return candidates
 
@@ -820,22 +846,30 @@ Répondre UNIQUEMENT avec le tableau JSON, aucun autre texte."""
 
     @staticmethod
     def _fallback_validate(candidates):
-        """Strict heuristic validation when LLM is unavailable."""
+        """Strict heuristic validation when LLM is unavailable — REJECT ALL by default.
+
+        When the LLM is down, it's safer to add nothing than to add garbage.
+        Only pass candidates that are clearly real tasks from human messages
+        with strong task-intent signals.
+        """
         validated = []
 
         GARBAGE_MARKERS = [
             'timestamp', '"function"', '"arguments"', '"tool"',
             '\\"', '\\n', '```', 'git diff', 'npm run', 'tmux capture',
             'json', 'content":', '"role":', '"type":',
+            'tool_calls', 'finish_reason', 'reasoning', '\\\\',
+            '{', '}', '[', ']', 'clipboard', 'patch:',
         ]
 
-        # Lowercase-starting verbs that are legitimate task starters
-        TASK_STARTERS = {
-            "ajouter", "ajoute", "corriger", "corrige", "créer", "crée",
-            "fix", "implement", "modifie", "modifier", "supprimer", "supprime",
-            "mettre", "mets", "enlever", "enlève", "refactor", "update",
-            "add", "remove", "delete", "create", "build", "deploy",
-        }
+        # Only these sentence-starting patterns are accepted
+        STRONG_INTENT_STARTS = [
+            "il faut ", "il faudrait ", "faut qu'",
+            "corrige ", "corriger ", "fix ", "répare ",
+            "ajoute ", "ajouter ", "crée ", "créer ",
+            "supprime ", "supprimer ", "modifie ", "modifier ",
+            "refactor", "implement", "déploie ", "déployer",
+        ]
 
         for c in candidates:
             title = c.get("title", "")
@@ -845,28 +879,40 @@ Répondre UNIQUEMENT avec le tableau JSON, aucun autre texte."""
             if any(m in raw for m in GARBAGE_MARKERS):
                 c["is_valid"] = False
                 c["reject_reason"] = "contains non-task artifacts (JSON/tool output)"
-                c["confidence"] = 0.1
+                c["confidence"] = 0.0
                 continue
 
             # Reject if title contains escape sequence artifacts
             if '\\\\' in title or '\\n' in title:
                 c["is_valid"] = False
                 c["reject_reason"] = "contains escape sequence artifacts"
-                c["confidence"] = 0.1
+                c["confidence"] = 0.0
                 continue
 
             # Reject if title starts with lowercase (likely mid-sentence fragment)
-            # unless it's a recognized task-starting verb
             if title and title[0].islower():
-                first_word = title.split()[0].lower() if title.split() else ""
-                if first_word not in TASK_STARTERS:
-                    c["is_valid"] = False
-                    c["reject_reason"] = "title starts with lowercase (likely fragment)"
-                    c["confidence"] = 0.1
-                    continue
+                c["is_valid"] = False
+                c["reject_reason"] = "title starts with lowercase (likely fragment)"
+                c["confidence"] = 0.0
+                continue
 
-            # Accept but with confidence below suggestion threshold (0.3)
-            # → won't be auto-added or suggested
+            # Reject if no strong intent signal at start of title
+            has_strong_intent = any(title.lower().startswith(s) for s in STRONG_INTENT_STARTS)
+            if not has_strong_intent:
+                c["is_valid"] = False
+                c["reject_reason"] = "no strong task-intent signal in fallback mode"
+                c["confidence"] = 0.0
+                continue
+
+            # Must be from a human/user source (not assistant/code)
+            source = c.get("source", "")
+            if source not in ("sessions", "conversations"):
+                c["is_valid"] = False
+                c["reject_reason"] = f"unreliable source '{source}' in fallback mode"
+                c["confidence"] = 0.0
+                continue
+
+            # Passed all checks — accept with low confidence (below auto-add threshold)
             c["is_valid"] = True
             c["confidence"] = 0.25
             c["llm_title"] = c.get("title", "")
