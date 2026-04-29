@@ -173,6 +173,79 @@ async def sessions_stats():
         return {"output": "", "error": str(e)}
 
 
+@router.get("/linked-projects")
+async def get_linked_projects():
+    """Return mapping of session_id -> project for sessions that match a project."""
+    projects_file = hermes_path("projects.json")
+    if not projects_file.exists():
+        return {"mappings": {}}
+
+    import re
+    projects = json.loads(projects_file.read_text())
+    sessions_dir = hermes_path("sessions")
+    if not sessions_dir.exists():
+        return {"mappings": {}}
+
+    mappings = {}
+
+    for proj in projects:
+        pid = proj.get("id", "")
+        name = proj.get("name", "").lower()
+        keywords = [k.lower() for k in proj.get("keywords", [])]
+        if not name and not keywords:
+            continue
+
+        search_terms = [name] + keywords
+        long_terms = [t for t in search_terms if len(t) >= 4]
+
+        # Scan session files for matches
+        for f in sessions_dir.glob("session_*.json"):
+            try:
+                data = json.loads(f.read_text())
+                sid = data.get("session_id", f.stem.replace("session_", ""))
+                if sid in mappings:
+                    continue
+
+                jsonl_path = sessions_dir / f"{sid}.jsonl"
+                if not jsonl_path.exists():
+                    continue
+
+                # Scan first 5 messages only
+                head_content = ""
+                msg_count = 0
+                for line in jsonl_path.read_text(errors="replace").strip().split("\n")[:5]:
+                    if not line.strip():
+                        continue
+                    try:
+                        msg = json.loads(line)
+                        role = msg.get("role", "")
+                        if role in ("system", "context", "compaction", "session_meta"):
+                            continue
+                        content = msg.get("content", "")
+                        if content:
+                            head_content += content.lower() + " "
+                            msg_count += 1
+                        if msg_count >= 5:
+                            break
+                    except Exception:
+                        continue
+
+                # Match: require 2+ terms OR 1 long term
+                matches = sum(1 for t in search_terms if t and t in head_content)
+                long_matches = sum(1 for t in long_terms if t and t in head_content)
+
+                if (matches >= 2 and long_matches >= 1) or (len(search_terms) == 1 and matches >= 1):
+                    mappings[sid] = {
+                        "id": pid,
+                        "name": proj.get("name", ""),
+                        "type": proj.get("type", ""),
+                    }
+            except Exception:
+                continue
+
+    return {"mappings": mappings}
+
+
 @router.get("/{session_id}", response_model=SessionDetail)
 async def get_session(session_id: str):
     """Get session detail with messages."""

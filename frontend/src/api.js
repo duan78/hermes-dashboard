@@ -62,6 +62,7 @@ export const api = {
   getSessionStats: () => request('/sessions/stats'),
   exportSession: (id) => request(`/sessions/${id}/export`),
   exportAllSessions: () => request('/sessions/export-all', { method: 'POST' }),
+  getLinkedProjects: () => request('/sessions/linked-projects'),
 
   // Memory & SOUL
   getSoul: () => request('/memory/soul'),
