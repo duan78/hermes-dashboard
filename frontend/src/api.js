@@ -327,6 +327,7 @@ export const api = {
   updateBacklogItem: (id, item) => request('/backlog/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(item) }),
   deleteBacklogItem: (id) => request('/backlog/' + encodeURIComponent(id), { method: 'DELETE' }),
   patchBacklogStatus: (id, status) => request('/backlog/' + encodeURIComponent(id) + '/status', { method: 'PATCH', body: JSON.stringify({ status }) }),
+  relinkBacklogItems: () => request('/backlog/relink', { method: 'POST' }),
   runBacklogItem: (id) => request('/backlog/' + encodeURIComponent(id) + '/run', { method: 'POST' }),
   getBacklogSession: (id) => request('/backlog/' + encodeURIComponent(id) + '/session'),
   autoFeedBacklog: (candidates, context) => request('/backlog/auto-feed', { method: 'POST', body: JSON.stringify({ candidates, context }) }),

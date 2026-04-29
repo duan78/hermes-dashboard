@@ -860,6 +860,49 @@ async def auto_feed_trigger():
     return {"status": "seeded", "total": len(seed_items), "added": len(seed_items)}
 
 
+def _auto_match_project(projects: list, title: str, description: str = "") -> str | None:
+    """Try to match a backlog item to a project using relaxed keyword matching.
+
+    Matching strategies (first match wins):
+    1. Each word of project keyword/name (split by dash/space) found in title+description
+    2. Project name without common prefixes/slug suffixes found in title+description
+    """
+    text_lower = (title + " " + (description or "")).lower()
+
+    for p in projects:
+        pid = p.get("id", "")
+        if not pid:
+            continue
+
+        # Collect candidate terms from keywords
+        keywords = [k.lower() for k in p.get("keywords", []) if len(k) >= 3]
+        name_lower = p.get("name", "").lower()
+
+        # Strategy (a): split each keyword and name by dash/space -> individual words
+        all_source_terms = keywords + ([name_lower] if len(name_lower) >= 3 else [])
+        word_sets = []
+        for term in all_source_terms:
+            words = [w for w in re.split(r"[-\s_]+", term) if len(w) >= 3]
+            if words:
+                word_sets.append(words)
+
+        for words in word_sets:
+            if all(w in text_lower for w in words):
+                return pid
+
+        # Strategy (b): project name without slug/prefix — strip common patterns
+        clean_name = name_lower
+        for prefix in ("hermes-", "project-", "app-"):
+            if clean_name.startswith(prefix):
+                clean_name = clean_name[len(prefix):]
+                break
+        clean_name = re.sub(r"[-_](dashboard|app|web|service|api|backend|frontend)$", "", clean_name)
+        if len(clean_name) >= 3 and clean_name in text_lower:
+            return pid
+
+    return None
+
+
 @router.post("")
 async def create_backlog_item(body: BacklogItemCreate):
     """Create a new backlog item. ID is auto-generated from title."""
@@ -889,18 +932,15 @@ async def create_backlog_item(body: BacklogItemCreate):
     if body.project_id:
         new_item["project_id"] = body.project_id
     else:
-        # Auto-match to existing project by title keywords
+        # Auto-match to existing project by title/description keywords
         try:
             projects_file = Path("/root/.hermes/projects.json")
             if projects_file.exists():
                 with open(projects_file) as pf:
                     pdata = json.load(pf)
-                title_lower = body.title.lower()
-                for p in pdata.get("items", []):
-                    terms = [p.get("name", "").lower()] + [k.lower() for k in p.get("keywords", [])]
-                    if any(t in title_lower for t in terms if len(t) >= 3):
-                        new_item["project_id"] = p["id"]
-                        break
+                matched = _auto_match_project(pdata.get("items", []), body.title, body.description)
+                if matched:
+                    new_item["project_id"] = matched
         except Exception:
             pass
     if body.blocked_reason:
@@ -921,6 +961,37 @@ async def create_backlog_item(body: BacklogItemCreate):
         pass
 
     return new_item
+
+
+@router.post("/relink")
+async def relink_backlog_items():
+    """Re-scan all backlog items without a project_id and try to auto-match them."""
+    data = _read_backlog()
+    items = data.get("items", [])
+
+    projects_file = Path("/root/.hermes/projects.json")
+    if not projects_file.exists():
+        raise HTTPException(404, "Projects file not found")
+
+    with open(projects_file) as pf:
+        pdata = json.load(pf)
+    projects = pdata.get("items", [])
+
+    relinked = []
+    for item in items:
+        if item.get("project_id"):
+            continue
+        matched = _auto_match_project(projects, item.get("title", ""), item.get("description", ""))
+        if matched:
+            item["project_id"] = matched
+            relinked.append({"id": item["id"], "title": item.get("title", ""), "project_id": matched})
+
+    if relinked:
+        data["items"] = items
+        _write_backlog(data)
+
+    logger.info("Relinked %d backlog items to projects", len(relinked))
+    return {"relinked": len(relinked), "items": relinked}
 
 
 @router.put("/{item_id}")

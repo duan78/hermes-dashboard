@@ -34,6 +34,7 @@ const EMPTY_FORM = {
   status: 'pending',
   blocked_reason: '',
   tags: [],
+  project_id: '',
 }
 
 function formatDate(dateStr) {
@@ -119,6 +120,10 @@ export default function Backlog() {
   var _useState18 = useState({})
   var acceptingSuggestion = _useState18[0]
   var setAcceptingSuggestion = _useState18[1]
+
+  var _useState19 = useState([])
+  var projects = _useState19[0]
+  var setProjects = _useState19[1]
 
   var toast = useToast().toast
 
@@ -221,6 +226,9 @@ export default function Backlog() {
     fetchStats()
     fetchSuggestions()
     fetchIntelStats()
+    api.fetchProjects().then(function (data) {
+      setProjects(Array.isArray(data) ? data : (data.items || []))
+    }).catch(function () {})
   }, [fetchItems, fetchStats, fetchSuggestions, fetchIntelStats])
 
   function handleFormChange(field, value) {
@@ -247,6 +255,7 @@ export default function Backlog() {
       status: item.status || 'pending',
       blocked_reason: item.blocked_reason || '',
       tags: item.tags || [],
+      project_id: item.project_id || '',
     })
     setEditItem(item)
     setShowForm(true)
@@ -273,6 +282,8 @@ export default function Backlog() {
       if (formData.category !== editItem.category) updates.category = formData.category
       if (formData.priority !== editItem.priority) updates.priority = formData.priority
       if (formData.status !== editItem.status) updates.status = formData.status
+      var oldProject = editItem.project_id || ''
+      if (formData.project_id !== oldProject) updates.project_id = formData.project_id || null
       var oldBlocked = editItem.blocked_reason || ''
       if (formData.blocked_reason !== oldBlocked) updates.blocked_reason = formData.blocked_reason
       var oldTags = JSON.stringify(editItem.tags || [])
@@ -654,6 +665,13 @@ export default function Backlog() {
                   {STATUSES.map(function (s) { return <option key={s} value={s}>{s}</option> })}
                 </select>
               </div>
+            </div>
+            <div className="backlog-form-group">
+              <label className="form-label">Project</label>
+              <select className="form-input" value={formData.project_id || ''} onChange={function (e) { handleFormChange('project_id', e.target.value) }}>
+                <option value="">Aucun (auto-match)</option>
+                {projects.map(function (p) { return <option key={p.id} value={p.id}>{p.name || p.id}</option> })}
+              </select>
             </div>
             <div className="backlog-form-group">
               <label className="form-label">Blocked Reason</label>
