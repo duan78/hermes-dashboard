@@ -103,7 +103,7 @@ async def search_sessions(q: str = Query(min_length=1, max_length=200)):
 
 
 @router.get("", response_model=list[SessionSummary])
-async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: int = Query(default=0, ge=0)):
+async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: int = Query(default=0, ge=0), show_cron: bool = Query(default=False)):
     """List unique sessions with metadata, paginated and deduplicated by session_id."""
     sessions_dir = hermes_path("sessions")
     if not sessions_dir.exists():
@@ -121,6 +121,11 @@ async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: i
             if sid in seen_ids:
                 continue
             seen_ids.add(sid)
+
+            # Skip cron sessions (noise) unless explicitly requested
+            platform = data.get("platform", "")
+            if platform == "cron" and not show_cron:
+                continue
 
             # Early exit if we have enough sessions past the offset
             if len(sessions) >= offset + limit:
@@ -224,6 +229,10 @@ async def get_linked_projects():
         try:
             data = json.loads(f.read_text())
             sid = data.get("session_id", f.stem.replace("session_", ""))
+
+            # Skip cron sessions (never project-related)
+            if data.get("platform") == "cron":
+                continue
 
             # Use the preview field from the JSON metadata (already extracted)
             head_content = (data.get("preview", "") or "").lower()
