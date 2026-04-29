@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2, BarChart3, Calendar, FileDown } from 'lucide-react'
+import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2, BarChart3, Calendar, FileDown, FolderKanban, ClipboardList, FileText, Activity } from 'lucide-react'
 import { useSessions, useSession, useSearchSessions, useDeleteSession, usePruneSessions, useExportSession } from '../hooks/useApi'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
@@ -339,6 +339,12 @@ export default function Sessions() {
           </button>
         </div>
       </div>
+      <div className="nav-pills" style={{ marginBottom: 12 }}>
+        <span className="nav-pill" onClick={() => navigate('/projects')}><FolderKanban size={12} /> Projets</span>
+        <span className="nav-pill" onClick={() => navigate('/backlog')}><ClipboardList size={12} /> Backlog</span>
+        <span className="nav-pill" onClick={() => navigate('/wiki')}><FileText size={12} /> Wiki</span>
+        <span className="nav-pill" onClick={() => navigate('/activity')}><Activity size={12} /> Activité</span>
+      </div>
 
       {sessionsError && <div className="error-box">{sessionsError.message}</div>}
 
@@ -510,6 +516,7 @@ export default function Sessions() {
         </table>
       </div>
       {confirmModal && <ConfirmModal title="Confirm" message={confirmModal.message} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(null)} confirmLabel="Delete" />}
+      <style>{`.nav-pills { display: flex; gap: 6px; flex-wrap: wrap; } .nav-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 14px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; } .nav-pill:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }`}</style>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Activity, FolderKanban, ClipboardList, FileText, Tag, Cpu } from 'lucide-react'
+import { Activity, FolderKanban, ClipboardList, FileText, Tag, Cpu, MessageSquare } from 'lucide-react'
 import { api } from '../api'
 import './activity.css'
 
@@ -42,6 +42,12 @@ export default function ActivityPage() {
   return (
     <div>
       <h1 className="page-title"><Activity size={24} /> Activité Récente</h1>
+      <div className="nav-pills" style={{ marginBottom: 16 }}>
+        <span className="nav-pill" onClick={() => navigate('/projects')}><FolderKanban size={12} /> Projets</span>
+        <span className="nav-pill" onClick={() => navigate('/backlog')}><ClipboardList size={12} /> Backlog</span>
+        <span className="nav-pill" onClick={() => navigate('/wiki')}><FileText size={12} /> Wiki</span>
+        <span className="nav-pill" onClick={() => navigate('/sessions')}><MessageSquare size={12} /> Sessions</span>
+      </div>
 
       {isLoading && <div className="spinner" />}
 

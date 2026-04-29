@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight, Clock, Check, Play, Loader2, Pencil, ArrowRight, FileText, Link2, BookOpen, Save } from 'lucide-react'
+import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight, Clock, Check, Play, Loader2, Pencil, ArrowRight, FileText, Link2, BookOpen, Save, Activity } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -590,6 +590,12 @@ export default function Projects() {
             <Plus size={14} /> Nouveau projet
           </button>
         </div>
+      </div>
+      <div className="nav-pills" style={{ marginBottom: 12 }}>
+        <span className="nav-pill" onClick={function () { navigate('/wiki') }}><BookOpen size={12} /> Wiki</span>
+        <span className="nav-pill" onClick={function () { navigate('/activity') }}><Activity size={12} /> Activité</span>
+        <span className="nav-pill" onClick={function () { navigate('/sessions') }}><MessageSquare size={12} /> Sessions</span>
+        <span className="nav-pill" onClick={function () { navigate('/backlog') }}><ClipboardList size={12} /> Backlog</span>
       </div>
 
       {/* Filters */}

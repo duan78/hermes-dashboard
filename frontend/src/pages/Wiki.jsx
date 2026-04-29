@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   FileText, Search, X, RefreshCw, BookOpen, Clock, Tag, FolderOpen,
-  Database, ChevronDown, ChevronRight, File, Archive, Edit3, Save, Plus
+  Database, ChevronDown, ChevronRight, File, Archive, Edit3, Save, Plus,
+  FolderKanban, ClipboardList, MessageSquare, Activity
 } from 'lucide-react'
 import { formatSize, formatDate } from '../utils/format'
 import { api } from '../api'
@@ -412,6 +414,7 @@ function PageModal({ page, onClose, onNavigate }) {
 }
 
 export default function Wiki() {
+  const navigate = useNavigate()
   const [stats, setStats] = useState(null)
   const [pages, setPages] = useState([])
   const [logEntries, setLogEntries] = useState([])
@@ -627,6 +630,9 @@ export default function Wiki() {
         .wiki-markdown input[type="checkbox"] { margin-right: 6px; accent-color: var(--accent); }
         .wiki-wikilink { color: var(--accent); cursor: pointer; text-decoration: none; border-bottom: 1px dashed var(--accent); }
         .wiki-wikilink:hover { color: #c084fc; border-bottom-color: #c084fc; }
+        .nav-pills { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+        .nav-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 14px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+        .nav-pill:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
       `}</style>
 
       {/* Header */}
@@ -635,6 +641,12 @@ export default function Wiki() {
           <div>
             <h1><FileText size={28} /> LLM Wiki</h1>
             <p>Knowledge base for entities, concepts, comparisons, and research sources</p>
+            <div className="nav-pills">
+              <span className="nav-pill" onClick={() => navigate('/projects')}><FolderKanban size={12} /> Projets</span>
+              <span className="nav-pill" onClick={() => navigate('/backlog')}><ClipboardList size={12} /> Backlog</span>
+              <span className="nav-pill" onClick={() => navigate('/sessions')}><MessageSquare size={12} /> Sessions</span>
+              <span className="nav-pill" onClick={() => navigate('/activity')}><Activity size={12} /> Activité</span>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={() => setShowCreateModal(true)} style={{ background: 'var(--accent)', color: '#fff', border: 'none' }}>

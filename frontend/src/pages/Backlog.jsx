@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles, FolderKanban, Clock, Tag, MessageSquare, AlertTriangle, ExternalLink } from 'lucide-react'
+import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles, FolderKanban, Clock, Tag, MessageSquare, AlertTriangle, ExternalLink, FileText, Activity } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -445,9 +445,9 @@ export default function Backlog() {
           <Tooltip text="Task tracking system. Manage pending work, blocked items, and track progress across categories." />
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="btn btn-sm" onClick={function () { navigate('/projects') }}>
-            <FolderKanban size={14} /> Projects
-          </button>
+          <span className="nav-pill" onClick={function () { navigate('/projects') }}><FolderKanban size={12} /> Projets</span>
+          <span className="nav-pill" onClick={function () { navigate('/wiki') }}><FileText size={12} /> Wiki</span>
+          <span className="nav-pill" onClick={function () { navigate('/sessions') }}><MessageSquare size={12} /> Sessions</span>
           <button className="btn btn-sm" onClick={function () { fetchItems(); fetchStats() }} disabled={loading}>
             <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
             Refresh
@@ -910,7 +910,7 @@ export default function Backlog() {
         />
       )}
 
-      <style>{'@keyframes spin { to { transform: rotate(360deg) } }'}</style>
+      <style>{'@keyframes spin { to { transform: rotate(360deg) } } .nav-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 14px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; } .nav-pill:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }'}</style>
     </div>
   )
 }
