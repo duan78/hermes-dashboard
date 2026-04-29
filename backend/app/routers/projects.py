@@ -454,6 +454,12 @@ async def get_project_sessions(project_id: str):
     keywords = project.get("keywords", [])
     search_terms = [name.lower()] + [k.lower() for k in keywords]
 
+    # Score sessions: require meaningful matches, not just generic keywords
+    # Generic short terms (< 4 chars) need a companion longer term to count
+    short_terms = [t for t in search_terms if len(t) < 4]
+    long_terms = [t for t in search_terms if len(t) >= 4]
+    min_matches = 2 if len(search_terms) > 1 else 1
+
     sessions = []
     sessions_dir = HERMES_HOME / "sessions"
     if sessions_dir.exists():
@@ -463,7 +469,15 @@ async def get_project_sessions(project_id: str):
                 try:
                     content = sf.read_text(errors="ignore")
                     content_lower = content.lower()
-                    if any(t in content_lower for t in search_terms):
+                    matching_terms = [t for t in search_terms if t in content_lower]
+                    matching_long = [t for t in long_terms if t in content_lower]
+                    matching_short = [t for t in short_terms if t in content_lower]
+
+                    # Require at least min_matches total, AND at least one long term
+                    if len(matching_terms) >= min_matches and len(matching_long) >= 1:
+                        # Score: more matching long terms = more relevant
+                        score = len(matching_long) * 10 + len(matching_short)
+
                         # Extract basic session info from first few lines
                         lines = content.split("\n")[:5]
                         session_info = {
@@ -495,11 +509,15 @@ async def get_project_sessions(project_id: str):
                                 pass
 
                         session_info["preview"] = preview_text
+                        session_info["relevance_score"] = score
                         sessions.append(session_info)
                 except Exception:
                     pass
         except Exception:
             pass
+
+    # Sort by relevance score (highest first)
+    sessions.sort(key=lambda s: s.get("relevance_score", 0), reverse=True)
 
     return {"sessions": sessions, "total": len(sessions), "project_id": project_id}
 
