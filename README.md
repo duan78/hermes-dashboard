@@ -22,6 +22,29 @@ Hermes Dashboard is a full-featured web UI for configuring, monitoring, and mana
 
 The dashboard runs as a single service (FastAPI backend + built React frontend) and communicates with Hermes via CLI commands and direct file access to `~/.hermes/`.
 
+## Why Hermes Dashboard?
+
+[Hermes Agent](https://github.com/nousresearch/hermes-agent) is a powerful AI agent framework — but it's designed for **CLI and chat platforms** (Telegram, Discord, etc.). The dashboard adds a **visual management layer** that goes far beyond what Hermes Agent provides on its own:
+
+| Capability | Hermes Agent (standalone) | Hermes Dashboard |
+|------------|--------------------------|------------------|
+| **Interface** | CLI commands & chat bots | Full browser-based GUI |
+| **Real-time Monitoring** | CLI logs | Gateway status, system metrics (CPU/RAM/Disk), live SSE log streaming |
+| **Project Management** | ❌ None | ✅ Portfolio with auto-detection, linked sessions & backlog, tags, GitHub |
+| **Task Backlog** | ❌ None | ✅ Full backlog with priorities, Claude Code execution from tasks, AI auto-feed |
+| **Knowledge Base** | ❌ None | ✅ Structured wiki (entities, concepts, comparisons) with frontmatter |
+| **CRM / Leads** | ❌ None | ✅ Sales pipeline (new→won/lost), value tracking, search & stats |
+| **Multi-user** | Single-user only | ✅ JWT auth, registration with admin approval, role management |
+| **Notifications** | Platform-specific only | ✅ WebSocket real-time notifications across all modules |
+| **Unified Search** | Per-module only | ✅ Search projects, backlog, wiki, sessions, skills, tags in one place |
+| **Data Export** | Manual file access | ✅ Export any module as JSON or CSV |
+| **Claude Code Control** | Manual tmux commands | ✅ Visual session management, output viewer, message sending |
+| **Skills Security** | No scanning | ✅ Guard scanning, quarantine, audit logging |
+| **Config Backup** | Manual | ✅ GitHub config sync, backup/restore system |
+| **Analytics** | Basic CLI stats | ✅ Usage patterns, activity heatmaps, tool stats, search audit trail |
+
+In short: **Hermes Agent is the brain. Hermes Dashboard is the control room.**
+
 ## Features
 
 ### Core
@@ -534,6 +557,97 @@ All endpoints are prefixed with `/api/`. Authentication via `Authorization: Bear
 |----------|----------|-------------|
 | WS | `/ws/terminal` | Interactive PTY terminal session |
 
+### Notifications
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/notifications` | List notifications with filters |
+| GET | `/api/notifications/stats` | Unread count, by status/type |
+| POST | `/api/notifications` | Create notification |
+| PATCH | `/api/notifications/{id}` | Update status or action |
+| DELETE | `/api/notifications/{id}` | Delete notification |
+| POST | `/api/notifications/bulk` | Bulk mark_read or dismiss_all |
+
+### Export
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/export/{module}` | Export projects, backlog, activity, tags, or wiki as JSON/CSV |
+
+### Vision
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/vision/test` | Image analysis via Mistral Pixtral or Z.AI |
+
+### TTS Test
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tts/test` | Generate TTS audio sample (returns MP3) |
+
+### Context Monitoring
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/context/status` | Context window usage, compression history |
+
+### Delegation
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/delegation/active` | List active subagent processes |
+
+### Discord Listings
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/discord/servers` | List bot guilds |
+| GET | `/api/discord/servers/{id}/channels` | List channels by type |
+
+### MCP OAuth
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/mcp/oauth/status` | List OAuth connections |
+| POST | `/api/mcp/oauth/{name}/revoke` | Revoke OAuth token |
+| POST | `/api/mcp/oauth/{name}/test` | Validate token |
+| GET | `/api/mcp/oauth/connection-status` | Live MCP connection test |
+
+### RL Training
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/rl-training/status` | RL training config and readiness |
+| POST | `/api/rl-training/check-results` | Check for training result files |
+
+### Approvals
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/approvals/history` | Command approval event history |
+
+### Skills Security
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/skills/guard-scan` | Scan all skills for trust levels |
+| GET | `/api/skills/audit-log` | Read skills audit log |
+| GET | `/api/skills/quarantine` | List quarantined files |
+| POST | `/api/skills/quarantine/release` | Release quarantined skill |
+| DELETE | `/api/skills/quarantine/{name}` | Delete quarantined skill |
+| GET | `/api/skills/taps` | List skill tap sources |
+| POST | `/api/skills/taps` | Add tap source |
+| DELETE | `/api/skills/taps` | Remove tap source |
+
+### GitHub Config Sync
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/github-config/status` | GitHub repo sync status |
+| POST | `/api/github-config/sync` | Sync config to GitHub repo |
+| GET | `/api/github-config/files` | List files in GitHub repo |
+
 ### Health
 
 | Method | Endpoint | Description |
@@ -815,9 +929,21 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ---
 
-## Francais — Resume du projet
+## 🇫🇷 Français — Résumé du projet
 
-**Hermes Dashboard** est une interface web d'administration pour [Hermes Agent](https://github.com/nousresearch/hermes-agent), l'agent IA de Nous Research. Configuration, surveillance et gestion complete depuis un navigateur.
+**Hermes Dashboard** est une interface web d'administration complète pour [Hermes Agent](https://github.com/nousresearch/hermes-agent), l'agent IA de Nous Research. Configuration, surveillance et gestion complète depuis un navigateur.
+
+### Pourquoi ce dashboard ?
+
+Hermes Agent est puissant, mais limité au CLI et aux plateformes de chat. Le dashboard ajoute :
+- **Interface graphique** complète dans le navigateur
+- **Gestion de projets** et **backlog de tâches** (absents de Hermes Agent)
+- **Wiki** (base de connaissances structurée)
+- **CRM/Leads** (pipeline commercial)
+- **Multi-utilisateurs** avec authentification JWT
+- **Notifications temps réel** via WebSocket
+- **Recherche unifiée** et **export de données** (JSON/CSV)
+- **Monitoring avancé** : métriques système, logs streaming, analytics
 
 ### Chiffres cles
 
