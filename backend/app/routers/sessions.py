@@ -112,7 +112,16 @@ async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: i
     seen_ids = set()
     sessions = []
 
-    for f in sorted(sessions_dir.glob("session_*.json"), reverse=True):
+    # Filter cron sessions at the filename level to avoid reading thousands of files
+    if show_cron:
+        all_files = sorted(sessions_dir.glob("session_*.json"), reverse=True)
+    else:
+        all_files = sorted(
+            (f for f in sessions_dir.glob("session_*.json") if "session_cron_" not in f.name),
+            reverse=True,
+        )
+
+    for f in all_files:
         try:
             data = json.loads(f.read_text())
             sid = data.get("session_id", f.stem.replace("session_", ""))
@@ -121,11 +130,6 @@ async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: i
             if sid in seen_ids:
                 continue
             seen_ids.add(sid)
-
-            # Skip cron sessions (noise) unless explicitly requested
-            platform = data.get("platform", "")
-            if platform == "cron" and not show_cron:
-                continue
 
             # Early exit if we have enough sessions past the offset
             if len(sessions) >= offset + limit:
@@ -224,15 +228,13 @@ async def get_linked_projects():
 
     mappings = {}
 
-    # Single pass through sessions — read each file once
+    # Single pass through sessions — skip cron by filename pattern
     for f in sessions_dir.glob("session_*.json"):
+        if "session_cron_" in f.name:
+            continue
         try:
             data = json.loads(f.read_text())
             sid = data.get("session_id", f.stem.replace("session_", ""))
-
-            # Skip cron sessions (never project-related)
-            if data.get("platform") == "cron":
-                continue
 
             # Use the preview field from the JSON metadata (already extracted)
             head_content = (data.get("preview", "") or "").lower()
