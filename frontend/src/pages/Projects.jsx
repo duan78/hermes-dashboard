@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight } from 'lucide-react'
+import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight, Clock, Check, Play, Loader2, Pencil, ArrowRight } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -22,6 +22,14 @@ const STATUS_COLORS = {
   active: '#22c55e',
   paused: '#eab308',
   archived: '#6b7280',
+}
+
+const BACKLOG_STATUS_COLORS = {
+  'pending': '#6b7280',
+  'blocked': '#ef4444',
+  'waiting-human': '#f59e0b',
+  'in-progress': '#3b82f6',
+  'done': '#22c55e',
 }
 
 const TYPES = ['webapp', 'library', 'infra', 'seo', 'research', 'automation', 'other']
@@ -55,9 +63,9 @@ function relativeDate(dateStr) {
     const diffDays = Math.floor(diffMs / 86400000)
     if (diffDays === 0) return "Aujourd'hui"
     if (diffDays === 1) return 'Hier'
-    if (diffDays < 30) return `Il y a ${diffDays}j`
-    if (diffDays < 365) return `Il y a ${Math.floor(diffDays / 30)} mois`
-    return `Il y a ${Math.floor(diffDays / 365)} an${Math.floor(diffDays / 365) > 1 ? 's' : ''}`
+    if (diffDays < 30) return 'Il y a ' + diffDays + 'j'
+    if (diffDays < 365) return 'Il y a ' + Math.floor(diffDays / 30) + ' mois'
+    return 'Il y a ' + Math.floor(diffDays / 365) + ' an' + (Math.floor(diffDays / 365) > 1 ? 's' : '')
   } catch {
     return dateStr
   }
@@ -83,6 +91,12 @@ export default function Projects() {
   const [detectCandidates, setDetectCandidates] = useState([])
   const [selectedCandidates, setSelectedCandidates] = useState({})
   const [deleteTarget, setDeleteTarget] = useState(null)
+
+  // Drawer states
+  const [sessionDrawer, setSessionDrawer] = useState(null)
+  const [sessionMessages, setSessionMessages] = useState([])
+  const [sessionLoading, setSessionLoading] = useState(false)
+  const [backlogDrawer, setBacklogDrawer] = useState(null)
 
   const { toast } = useToast()
   const detailCacheRef = useRef({})
@@ -302,6 +316,106 @@ export default function Projects() {
       })
   }
 
+  // Session drawer
+  function openSessionDrawer(session) {
+    setSessionDrawer(session)
+    setSessionMessages([])
+    setSessionLoading(true)
+    if (session.id || session.session_id) {
+      var sid = session.id || session.session_id
+      api.getSession(sid)
+        .then(function (data) {
+          setSessionMessages(data.messages || data.transcript || [])
+        })
+        .catch(function () {
+          setSessionMessages([])
+        })
+        .finally(function () {
+          setSessionLoading(false)
+        })
+    } else {
+      setSessionLoading(false)
+    }
+  }
+
+  function closeSessionDrawer() {
+    setSessionDrawer(null)
+    setSessionMessages([])
+  }
+
+  // Backlog drawer
+  function openBacklogDrawer(item) {
+    setBacklogDrawer(item)
+  }
+
+  function closeBacklogDrawer() {
+    setBacklogDrawer(null)
+  }
+
+  function handleBacklogMarkDone(item) {
+    api.patchBacklogStatus(item.id, 'done')
+      .then(function () {
+        toast('Marked as done', 'success')
+        // Refresh backlog
+        if (selectedProject) {
+          delete detailCacheRef.current[selectedProject.id]
+          loadProjectDetail(selectedProject)
+        }
+        closeBacklogDrawer()
+      })
+      .catch(function (err) {
+        toast.error('Failed: ' + err.message)
+      })
+  }
+
+  function handleBacklogLaunch(item) {
+    api.runBacklogItem(item.id)
+      .then(function () {
+        toast('Claude Code lancé pour : ' + item.title, 'success')
+      })
+      .catch(function (err) {
+        toast('Erreur au lancement : ' + (err.message || 'inconnu'), 'error')
+      })
+  }
+
+  // Compute summary stats
+  var summaryStats = useMemo(function () {
+    if (!projectBacklog || projectBacklog.length === 0) {
+      return { total: 0, done: 0, inProgress: 0, pending: 0, blocked: 0, pct: 0 }
+    }
+    var done = 0, inProgress = 0, pending = 0, blocked = 0
+    projectBacklog.forEach(function (item) {
+      if (item.status === 'done') done++
+      else if (item.status === 'in-progress') inProgress++
+      else if (item.status === 'blocked' || item.status === 'waiting-human') blocked++
+      else pending++
+    })
+    var total = projectBacklog.length
+    return {
+      total: total,
+      done: done,
+      inProgress: inProgress,
+      pending: pending,
+      blocked: blocked,
+      pct: total > 0 ? Math.round((done / total) * 100) : 0,
+    }
+  }, [projectBacklog])
+
+  var lastActivity = useMemo(function () {
+    var dates = []
+    if (projectSessions.length > 0 && projectSessions[0].date) {
+      dates.push(new Date(projectSessions[0].date))
+    }
+    if (projectBacklog.length > 0) {
+      projectBacklog.forEach(function (b) {
+        if (b.updated) dates.push(new Date(b.updated))
+        else if (b.created) dates.push(new Date(b.created))
+      })
+    }
+    if (dates.length === 0) return null
+    return new Date(Math.max.apply(null, dates))
+  }, [projectSessions, projectBacklog])
+
   var selectedCount = Object.values(selectedCandidates).filter(Boolean).length
 
   return (
@@ -468,6 +582,45 @@ export default function Projects() {
                 </div>
               </div>
 
+              {/* ── Dashboard Summary ── */}
+              <div className="projects-summary">
+                <div className="projects-summary-progress">
+                  <div className="projects-summary-progress-label">
+                    <span>Progression</span>
+                    <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{summaryStats.pct}%</span>
+                  </div>
+                  <div className="projects-summary-progress-bar">
+                    <div className="projects-summary-progress-fill" style={{ width: summaryStats.pct + '%' }} />
+                  </div>
+                </div>
+                <div className="projects-summary-stats">
+                  <div className="projects-summary-stat" style={{ color: '#22c55e' }}>
+                    <span className="projects-summary-stat-value">{summaryStats.done}</span>
+                    <span className="projects-summary-stat-label">Done</span>
+                  </div>
+                  <div className="projects-summary-stat" style={{ color: '#3b82f6' }}>
+                    <span className="projects-summary-stat-value">{summaryStats.inProgress}</span>
+                    <span className="projects-summary-stat-label">En cours</span>
+                  </div>
+                  <div className="projects-summary-stat" style={{ color: '#6b7280' }}>
+                    <span className="projects-summary-stat-value">{summaryStats.pending}</span>
+                    <span className="projects-summary-stat-label">Pending</span>
+                  </div>
+                  <div className="projects-summary-stat" style={{ color: '#ef4444' }}>
+                    <span className="projects-summary-stat-value">{summaryStats.blocked}</span>
+                    <span className="projects-summary-stat-label">Bloqués</span>
+                  </div>
+                </div>
+                <div className="projects-summary-meta">
+                  {lastActivity && (
+                    <span><Clock size={12} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />Dernière activité: {relativeDate(lastActivity.toISOString())}</span>
+                  )}
+                  {selectedProject.created && (
+                    <span>Créé {relativeDate(selectedProject.created)}</span>
+                  )}
+                </div>
+              </div>
+
               {/* Description */}
               {selectedProject.description && (
                 <div className="projects-detail-section">
@@ -520,7 +673,7 @@ export default function Projects() {
                 </div>
               )}
 
-              {/* Sessions */}
+              {/* Sessions - Clickable */}
               <div className="projects-detail-section">
                 <h4><MessageSquare size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Sessions liées ({projectSessions.length}){' '}
                   <button onClick={function() { navigate('/sessions') }} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>View All</button>
@@ -531,14 +684,21 @@ export default function Projects() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {projectSessions.slice(0, 20).map(function (s, i) {
                       return (
-                        <div key={i} className="projects-detail-session-item">
-                          <div className="projects-detail-session-date">
-                            {s.date ? formatDate(s.date) : ''}{s.date && s.platform ? ' · ' : ''}{s.platform || ''}
+                        <div
+                          key={i}
+                          className="projects-detail-session-item projects-clickable-item"
+                          onClick={function () { openSessionDrawer(s) }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div className="projects-detail-session-date">
+                              {s.date ? formatDate(s.date) : ''}{s.date && s.platform ? ' · ' : ''}{s.platform || ''}
+                            </div>
+                            <div className="projects-detail-session-preview">
+                              {s.name || s.filename}
+                              {s.preview ? ' — ' + s.preview : ''}
+                            </div>
                           </div>
-                          <div className="projects-detail-session-preview">
-                            {s.name || s.filename}
-                            {s.preview ? ' — ' + s.preview : ''}
-                          </div>
+                          <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                         </div>
                       )
                     })}
@@ -546,7 +706,7 @@ export default function Projects() {
                 )}
               </div>
 
-              {/* Backlog */}
+              {/* Backlog - Clickable */}
               <div className="projects-detail-section">
                 <h4><ClipboardList size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tâches backlog ({projectBacklog.length}){' '}
                 <button onClick={function() { navigate('/backlog') }} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>View All</button>
@@ -556,21 +716,26 @@ export default function Projects() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {projectBacklog.map(function (item) {
-                      var stColor = '#6b7280'
-                      if (item.status === 'done') stColor = '#22c55e'
-                      else if (item.status === 'in-progress') stColor = '#3b82f6'
-                      else if (item.status === 'blocked') stColor = '#ef4444'
-                      else if (item.status === 'waiting-human') stColor = '#f59e0b'
+                      var stColor = BACKLOG_STATUS_COLORS[item.status] || '#6b7280'
+                      var prColor = '#6b7280'
+                      if (item.priority === 'haute') prColor = '#ef4444'
+                      else if (item.priority === 'basse') prColor = '#22c55e'
+                      else if (item.priority === 'normale') prColor = '#3b82f6'
 
                       return (
-                        <div key={item.id} className="projects-detail-backlog-item">
+                        <div
+                          key={item.id}
+                          className="projects-detail-backlog-item projects-clickable-item"
+                          onClick={function () { openBacklogDrawer(item) }}
+                        >
                           <span style={{
                             width: 8, height: 8, borderRadius: '50%',
                             backgroundColor: stColor, flexShrink: 0, display: 'inline-block',
                           }} />
                           <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>{item.title}</span>
-                          <span style={{ fontSize: 11, color: stColor, fontWeight: 600 }}>{item.status}</span>
-                          {item.priority && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.priority}</span>}
+                          <span className="projects-backlog-badge" style={{ backgroundColor: stColor + '20', color: stColor }}>{item.status}</span>
+                          {item.priority && <span className="projects-backlog-badge" style={{ backgroundColor: prColor + '20', color: prColor }}>{item.priority}</span>}
+                          <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                         </div>
                       )
                     })}
@@ -587,6 +752,170 @@ export default function Projects() {
           )}
         </div>
       </div>
+
+      {/* Session Drawer */}
+      {sessionDrawer && (
+        <div className="drawer-overlay" onClick={closeSessionDrawer}>
+          <div className="drawer-panel" onClick={function (e) { e.stopPropagation() }}>
+            <div className="drawer-header">
+              <h3 className="drawer-title">Session</h3>
+              <button className="drawer-close-btn" onClick={closeSessionDrawer}><X size={18} /></button>
+            </div>
+            <div className="drawer-body">
+              <div className="drawer-section">
+                <div className="drawer-dates">
+                  <div className="drawer-date-row">
+                    <span className="drawer-date-label">Date</span>
+                    <span className="drawer-date-value">{sessionDrawer.date ? formatDate(sessionDrawer.date) : 'N/A'}</span>
+                  </div>
+                  <div className="drawer-date-row">
+                    <span className="drawer-date-label">Platform</span>
+                    <span className="drawer-date-value">{sessionDrawer.platform || 'N/A'}</span>
+                  </div>
+                  {sessionMessages.length > 0 && (
+                    <div className="drawer-date-row">
+                      <span className="drawer-date-label">Messages</span>
+                      <span className="drawer-date-value">{sessionMessages.length}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {(sessionDrawer.name || sessionDrawer.filename) && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title">Nom</h4>
+                  <div className="drawer-description">{sessionDrawer.name || sessionDrawer.filename}</div>
+                </div>
+              )}
+              {sessionDrawer.preview && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title">Preview</h4>
+                  <div className="drawer-description">{sessionDrawer.preview}</div>
+                </div>
+              )}
+              {sessionLoading ? (
+                <div style={{ padding: 20, textAlign: 'center' }}><div className="spinner" /></div>
+              ) : sessionMessages.length > 0 ? (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title">Messages ({Math.min(sessionMessages.length, 20)} / {sessionMessages.length})</h4>
+                  <div className="projects-session-messages">
+                    {sessionMessages.slice(0, 20).map(function (msg, i) {
+                      var role = msg.role || msg.type || 'unknown'
+                      var content = msg.content || msg.text || msg.message || JSON.stringify(msg)
+                      if (typeof content !== 'string') content = JSON.stringify(content)
+                      if (content.length > 500) content = content.substring(0, 500) + '...'
+                      return (
+                        <div key={i} className={'projects-session-msg projects-session-msg-' + role}>
+                          <span className="projects-session-msg-role">{role}</span>
+                          <span className="projects-session-msg-content">{content}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="drawer-section">
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>Aucun message disponible</p>
+                </div>
+              )}
+            </div>
+            <div className="drawer-actions">
+              <button className="btn btn-sm" onClick={function () { navigate('/sessions') }}>
+                <ArrowRight size={14} /> Voir toutes les sessions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backlog Drawer */}
+      {backlogDrawer && (
+        <div className="drawer-overlay" onClick={closeBacklogDrawer}>
+          <div className="drawer-panel" onClick={function (e) { e.stopPropagation() }}>
+            <div className="drawer-header">
+              <h3 className="drawer-title">{backlogDrawer.title}</h3>
+              <button className="drawer-close-btn" onClick={closeBacklogDrawer}><X size={18} /></button>
+            </div>
+            <div className="drawer-body">
+              {/* Badges */}
+              <div className="drawer-badges">
+                <span className="projects-backlog-badge" style={{ backgroundColor: (BACKLOG_STATUS_COLORS[backlogDrawer.status] || '#6b7280') + '20', color: BACKLOG_STATUS_COLORS[backlogDrawer.status] || '#6b7280', padding: '3px 10px', fontSize: 12 }}>
+                  {backlogDrawer.status}
+                </span>
+                {backlogDrawer.priority && (
+                  <span className="projects-backlog-badge" style={{ backgroundColor: (backlogDrawer.priority === 'haute' ? '#ef4444' : backlogDrawer.priority === 'basse' ? '#22c55e' : '#3b82f6') + '20', color: backlogDrawer.priority === 'haute' ? '#ef4444' : backlogDrawer.priority === 'basse' ? '#22c55e' : '#3b82f6', padding: '3px 10px', fontSize: 12 }}>
+                    {backlogDrawer.priority}
+                  </span>
+                )}
+                {backlogDrawer.category && (
+                  <span className="projects-backlog-badge" style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', padding: '3px 10px', fontSize: 12 }}>
+                    {backlogDrawer.category}
+                  </span>
+                )}
+              </div>
+
+              {/* Description */}
+              {backlogDrawer.description && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title">Description</h4>
+                  <div className="drawer-description">{backlogDrawer.description}</div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {backlogDrawer.tags && backlogDrawer.tags.length > 0 && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title"><Tag size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tags</h4>
+                  <div className="drawer-tags">
+                    {backlogDrawer.tags.map(function (tag, i) {
+                      return <span key={i} className="drawer-tag-badge">{tag}</span>
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Blocked reason */}
+              {backlogDrawer.blocked_reason && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title">Raison du blocage</h4>
+                  <div className="drawer-blocked-reason">{backlogDrawer.blocked_reason}</div>
+                </div>
+              )}
+
+              {/* Dates */}
+              <div className="drawer-section">
+                <h4 className="drawer-section-title"><Clock size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Dates</h4>
+                <div className="drawer-dates">
+                  <div className="drawer-date-row">
+                    <span className="drawer-date-label">Créé</span>
+                    <span className="drawer-date-value">{formatDate(backlogDrawer.created)}</span>
+                  </div>
+                  {backlogDrawer.done_date && (
+                    <div className="drawer-date-row">
+                      <span className="drawer-date-label">Terminé</span>
+                      <span className="drawer-date-value">{formatDate(backlogDrawer.done_date)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="drawer-actions">
+              {backlogDrawer.status !== 'done' && (
+                <button className="btn btn-sm" style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }} onClick={function () { handleBacklogMarkDone(backlogDrawer) }}>
+                  <Check size={14} /> Mark Done
+                </button>
+              )}
+              {backlogDrawer.status !== 'done' && backlogDrawer.status !== 'waiting-human' && (
+                <button className="btn btn-sm" style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }} onClick={function () { handleBacklogLaunch(backlogDrawer) }}>
+                  <Play size={14} /> Launch Claude Code
+                </button>
+              )}
+              <button className="btn btn-sm" onClick={function () { navigate('/backlog') }}>
+                <ArrowRight size={14} /> View in Backlog
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create/Edit Modal */}
       {showCreateModal && (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles, FolderKanban } from 'lucide-react'
+import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles, FolderKanban, Clock, Tag, MessageSquare, AlertTriangle, ExternalLink } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -42,6 +42,23 @@ function formatDate(dateStr) {
   try {
     var d = new Date(dateStr)
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+  } catch (e) {
+    return dateStr
+  }
+}
+
+function relativeDate(dateStr) {
+  if (!dateStr) return ''
+  try {
+    var d = new Date(dateStr)
+    var now = new Date()
+    var diffMs = now - d
+    var diffDays = Math.floor(diffMs / 86400000)
+    if (diffDays === 0) return "Aujourd'hui"
+    if (diffDays === 1) return 'Hier'
+    if (diffDays < 30) return 'Il y a ' + diffDays + 'j'
+    if (diffDays < 365) return 'Il y a ' + Math.floor(diffDays / 30) + ' mois'
+    return 'Il y a ' + Math.floor(diffDays / 365) + ' an' + (Math.floor(diffDays / 365) > 1 ? 's' : '')
   } catch (e) {
     return dateStr
   }
@@ -125,7 +142,16 @@ export default function Backlog() {
   var projects = _useState19[0]
   var setProjects = _useState19[1]
 
+  // Drawer state
+  var _useState20 = useState(null)
+  var drawerItem = _useState20[0]
+  var setDrawerItem = _useState20[1]
+
   var toast = useToast().toast
+
+  // Build a project lookup map
+  var projectMap = {}
+  projects.forEach(function (p) { projectMap[p.id] = p })
 
   function handleLaunch(item) {
     setLaunching(function (prev) { var next = {}; next[item.id] = true; return Object.assign({}, prev, next) })
@@ -327,6 +353,16 @@ export default function Backlog() {
         toast.success('Marked as done')
         fetchItems()
         fetchStats()
+        // Update drawer if same item
+        if (drawerItem && drawerItem.id === item.id) {
+          setDrawerItem(function (prev) {
+            var n = {}
+            for (var k in prev) n[k] = prev[k]
+            n.status = 'done'
+            n.done_date = new Date().toISOString()
+            return n
+          })
+        }
       })
       .catch(function (err) {
         toast.error('Failed: ' + err.message)
@@ -342,6 +378,7 @@ export default function Backlog() {
     api.deleteBacklogItem(deleteTarget.id)
       .then(function () {
         toast.success('Item deleted')
+        if (drawerItem && drawerItem.id === deleteTarget.id) setDrawerItem(null)
         setDeleteTarget(null)
         fetchItems()
         fetchStats()
@@ -386,6 +423,14 @@ export default function Backlog() {
     setFilterCategory('')
     setFilterPriority('')
     setFilterSource('')
+  }
+
+  function openDrawer(item) {
+    setDrawerItem(item)
+  }
+
+  function closeDrawer() {
+    setDrawerItem(null)
   }
 
   var byStatus = stats.by_status || {}
@@ -563,9 +608,19 @@ export default function Backlog() {
             var priorityColor = PRIORITY_COLORS[item.priority] || '#3b82f6'
             var desc = item.description || ''
             if (desc.length > 200) desc = desc.substring(0, 200) + '...'
+            var linkedProject = item.project_id ? projectMap[item.project_id] : null
 
             return (
-              <div className={'backlog-item' + (isDone ? ' backlog-item-done' : '')} key={item.id}>
+              <div
+                className={'backlog-item' + (isDone ? ' backlog-item-done' : '') + (drawerItem && drawerItem.id === item.id ? ' backlog-item-active' : '')}
+                key={item.id}
+                onClick={function (e) {
+                  // Don't open drawer if clicking a button
+                  if (e.target.closest('.backlog-item-actions')) return
+                  openDrawer(item)
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 <div className="backlog-item-badges">
                   <span className="backlog-badge" style={{ backgroundColor: statusColor + '20', color: statusColor, borderColor: statusColor + '40' }}>
                     {item.status}
@@ -583,6 +638,21 @@ export default function Backlog() {
                       </span>
                     </Tooltip>
                   )}
+                  {linkedProject && (
+                    <Tooltip text={"Projet: " + linkedProject.name}>
+                      <span
+                        className="backlog-badge backlog-badge-project"
+                        style={{ backgroundColor: 'rgba(139,92,246,0.15)', color: '#a78bfa', borderColor: 'rgba(139,92,246,0.3)' }}
+                        onClick={function (e) {
+                          e.stopPropagation()
+                          navigate('/projects')
+                        }}
+                      >
+                        <FolderKanban size={10} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />
+                        {linkedProject.name}
+                      </span>
+                    </Tooltip>
+                  )}
                 </div>
                 <div className="backlog-item-title">{item.title}</div>
                 {desc && <div className="backlog-item-desc">{desc}</div>}
@@ -594,7 +664,8 @@ export default function Backlog() {
                 )}
                 <div className="backlog-item-footer">
                   <span className="backlog-item-date">
-                    {formatDate(item.created)}
+                    <Clock size={10} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3, opacity: 0.6 }} />
+                    {relativeDate(item.created)}
                     {item.done_date && <span> &middot; Done {formatDate(item.done_date)}</span>}
                   </span>
                   <div className="backlog-item-actions">
@@ -603,7 +674,7 @@ export default function Backlog() {
                         <button
                           className={"backlog-btn backlog-btn-launch" + (runningSessions && runningSessions[item.id] ? ' backlog-btn-launching' : '')}
                           disabled={launching && launching[item.id]}
-                          onClick={function () { handleLaunch(item) }}
+                          onClick={function (e) { e.stopPropagation(); handleLaunch(item) }}
                         >
                           {launching && launching[item.id] ? <Loader2 size={14} /> : (runningSessions && runningSessions[item.id] ? <Loader2 size={14} className="spin" /> : <Play size={14} />)}
                         </button>
@@ -611,15 +682,15 @@ export default function Backlog() {
                     )}
                     {!isDone && (
                       <Tooltip text={"Marquer cette tâche comme terminée"}>
-                        <button className="backlog-btn backlog-btn-done" onClick={function () { handleMarkDone(item) }}>
+                        <button className="backlog-btn backlog-btn-done" onClick={function (e) { e.stopPropagation(); handleMarkDone(item) }}>
                           <Check size={14} />
                         </button>
                       </Tooltip>
                     )}
-                    <button className="backlog-btn backlog-btn-edit" onClick={function () { openEditForm(item) }}>
+                    <button className="backlog-btn backlog-btn-edit" onClick={function (e) { e.stopPropagation(); openEditForm(item) }}>
                       <Pencil size={14} />
                     </button>
-                    <button className="backlog-btn backlog-btn-delete" onClick={function () { confirmDelete(item) }}>
+                    <button className="backlog-btn backlog-btn-delete" onClick={function (e) { e.stopPropagation(); confirmDelete(item) }}>
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -627,6 +698,139 @@ export default function Backlog() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Detail Drawer */}
+      {drawerItem && (
+        <div className="drawer-overlay" onClick={closeDrawer}>
+          <div className="drawer-panel" onClick={function (e) { e.stopPropagation() }}>
+            <div className="drawer-header">
+              <h3 className="drawer-title">{drawerItem.title}</h3>
+              <button className="drawer-close-btn" onClick={closeDrawer}><X size={18} /></button>
+            </div>
+            <div className="drawer-body">
+              {/* Badges row */}
+              <div className="drawer-badges">
+                <span className="backlog-badge" style={{ backgroundColor: (STATUS_COLORS[drawerItem.status] || '#6b7280') + '20', color: STATUS_COLORS[drawerItem.status] || '#6b7280', borderColor: (STATUS_COLORS[drawerItem.status] || '#6b7280') + '40' }}>
+                  {drawerItem.status}
+                </span>
+                <span className="backlog-badge" style={{ backgroundColor: (PRIORITY_COLORS[drawerItem.priority] || '#3b82f6') + '20', color: PRIORITY_COLORS[drawerItem.priority] || '#3b82f6', borderColor: (PRIORITY_COLORS[drawerItem.priority] || '#3b82f6') + '40' }}>
+                  {drawerItem.priority}
+                </span>
+                <span className="backlog-badge backlog-badge-category">{drawerItem.category}</span>
+                {(drawerItem.source === 'autofeed' || drawerItem.autofeed_source) && (
+                  <span className="backlog-badge" style={{ backgroundColor: '#8b5cf620', color: '#8b5cf6', borderColor: '#8b5cf640', fontSize: 11 }}>auto</span>
+                )}
+              </div>
+
+              {/* Description */}
+              {drawerItem.description && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title">Description</h4>
+                  <div className="drawer-description">{drawerItem.description}</div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {drawerItem.tags && drawerItem.tags.length > 0 && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title"><Tag size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tags</h4>
+                  <div className="drawer-tags">
+                    {drawerItem.tags.map(function (tag, i) {
+                      return <span key={i} className="drawer-tag-badge">{tag}</span>
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Linked Project */}
+              {drawerItem.project_id && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title"><FolderKanban size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Projet lié</h4>
+                  <button
+                    className="drawer-project-link"
+                    onClick={function () { navigate('/projects') }}
+                  >
+                    <FolderKanban size={14} />
+                    {projectMap[drawerItem.project_id] ? projectMap[drawerItem.project_id].name : drawerItem.project_id}
+                    <ExternalLink size={12} style={{ marginLeft: 4 }} />
+                  </button>
+                </div>
+              )}
+
+              {/* Blocked reason */}
+              {drawerItem.blocked_reason && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title"><AlertTriangle size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4, color: '#ef4444' }} />Raison du blocage</h4>
+                  <div className="drawer-blocked-reason">{drawerItem.blocked_reason}</div>
+                </div>
+              )}
+
+              {/* Dates */}
+              <div className="drawer-section">
+                <h4 className="drawer-section-title"><Clock size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Dates</h4>
+                <div className="drawer-dates">
+                  <div className="drawer-date-row">
+                    <span className="drawer-date-label">Créé</span>
+                    <span className="drawer-date-value">{formatDate(drawerItem.created)} <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>({relativeDate(drawerItem.created)})</span></span>
+                  </div>
+                  {drawerItem.done_date && (
+                    <div className="drawer-date-row">
+                      <span className="drawer-date-label">Terminé</span>
+                      <span className="drawer-date-value">{formatDate(drawerItem.done_date)}</span>
+                    </div>
+                  )}
+                  {drawerItem.updated && drawerItem.updated !== drawerItem.created && (
+                    <div className="drawer-date-row">
+                      <span className="drawer-date-label">Modifié</span>
+                      <span className="drawer-date-value">{formatDate(drawerItem.updated)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Status history (if status_history exists) */}
+              {drawerItem.status_history && drawerItem.status_history.length > 0 && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title"><MessageSquare size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Historique</h4>
+                  <div className="drawer-timeline">
+                    {drawerItem.status_history.map(function (entry, i) {
+                      return (
+                        <div className="drawer-timeline-item" key={i}>
+                          <div className="drawer-timeline-dot" style={{ backgroundColor: STATUS_COLORS[entry.status] || '#6b7280' }} />
+                          <div className="drawer-timeline-content">
+                            <span className="drawer-timeline-status">{entry.status}</span>
+                            <span className="drawer-timeline-date">{formatDate(entry.date || entry.changed_at)}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Drawer Actions */}
+            <div className="drawer-actions">
+              {drawerItem.status !== 'done' && (
+                <button className="btn btn-sm" style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }} onClick={function () { handleMarkDone(drawerItem) }}>
+                  <Check size={14} /> Mark Done
+                </button>
+              )}
+              {drawerItem.status !== 'done' && drawerItem.status !== 'waiting-human' && (
+                <button className="btn btn-sm" style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }} onClick={function () { handleLaunch(drawerItem) }}>
+                  <Play size={14} /> Launch Claude Code
+                </button>
+              )}
+              <button className="btn btn-sm" onClick={function () { openEditForm(drawerItem) }}>
+                <Pencil size={14} /> Edit
+              </button>
+              <button className="btn btn-sm btn-danger" onClick={function () { confirmDelete(drawerItem) }}>
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
