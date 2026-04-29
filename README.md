@@ -9,8 +9,8 @@
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/React-19-61DAFB.svg" alt="React">
   <img src="https://img.shields.io/badge/Vite-8-646CFF.svg" alt="Vite">
-  <img src="https://img.shields.io/badge/Backend_Routers-25-F44336.svg" alt="Routers">
-  <img src="https://img.shields.io/badge/Frontend_Pages-27-FF9800.svg" alt="Pages">
+  <img src="https://img.shields.io/badge/Backend_Routers-47-F44336.svg" alt="Routers">
+  <img src="https://img.shields.io/badge/Frontend_Pages-37-FF9800.svg" alt="Pages">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </p>
 
@@ -18,66 +18,111 @@
 
 ## Overview
 
-Hermes Dashboard is a full-featured web UI for configuring, monitoring, and managing a [Hermes Agent](https://github.com/nousresearch/hermes-agent) instance. It provides a single interface to control every aspect of your AI agent — from model switching and chat sessions to scheduled tasks, file management, backup/restore, Claude Code integration, MCP server management, and usage analytics.
+Hermes Dashboard is a full-featured web UI for configuring, monitoring, and managing a [Hermes Agent](https://github.com/nousresearch/hermes-agent) instance. It provides a single interface to control every aspect of your AI agent — from model switching and chat sessions to project management, CRM, knowledge base, scheduled tasks, file management, backup/restore, Claude Code integration, MCP server management, and usage analytics.
 
 The dashboard runs as a single service (FastAPI backend + built React frontend) and communicates with Hermes via CLI commands and direct file access to `~/.hermes/`.
 
-## Screenshots
-
-<p align="center">
-</p>
-
 ## Features
+
+### Core
 
 | Page | Description |
 |------|-------------|
 | **Overview** | Dashboard home — gateway status, uptime, active model, session/message counts, installed skills, cron jobs, platform connections, recent logs, system metrics (CPU, RAM, Disk, Load) |
-| **Gateway Control** | Gateway service management — real-time status (PID, memory, CPU, tasks, uptime), start/stop/restart controls with confirmation modal, live log streaming (SSE), log filtering by level and search |
-| **Claude Code** | Claude Code integration — monitor active tmux sessions with real-time status (working/idle/interrupted/completed), CPU and memory usage per session, send messages to sessions, create new sessions with custom workdir, stop/kill sessions, browse session history with project grouping, view session messages (JSONL), global stats (active sessions, total projects, last activity) |
 | **Chat** | Full chat interface with SSE streaming responses, session sidebar, markdown rendering, tool call indicators, and typing animation. Falls back to direct LLM API if gateway is unavailable |
+| **Gateway Control** | Gateway service management — real-time status (PID, memory, CPU, tasks, uptime), start/stop/restart controls with confirmation modal, live log streaming (SSE), log filtering by level and search |
 | **Configuration** | Edit `config.yaml` with a structured section-based editor (Model, Agent, Terminal, Browser, Display, Streaming, TTS, Memory, Cron, Privacy). Includes raw YAML editor, secret masking, and dot-notation key update endpoint |
+
+### AI & Models
+
+| Page | Description |
+|------|-------------|
+| **Models** | View current model and provider, browse available models, switch model with one click |
 | **MOA Config** | Mixture of Agents configuration — manage reference models with per-model provider assignment (OpenRouter, custom providers), configure aggregator model/provider/temperature, add/remove reference models, estimate cost per call, multi-provider management with live connection testing, advanced settings (min successful references). Only visible if MOA toolset is enabled |
+| **Claude Code** | Claude Code integration — monitor active tmux sessions with real-time status (working/idle/interrupted/completed), CPU and memory usage per session, send messages to sessions, create new sessions with custom workdir, stop/kill sessions, browse session history with project grouping, view session messages (JSONL), global stats (active sessions, total projects, last activity) |
+| **MCP Servers** | Model Context Protocol server management — list configured servers with transport type (stdio/SSE/OAuth), add new servers, remove servers, test connection to individual servers, OAuth flow support |
+
+### Project Management
+
+| Page | Description |
+|------|-------------|
+| **Projects** | Project tracking — CRUD with types (webapp, library, infra, SEO, research, automation), statuses (active, paused, archived), descriptions, tags, GitHub links, and creation dates |
+| **Backlog** | Task backlog with smart autofeed — create tasks with title, description, priority (haute/normale/basse), status (pending, blocked, waiting-human, in-progress, done), categories, tags. LLM-powered autofeed scans configured sources (GitHub repos, documentation sites) and suggests new tasks with confidence scoring |
+| **Wiki** | Knowledge base with structured pages — organize content by type (entities, concepts, comparisons, queries) and source (articles, papers, transcripts). Markdown editing with live preview, full-text search |
+| **Leads** | CRM pipeline — track leads through stages (new, contacted, qualified, proposal, negotiation, won, lost) with contact info, notes, value tracking, and statistics |
+| **Tags** | Cross-entity tagging system — create, rename, delete tags used across projects, backlog items, and wiki pages |
+
+### Agent Management
+
+| Page | Description |
+|------|-------------|
 | **Sessions** | Browse all Hermes sessions with metadata, search across sessions, view full message history, delete or prune old sessions, export sessions, session stats with per-day chart and platform breakdown |
-| **Files** | File browser for `HERMES_HOME` — directory tree, file viewer/editor, create and delete files. Path traversal protection and binary file blocking |
-| **Terminal** | WebSocket-based terminal emulator (xterm.js) with full interactive PTY, resize support, and custom color theme |
+| **Memory & SOUL** | Multi-tab memory management — **MD Files** tab (SOUL.md, MEMORY.md, memory files CRUD), **Vector Memory** tab (LanceDB stats, semantic search, memory list, add/delete, source badges), **Honcho** tab (session-based memory, peer profiles, semantic search). Vector and Honcho tabs only appear when their providers are available |
 | **Tools** | List all Hermes tools, enable/disable individual tools per platform (CLI, Telegram, Discord, etc.), tool configuration with env var management |
 | **Skills** | List installed skills with category and metadata, inspect skill content, install and uninstall skills |
 | **Skills Hub** | Skill marketplace — browse and search available skills, install with one click, enriched metadata with detail drawer |
 | **Cron Jobs** | Manage scheduled tasks — create with cron expressions, pause/resume, trigger manually, delete |
-| **Memory & SOUL** | Multi-tab memory management — **MD Files** tab (SOUL.md, MEMORY.md, memory files CRUD), **Vector Memory** tab (LanceDB stats, semantic search, memory list, add/delete, source badges), **Honcho** tab (session-based memory, peer profiles, semantic search). Vector and Honcho tabs only appear when their providers are available |
-| **Models** | View current model and provider, browse available models, switch model with one click |
-| **Platforms** | View connection status for all platforms (Telegram, Discord, WhatsApp, Signal, Slack, Matrix, DingTalk, Feishu, WeCom, Mattermost, Home Assistant), per-platform env var status, descriptions, configure API credentials, channel directory, pairing management |
-| **API Keys** | Manage API keys — view, add, and remove keys for providers, tools, and platforms. Masked previews with reveal toggle |
-| **Fine-Tune** | Collection of voice + transcription pairs for ASR fine-tuning — audio playback, transcript editing, stats. Only visible if fine-tune data exists |
-| **Insights** | Usage analytics with configurable time period — model usage charts, platform distribution, top tools, activity patterns, notable sessions, hourly activity heatmap, top 10 skills, average response time, messages by platform, tokens by day |
-| **Diagnostics** | Run health checks on Hermes installation — quick check (file/status verification) or full diagnostics (`hermes doctor`). Grouped results with pass/warn/fail indicators |
-| **Webhooks** | Manage Hermes webhooks — list active webhooks, create new (URL + events), delete |
-| **Environment** | Environment variables management — list all vars from `~/.hermes/.env`, add/edit/delete variables, required variables status panel (Telegram, OpenAI, Anthropic, Mistral, Google, Groq, ElevenLabs, Deepgram), sensitive value masking with reveal toggle |
 | **Plugins** | Plugin management — list installed plugins (name, version, status, source), install from Git URL, remove, enable/disable, update to latest version |
-| **MCP Servers** | Model Context Protocol server management — list configured servers with transport type (stdio/SSE), add new servers (name, transport, command, URL, args), remove servers, test connection to individual servers |
-| **Auth & Pairing** | Device authentication pairing — list pending pairing codes and approved users, approve pending codes, revoke approved users, clear all pending codes |
+
+### System Administration
+
+| Page | Description |
+|------|-------------|
+| **Files** | File browser for `HERMES_HOME` — directory tree, file viewer/editor, create and delete files. Path traversal protection and binary file blocking |
+| **Terminal** | WebSocket-based terminal emulator (xterm.js) with full interactive PTY, resize support, and custom color theme |
+| **Platforms** | View connection status for all platforms (Telegram, Discord, WhatsApp, Signal, Slack, Matrix, DingTalk, Feishu, WeCom, Mattermost, Home Assistant), per-platform env var status, descriptions, configure API credentials, channel directory, pairing management |
+| **Environment** | Environment variables management — list all vars from `~/.hermes/.env`, add/edit/delete variables, required variables status panel, sensitive value masking with reveal toggle |
+| **API Keys** | Manage API keys — view, add, and remove keys for providers, tools, and platforms. Masked previews with reveal toggle |
 | **Profiles** | Hermes profile management — list all profiles with active indicator, create new profiles, set active profile, rename, delete, export profile to archive |
 | **Backup** | Backup and restore — create backup archives (config, SOUL.md, MEMORY.md, USER.md, skills, .env with optional exclusions), list backups with size and date, restore from backup, delete backups, download backup archives |
+| **Diagnostics** | Run health checks on Hermes installation — quick check (file/status verification) or full diagnostics (`hermes doctor`). Grouped results with pass/warn/fail indicators |
+| **Webhooks** | Manage Hermes webhooks — list active webhooks, create new (URL + events), delete |
 
-**Additional:** Dark/light theme toggle with system preference detection, responsive design with collapsible sidebar, contextual tooltips throughout the UI.
+### Analytics & Monitoring
+
+| Page | Description |
+|------|-------------|
+| **Insights** | Usage analytics with configurable time period — model usage charts, platform distribution, top tools, activity patterns, notable sessions, hourly activity heatmap, top 10 skills, average response time, messages by platform, tokens by day |
+| **Activity** | Audit log — chronological feed of all changes across projects, backlog items, wiki pages, tags, and system events. Filterable by entity type and action |
+| **Search History** | Search query history — browse past searches with provider badges (Brave, Tavily, Exa, Firecrawl, Linkup, AgentReach), result counts, and timestamps |
+
+### User Management
+
+| Page | Description |
+|------|-------------|
+| **Users** | User administration — list registered users, approve/reject pending registrations, change roles (admin/user), revoke access |
+| **Login** | Authentication page — username/password login with JWT token storage |
+| **Register** | User self-registration — available when no users exist yet, first user becomes admin |
+| **Auth & Pairing** | Device authentication pairing — list pending pairing codes and approved users, approve pending codes, revoke approved users, clear all pending codes |
+
+### Other
+
+| Page | Description |
+|------|-------------|
+| **Fine-Tune** | Collection of voice + transcription pairs for ASR fine-tuning — audio playback, transcript editing, stats. Only visible if fine-tune data exists |
+
+**Additional features:** Dark/light theme toggle with system preference detection, responsive design with collapsible sidebar, command palette (Ctrl+K), global search bar, contextual tooltips, notification bell, page-level error boundaries, lazy-loaded routes for performance, TanStack React Query for data fetching and caching.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Browser (SPA)                     │
-│                  React 19 + Vite 8                   │
-└──────────────────────┬──────────────────────────────┘
-                       │ REST API / WebSocket / SSE
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│                 FastAPI Backend                      │
-│              (Uvicorn, Python 3.12)                  │
-├─────────────────────────────────────────────────────┤
-│  Auth Middleware  │  Security Headers  │  CORS       │
-├─────────────────────────────────────────────────────┤
-│  25 API Routers  │  WebSocket Terminal  │  Static   │
-└──────────┬──────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                       Browser (SPA)                       │
+│                    React 19 + Vite 8                      │
+│   TanStack Query │ React Router 7 │ xterm.js │ Markdown  │
+└───────────────────────────┬──────────────────────────────┘
+                            │ REST API / WebSocket / SSE
+                            ▼
+┌──────────────────────────────────────────────────────────┐
+│                    FastAPI Backend                        │
+│                 (Uvicorn, Python 3.12)                    │
+├──────────────────────────────────────────────────────────┤
+│  Auth Middleware  │  Security Headers  │  CORS  │  Rate   │
+│  JWT Users       │  CSP               │        │  Limit  │
+├──────────────────────────────────────────────────────────┤
+│  47 API Routers  │  WebSocket Terminal  │  Static Files  │
+│  + Autofeed      │  + SSE Streams       │  + SPA Fallback│
+└──────────┬───────────────────────────────────────────────┘
            │                              │
            ▼                              ▼
     ┌──────────────┐            ┌──────────────────┐
@@ -89,11 +134,13 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
     │  skills/     │            ┌──────────────────┐
     │  memory/     │            │   Claude Code    │
     │  backups/    │            │  (tmux sessions) │
-    │  .env        │            └──────────────────┘
-    └──────────────┘            ┌──────────────────┐
-                                 │   Honcho API     │
-                                 │  (memory cloud)  │
-                                 └──────────────────┘
+    │  projects/   │            └──────────────────┘
+    │  wiki/       │            ┌──────────────────┐
+    │  leads/      │            │   Honcho API     │
+    │  backlog/    │            │  (memory cloud)  │
+    │  users.db    │            └──────────────────┘
+    │  .env        │
+    └──────────────┘
 ```
 
 - **Monorepo** structure — `backend/` (Python/FastAPI) and `frontend/` (React/Vite)
@@ -101,8 +148,8 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 - Backend reads Hermes files directly and shells out to the `hermes` CLI for mutating operations
 - Claude Code integration manages sessions via `tmux` and reads JSONL session files from `~/.claude/projects/`
 - Honcho memory connects to the [Honcho](https://github.com/honcho-ai/honcho) cloud API for session-based memory
-- **Authentication:** Bearer token via `HERMES_DASHBOARD_TOKEN` env var (optional — if not set, all access is open)
-- **Security:** CSP headers, path traversal protection, secret masking in config, binary file blocklist, 5MB file read limit, backup archive path traversal prevention
+- **Authentication:** Dual-layer — optional Bearer token via `HERMES_DASHBOARD_TOKEN` env var (API gateway) + JWT-based user accounts with roles (admin/user)
+- **Security:** CSP headers, path traversal protection, secret masking in config, binary file blocklist, 5MB file read limit, backup archive path traversal prevention, rate limiting
 
 ## Tech Stack
 
@@ -111,12 +158,12 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 | Component | Technology |
 |-----------|-----------|
 | Framework | FastAPI 0.115 |
-| Server | Uvicorn (with `[standard]` extras) |
-| Config | PyYAML |
-| Environment | python-dotenv |
-| HTTP Client | httpx (chat streaming, MOA provider testing) |
-| Database | aiosqlite (session store) |
-| Auth | Bearer token middleware |
+| Server | Uvicorn 0.34 (with `[standard]` extras) |
+| Config | PyYAML 6.0 |
+| Environment | python-dotenv 1.0 |
+| HTTP Client | httpx 0.28 (chat streaming, MOA provider testing) |
+| Database | aiosqlite 0.20 (session store, users, projects, backlog, leads, wiki) |
+| Auth | Bearer token middleware + JWT user accounts |
 
 ### Frontend
 
@@ -125,14 +172,16 @@ The dashboard runs as a single service (FastAPI backend + built React frontend) 
 | Framework | React 19 |
 | Build | Vite 8 |
 | Routing | react-router-dom 7 (HashRouter) |
-| Terminal | @xterm/xterm + addon-fit |
-| Markdown | react-markdown + remark-gfm |
+| Data Fetching | @tanstack/react-query 5 |
+| Terminal | @xterm/xterm 6 + addon-fit |
+| Markdown | react-markdown 10 + remark-gfm 4 |
 | Icons | lucide-react |
 | Styling | Custom CSS with CSS custom properties |
+| Testing | Vitest + React Testing Library |
 
 ## API Reference
 
-All endpoints are prefixed with `/api/`. Authentication via `Authorization: Bearer ***` header (if `HERMES_DASHBOARD_TOKEN` is set).
+All endpoints are prefixed with `/api/`. Authentication via `Authorization: Bearer ***` header (if `HERMES_DASHBOARD_TOKEN` is set) or JWT user token.
 
 ### Overview
 
@@ -177,33 +226,76 @@ All endpoints are prefixed with `/api/`. Authentication via `Authorization: Bear
 | PUT | `/api/config/moa/providers` | Save MOA providers configuration |
 | POST | `/api/config/moa/providers/test` | Test connection to a specific MOA provider |
 
-MOA config example (stored in `config.yaml` under the `moa` key):
+### Projects
 
-```yaml
-moa:
-  reference_models:
-    - model: qwen/qwen3-coder:free
-      provider: openrouter
-    - model: nousresearch/hermes-3-llama-3.1-405b:free
-      provider: openrouter
-    - model: openai/gpt-oss-120b:free
-      provider: openrouter
-  aggregator_model: glm-5
-  aggregator_provider: custom
-  reference_temperature: 0.6
-  aggregator_temperature: 0.4
-  min_successful_references: 1
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/projects` | List all projects |
+| POST | `/api/projects` | Create a project |
+| GET | `/api/projects/{id}` | Get project detail |
+| PUT | `/api/projects/{id}` | Update a project |
+| DELETE | `/api/projects/{id}` | Delete a project |
 
-moa_providers:
-  custom:
-    name: "My Custom Provider"
-    base_url: "https://api.example.com/v1"
-    api_key_env: "CUSTOM_API_KEY"
-    type: openai-compatible
-    models:
-      - glm-5
-      - glm-4-plus
-```
+### Backlog
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/backlog` | List backlog items |
+| POST | `/api/backlog` | Create a backlog item |
+| GET | `/api/backlog/{id}` | Get backlog item detail |
+| PUT | `/api/backlog/{id}` | Update a backlog item |
+| DELETE | `/api/backlog/{id}` | Delete a backlog item |
+| POST | `/api/backlog/{id}/autofeed` | Run autofeed scan for a backlog item |
+| GET | `/api/backlog/autofeed/sources` | List configured autofeed sources |
+| POST | `/api/backlog/autofeed/sources` | Add an autofeed source |
+| DELETE | `/api/backlog/autofeed/sources` | Remove an autofeed source |
+
+### Wiki
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/wiki` | List wiki pages |
+| POST | `/api/wiki` | Create a wiki page |
+| GET | `/api/wiki/{id}` | Get wiki page detail |
+| PUT | `/api/wiki/{id}` | Update a wiki page |
+| DELETE | `/api/wiki/{id}` | Delete a wiki page |
+| GET | `/api/wiki/search?q=...` | Search wiki pages |
+
+### Leads
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/leads` | List leads with filtering and pagination |
+| POST | `/api/leads` | Create a lead |
+| GET | `/api/leads/{id}` | Get lead detail |
+| PUT | `/api/leads/{id}` | Update a lead |
+| DELETE | `/api/leads/{id}` | Delete a lead |
+| GET | `/api/leads/stats` | Lead pipeline statistics |
+
+### Users & Auth
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/users/register` | Register a new user |
+| POST | `/api/users/login` | Login (returns JWT) |
+| GET | `/api/users/list` | List all users (admin) |
+| POST | `/api/users/{id}/approve` | Approve a pending user |
+| POST | `/api/users/{id}/reject` | Reject a pending user |
+| POST | `/api/users/{id}/role` | Change user role |
+| GET | `/api/users/registration-status` | Check if registration is available |
+
+### Activity & Search
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/activity` | List activity/audit log entries |
+| GET | `/api/search` | Global search across entities |
+| GET | `/api/search/history` | List search history entries |
+| DELETE | `/api/search/history/{id}` | Delete a search history entry |
+| GET | `/api/tags` | List all tags |
+| POST | `/api/tags` | Create a tag |
+| PUT | `/api/tags/{id}` | Rename a tag |
+| DELETE | `/api/tags/{id}` | Delete a tag |
 
 ### Sessions
 
@@ -229,8 +321,6 @@ moa_providers:
 | GET | `/api/memory/files/{name}` | Read a memory file |
 | PUT | `/api/memory/files/{name}` | Save a memory file |
 | GET | `/api/memory/all` | List all memory files |
-| GET | `/api/memory/read?path=...` | Read file by path |
-| POST | `/api/memory/save` | Save file by path |
 | POST | `/api/memory/create` | Create new memory file |
 | DELETE | `/api/memory/delete` | Delete memory file |
 
@@ -238,46 +328,43 @@ moa_providers:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/memory/vector/available` | Check if vector memory (LanceDB) is available |
+| GET | `/api/memory/vector/available` | Check if vector memory is available |
 | GET | `/api/memory/vector/stats` | Vector memory statistics |
 | GET | `/api/memory/vector/list` | List vector memories |
 | GET | `/api/memory/vector/search` | Semantic search in vector memory |
 | POST | `/api/memory/vector/store` | Store a new vector memory |
 | DELETE | `/api/memory/vector/delete` | Delete a vector memory by ID |
-| GET | `/api/memory/vector/usage` | Estimate embedding API usage |
 
 ### Honcho Memory
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/memory/honcho/status` | Check if Honcho memory is configured and functional |
-| GET | `/api/memory/honcho/stats` | Honcho memory statistics (sessions, peers, metadata) |
-| GET | `/api/memory/honcho/profile` | Honcho user profile (peers + configuration) |
-| GET | `/api/memory/honcho/memories?limit=N` | List recent Honcho sessions as memory context |
+| GET | `/api/memory/honcho/status` | Check if Honcho memory is configured |
+| GET | `/api/memory/honcho/stats` | Honcho memory statistics |
+| GET | `/api/memory/honcho/profile` | Honcho user profile |
+| GET | `/api/memory/honcho/memories?limit=N` | List recent Honcho sessions |
 | GET | `/api/memory/honcho/search?q=...&top_k=N` | Semantic search in Honcho memory |
-
-Honcho requires `memory.provider: honcho` in `config.yaml` and `HONCHO_API_KEY` in `~/.hermes/.env`.
 
 ### Claude Code Integration
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/claude-code/active` | List active Claude Code tmux sessions |
-| GET | `/api/claude-code/history?limit=N&project=...` | List past sessions from `~/.claude/projects/` |
-| GET | `/api/claude-code/stats` | Claude Code statistics (active, total past, projects) |
+| GET | `/api/claude-code/history?limit=N&project=...` | List past sessions |
+| GET | `/api/claude-code/stats` | Claude Code statistics |
 | GET | `/api/claude-code/projects` | List all Claude Code projects |
-| GET | `/api/claude-code/output?session=...&lines=N` | Capture current tmux session output |
-| GET | `/api/claude-code/session/{id}/messages?limit=N` | Read messages from a past session JSONL |
+| GET | `/api/claude-code/output?session=...&lines=N` | Capture current tmux output |
+| GET | `/api/claude-code/session/{id}/messages?limit=N` | Read session JSONL messages |
 | POST | `/api/claude-code/new` | Create a new Claude Code tmux session |
-| POST | `/api/claude-code/send` | Send text to a Claude Code session |
-| POST | `/api/claude-code/stop` | Send Ctrl+C to a Claude Code session |
+| POST | `/api/claude-code/send` | Send text to a session |
+| POST | `/api/claude-code/stop` | Send Ctrl+C to a session |
 | DELETE | `/api/claude-code/session` | Kill a tmux session |
 
 ### Environment Variables
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/env-vars/list` | List all environment variables from `~/.hermes/.env` |
+| GET | `/api/env-vars/list` | List all environment variables |
 | PUT | `/api/env-vars/set` | Set or update an environment variable |
 | DELETE | `/api/env-vars/delete` | Delete an environment variable |
 | GET | `/api/env-vars/required` | List required environment variables with status |
@@ -295,9 +382,9 @@ Honcho requires `memory.provider: honcho` in `config.yaml` and `HONCHO_API_KEY` 
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/plugins/list` | List installed Hermes plugins |
-| POST | `/api/plugins/install` | Install a plugin from a Git URL |
-| POST | `/api/plugins/remove` | Remove an installed plugin |
+| GET | `/api/plugins/list` | List installed plugins |
+| POST | `/api/plugins/install` | Install a plugin from Git URL |
+| POST | `/api/plugins/remove` | Remove a plugin |
 | POST | `/api/plugins/enable` | Enable a plugin |
 | POST | `/api/plugins/disable` | Disable a plugin |
 | POST | `/api/plugins/update` | Update a plugin to latest version |
@@ -317,28 +404,26 @@ Honcho requires `memory.provider: honcho` in `config.yaml` and `HONCHO_API_KEY` 
 |--------|----------|-------------|
 | GET | `/api/profiles/list` | List all Hermes profiles |
 | POST | `/api/profiles/create` | Create a new profile |
-| POST | `/api/profiles/use` | Set a profile as active default |
+| POST | `/api/profiles/use` | Set a profile as active |
 | POST | `/api/profiles/rename` | Rename a profile |
 | DELETE | `/api/profiles/delete` | Delete a profile |
-| POST | `/api/profiles/export` | Export a profile to an archive |
+| POST | `/api/profiles/export` | Export a profile to archive |
 
 ### Backup & Restore
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/backup/create` | Create a backup archive (`include_env`, `include_skills` options) |
-| GET | `/api/backup/list` | List available backup archives |
-| POST | `/api/backup/restore` | Restore from a backup archive |
-| DELETE | `/api/backup/delete` | Delete a backup archive |
+| POST | `/api/backup/create` | Create a backup archive |
+| GET | `/api/backup/list` | List available backups |
+| POST | `/api/backup/restore` | Restore from a backup |
+| DELETE | `/api/backup/delete` | Delete a backup |
 | GET | `/api/backup/download/{filename}` | Download a backup archive |
-
-Backups are stored as `tar.gz` archives in `~/.hermes/backups/` and include: `SOUL.md`, `memories/MEMORY.md`, `memories/USER.md`, `config.yaml`, optionally `.env` and `skills/` (files under 5MB).
 
 ### API Keys
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/api-keys` | List all API key definitions with status |
+| GET | `/api/api-keys` | List all API key definitions |
 | POST | `/api/api-keys/set` | Set an API key value |
 | POST | `/api/api-keys/delete` | Remove an API key |
 
@@ -346,12 +431,12 @@ Backups are stored as `tar.gz` archives in `~/.hermes/backups/` and include: `SO
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/fine-tune/available` | Check if fine-tune training data exists |
+| GET | `/api/fine-tune/available` | Check if fine-tune data exists |
 | GET | `/api/fine-tune/pairs` | List voice + transcription pairs |
 | PUT | `/api/fine-tune/pairs/{base_name}` | Update a pair's transcript |
-| DELETE | `/api/fine-tune/pairs/{base_name}` | Delete a pair (audio + transcript) |
+| DELETE | `/api/fine-tune/pairs/{base_name}` | Delete a pair |
 | GET | `/api/fine-tune/stats` | Global fine-tune statistics |
-| GET | `/api/fine-tune/audio/{date}/{base_name}` | Serve audio file for playback |
+| GET | `/api/fine-tune/audio/{date}/{base_name}` | Serve audio file |
 
 ### Tools
 
@@ -432,16 +517,16 @@ Backups are stored as `tar.gz` archives in `~/.hermes/backups/` and include: `SO
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/diagnostics/run` | Run `hermes doctor` full diagnostics |
-| GET | `/api/diagnostics/quick` | Quick health checks (gateway, config, env, files, disk) |
+| POST | `/api/diagnostics/run` | Run full diagnostics |
+| GET | `/api/diagnostics/quick` | Quick health checks |
 
 ### Webhooks
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/webhooks/list` | List configured webhooks |
-| POST | `/api/webhooks/create` | Create a new webhook (URL + events) |
-| DELETE | `/api/webhooks/delete` | Delete a webhook by URL |
+| POST | `/api/webhooks/create` | Create a new webhook |
+| DELETE | `/api/webhooks/delete` | Delete a webhook |
 
 ### WebSocket
 
@@ -535,11 +620,20 @@ cd frontend
 npm run dev    # http://localhost:5173, proxies /api to backend
 ```
 
+### Testing
+
+```bash
+cd frontend
+npm test              # Run tests with Vitest
+npm run test:watch    # Watch mode
+npm run test:coverage # Coverage report
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HERMES_DASHBOARD_TOKEN` | _(none)_ | Bearer token for API authentication. If not set, all access is open |
+| `HERMES_DASHBOARD_TOKEN` | _(none)_ | Bearer token for API gateway authentication. If not set, all access is open |
 | `HERMES_HOME` | `~/.hermes` | Path to the Hermes Agent configuration directory |
 | `HERMES_BIN` | `/root/.local/bin/hermes` | Path to the Hermes CLI binary |
 | `HERMES_PYTHON` | `/root/.hermes/hermes-agent/venv/bin/python` | Path to the Hermes Agent virtualenv python |
@@ -558,39 +652,62 @@ hermes-dashboard/
 │   └── hermes-dashboard.service
 ├── backend/
 │   ├── requirements.txt
-│   ├── static/                    # Built frontend (generated)
+│   ├── static/                        # Built frontend (generated)
 │   └── app/
 │       ├── __init__.py
-│       ├── main.py                # FastAPI app, CORS, auth, security, static serving
-│       ├── config.py              # Environment & config loading
-│       ├── auth.py                # Bearer token middleware
-│       ├── utils.py               # hermes_path(), run_hermes(), mask_secrets()
+│       ├── main.py                    # FastAPI app, CORS, auth, security, static serving
+│       ├── config.py                  # Environment & config loading
+│       ├── auth.py                    # Bearer token middleware
+│       ├── utils.py                   # hermes_path(), run_hermes(), mask_secrets()
 │       └── routers/
-│           ├── overview.py        # Dashboard overview, logs, system metrics, version
-│           ├── config.py          # Config CRUD, dot-notation update, MOA config & providers
-│           ├── sessions.py        # Session management
-│           ├── memory.py          # SOUL.md, MEMORY.md, memory files, vector memory, Honcho memory
-│           ├── tools.py           # Tool listing, enable/disable, config
-│           ├── skills.py          # Skill management & Skills Hub
-│           ├── cron.py            # Cron job management
-│           ├── models.py          # Model info & switching
-│           ├── platforms.py       # Platform status, pairing, env vars, configure
-│           ├── insights.py        # Usage analytics
-│           ├── chat.py            # Chat sessions & SSE streaming
-│           ├── files.py           # File browser & editor
-│           ├── terminal.py        # WebSocket PTY terminal
-│           ├── api_keys.py        # API key management
-│           ├── fine_tune.py       # Fine-tune voice + transcription pairs
-│           ├── gateway.py         # Gateway service control, logs, SSE streaming
-│           ├── diagnostics.py     # Health checks, hermes doctor integration
-│           ├── webhooks.py        # Webhook management
-│           ├── env_vars.py        # Environment variables management
-│           ├── plugins_router.py  # Plugin management (list, install, remove, enable, disable, update)
-│           ├── mcp.py             # MCP server management (list, add, remove, test)
-│           ├── auth_pairing.py    # Device pairing (list, approve, revoke, clear-pending)
-│           ├── profiles.py        # Profile management (list, create, use, rename, delete, export)
-│           ├── backup.py          # Backup & restore (create, list, restore, delete, download)
-│           └── claude_code.py     # Claude Code integration (sessions, history, stats, control)
+│           ├── overview.py            # Dashboard overview, logs, system metrics, version
+│           ├── config.py              # Config CRUD, MOA config & providers
+│           ├── sessions.py            # Session management
+│           ├── memory.py              # SOUL.md, MEMORY.md, memory files, vector, Honcho
+│           ├── tools.py               # Tool listing, enable/disable, config
+│           ├── skills.py              # Skill management & Skills Hub
+│           ├── skills_security.py     # Skills security checks
+│           ├── cron.py                # Cron job management
+│           ├── models.py              # Model info & switching
+│           ├── platforms.py           # Platform status, pairing, configure
+│           ├── insights.py            # Usage analytics
+│           ├── chat.py                # Chat sessions & SSE streaming
+│           ├── files.py               # File browser & editor
+│           ├── terminal.py            # WebSocket PTY terminal
+│           ├── api_keys.py            # API key management
+│           ├── fine_tune.py           # Fine-tune voice + transcription pairs
+│           ├── gateway.py             # Gateway service control, logs, SSE streaming
+│           ├── diagnostics.py         # Health checks, hermes doctor
+│           ├── webhooks.py            # Webhook management
+│           ├── env_vars.py            # Environment variables management
+│           ├── plugins_router.py      # Plugin management
+│           ├── mcp.py                 # MCP server management
+│           ├── mcp_oauth.py           # MCP OAuth authentication flow
+│           ├── auth_pairing.py        # Device pairing
+│           ├── profiles.py            # Profile management
+│           ├── backup.py              # Backup & restore
+│           ├── claude_code.py         # Claude Code integration
+│           ├── projects.py            # Project tracking CRUD
+│           ├── backlog.py             # Task backlog with autofeed
+│           ├── wiki.py                # Knowledge base pages
+│           ├── leads.py               # CRM lead pipeline
+│           ├── users.py               # User accounts, JWT auth, roles
+│           ├── activity.py            # Audit log
+│           ├── search.py              # Global search
+│           ├── search_history.py      # Search query history
+│           ├── tags.py                # Cross-entity tagging
+│           ├── notifications.py       # Notification system
+│           ├── export.py              # Data export
+│           ├── context.py             # AI conversation context
+│           ├── context_status.py      # Real-time context status
+│           ├── code_execution.py      # Code execution sandbox
+│           ├── delegation.py          # Task delegation
+│           ├── approvals.py           # Approval workflows
+│           ├── vision.py              # Computer vision
+│           ├── rl_training.py         # RL training jobs
+│           ├── tts_test.py            # TTS testing
+│           ├── discord_listings.py    # Discord integration
+│           └── github_config.py       # GitHub configuration
 └── frontend/
     ├── package.json
     ├── vite.config.js
@@ -598,12 +715,28 @@ hermes-dashboard/
     ├── index.html
     └── src/
         ├── main.jsx
-        ├── api.js                 # Centralized API client (all endpoints)
-        ├── index.css              # Global styles & CSS custom properties
+        ├── api.js                     # Centralized API client
+        ├── index.css                  # Global styles & CSS custom properties
+        ├── utils/
+        │   └── format.js             # Formatting utilities
+        ├── hooks/
+        │   ├── useApi.js             # TanStack Query hooks for all endpoints
+        │   └── useWebSocket.js       # WebSocket connection hook
         ├── contexts/
-        │   └── ThemeContext.jsx    # Dark/light theme provider
+        │   ├── ThemeContext.jsx       # Dark/light theme provider
+        │   └── ToastContext.jsx       # Toast notification provider
         ├── components/
-        │   └── Tooltip.jsx        # Reusable tooltip component
+        │   ├── Tooltip.jsx            # Reusable tooltip
+        │   ├── ConfirmModal.jsx       # Confirmation dialog
+        │   ├── ErrorBoundary.jsx      # Error boundary
+        │   ├── PageErrorBoundary.jsx  # Per-page error boundary
+        │   ├── CommandPalette.jsx     # Ctrl+K command palette
+        │   ├── GlobalSearch.jsx       # Global search bar
+        │   ├── TagSelector.jsx        # Cross-entity tag picker
+        │   ├── NotificationBell.jsx   # Notification indicator
+        │   ├── AutofeedIndicator.jsx  # Backlog autofeed status
+        │   ├── PageHeader.jsx         # Reusable page header
+        │   └── EmptyState.jsx         # Empty state placeholder
         └── pages/
             ├── Overview.jsx
             ├── Chat.jsx
@@ -619,19 +752,29 @@ hermes-dashboard/
             ├── Models.jsx
             ├── Platforms.jsx
             ├── ApiKeys.jsx
-            ├── FineTune.jsx           # Voice + transcription pairs
+            ├── FineTune.jsx
             ├── Insights.jsx
-            ├── GatewayControl.jsx     # Gateway service control & live logs
-            ├── Diagnostics.jsx        # Health checks
-            ├── Webhooks.jsx           # Webhook management
-            ├── EnvVars.jsx            # Environment variables management
-            ├── Plugins.jsx            # Plugin management
-            ├── McpServers.jsx         # MCP server management
-            ├── AuthPairing.jsx        # Device pairing
-            ├── Profiles.jsx           # Profile management
-            ├── BackupRestore.jsx      # Backup & restore
-            ├── ClaudeCode.jsx         # Claude Code integration
-            └── MoaConfig.jsx          # Mixture of Agents configuration
+            ├── GatewayControl.jsx
+            ├── Diagnostics.jsx
+            ├── Webhooks.jsx
+            ├── EnvVars.jsx
+            ├── Plugins.jsx
+            ├── McpServers.jsx
+            ├── AuthPairing.jsx
+            ├── Profiles.jsx
+            ├── BackupRestore.jsx
+            ├── ClaudeCode.jsx
+            ├── MoaConfig.jsx
+            ├── Projects.jsx           # Project tracking
+            ├── Backlog.jsx            # Task backlog with autofeed
+            ├── Wiki.jsx               # Knowledge base
+            ├── Leads.jsx              # CRM pipeline
+            ├── Users.jsx              # User administration
+            ├── Activity.jsx           # Audit log
+            ├── SearchHistory.jsx      # Search history
+            ├── Login.jsx              # Authentication
+            ├── Register.jsx           # User registration
+            └── NotFound.jsx           # 404 page
 ```
 
 ## Reverse Proxy
@@ -672,30 +815,31 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ---
 
-## 🇫🇷 Français — Résumé du projet
+## Francais — Resume du projet
 
-**Hermes Dashboard** est une interface web d'administration complète pour [Hermes Agent](https://github.com/nousresearch/hermes-agent), l'agent IA de Nous Research. Il permet de configurer, surveiller et gérer toutes les fonctionnalités de l'agent depuis un navigateur.
+**Hermes Dashboard** est une interface web d'administration pour [Hermes Agent](https://github.com/nousresearch/hermes-agent), l'agent IA de Nous Research. Configuration, surveillance et gestion complete depuis un navigateur.
 
-### Fonctionnalités principales
+### Chiffres cles
 
-- **27 pages** couvrant tous les aspects de l'administration : configuration, sessions, fichiers, terminal, outils, skills, cron jobs, mémoire, modèles, plateformes, API keys, insights, diagnostics, webhooks
-- **Claude Code** : surveillance et contrôle des sessions Claude Code via tmux (statut temps réel, envoi de messages, historique)
-- **MOA (Mixture of Agents)** : configuration multi-fournisseur avec modèles de référence, agrégateur, et test de connexion en direct
-- **MCP (Model Context Protocol)** : gestion des serveurs MCP (ajout, suppression, test de connexion)
-- **Plugins** : installation depuis Git, activation/désactivation, mise à jour
-- **Profils** : gestion des profils Hermes (création, changement de profil actif, renommage, export)
-- **Sauvegarde** : création d'archives `tar.gz` (config, SOUL.md, mémoire, skills, .env), restauration, téléchargement
-- **Variables d'environnement** : gestion complète du fichier `.env` avec masquage des valeurs sensibles
-- **Authentification & Pairing** : approbation/ révocation des codes d'appairage appareil
-- **Mémoire multi-providers** : fichiers Markdown, mémoire vectorielle (LanceDB), et mémoire cloud (Honcho)
-- **Terminal intégré** : émulateur de terminal via WebSocket (xterm.js)
+- **47 routeurs** API backend (FastAPI)
+- **37 pages** frontend (React 19 + Vite 8)
+- Authentification JWT avec gestion des roles (admin/user)
+- Palette de commandes (Ctrl+K), recherche globale, notifications
 
-### Architecture
+### Fonctionnalites principales
 
-- **Backend** : FastAPI (Python 3.12+) avec 25 routeurs API
-- **Frontend** : React 19 + Vite 8, monorepo
-- **Authentification** : jeton Bearer optionnel (`HERMES_DASHBOARD_TOKEN`)
-- **Sécurité** : en-têtes CSP, protection contre le path traversal, masquage des secrets
+- **Gestion de projets** : CRUD avec types, statuts, tags, liens GitHub
+- **Backlog intelligent** : taches avec autofeed LLM (scan de sources, suggestions automatisees)
+- **Wiki** : base de connaissances structuree (entites, concepts, comparaisons, requetes)
+- **CRM/Leads** : pipeline commercial (new → won/lost) avec statistiques
+- **Gestion utilisateurs** : inscription, approbation, roles admin/user
+- **Claude Code** : surveillance et controle des sessions tmux
+- **MOA** : Mixture of Agents multi-fournisseur avec test de connexion
+- **MCP** : gestion des serveurs Model Context Protocol
+- **Memoire multi-providers** : fichiers Markdown, LanceDB (vectoriel), Honcho (cloud)
+- **Terminal integre** : emulateur via WebSocket (xterm.js)
+- **Plugins, profils, sauvegardes, webhooks, cron jobs**
+- **Analytics** : insights d'utilisation, journal d'activite, historique de recherche
 
 ### Installation rapide
 
@@ -707,4 +851,4 @@ cd frontend && npm install && npm run build && cd ..
 PYTHONPATH=. python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 3100
 ```
 
-Ouvrir [http://127.0.0.1:3100](http://127.0.0.1:3100) dans le navigateur.
+Ouvrir [http://127.0.0.1:3100](http://127.0.0.1:3100).
