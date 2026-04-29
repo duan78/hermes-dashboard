@@ -103,8 +103,8 @@ async def search_sessions(q: str = Query(min_length=1, max_length=200)):
 
 
 @router.get("", response_model=list[SessionSummary])
-async def list_sessions():
-    """List all unique sessions with metadata, deduplicated by session_id."""
+async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: int = Query(default=0, ge=0)):
+    """List unique sessions with metadata, paginated and deduplicated by session_id."""
     sessions_dir = hermes_path("sessions")
     if not sessions_dir.exists():
         return []
@@ -122,20 +122,26 @@ async def list_sessions():
                 continue
             seen_ids.add(sid)
 
+            # Early exit if we have enough sessions past the offset
+            if len(sessions) >= offset + limit:
+                break
+
             created_at = data.get("created_at", "")
             preview = data.get("preview", "")
             msg_count = data.get("message_count", 0)
 
-            # Read JSONL once for both message count and preview extraction
+            # Only read JSONL if we're missing critical data
             jsonl_path = hermes_path("sessions", f"{sid}.jsonl")
-            if jsonl_path.exists():
+            if (not msg_count or not preview) and jsonl_path.exists():
                 try:
                     jsonl_text = jsonl_path.read_text(errors="replace").strip()
                     lines = jsonl_text.split("\n")
-                    msg_count = sum(1 for l in lines if l.strip())
+
+                    if not msg_count:
+                        msg_count = sum(1 for l in lines if l.strip())
 
                     if not preview:
-                        for line in lines:
+                        for line in lines[:20]:  # Only scan first 20 lines
                             if not line.strip():
                                 continue
                             msg = json.loads(line)
@@ -160,7 +166,8 @@ async def list_sessions():
         except (json.JSONDecodeError, Exception) as e:
             logger.debug("Skipping session file %s: %s", f.name, e)
             continue
-    return sessions
+    # Apply pagination
+    return sessions[offset:offset + limit]
 
 
 @router.get("/stats", response_model=SessionStats)
@@ -175,74 +182,91 @@ async def sessions_stats():
 
 @router.get("/linked-projects")
 async def get_linked_projects():
-    """Return mapping of session_id -> project for sessions that match a project."""
+    """Return mapping of session_id -> project for sessions that match a project.
+
+    Optimized: reads each session file only once, matches against all projects
+    in a single pass.
+    """
     projects_file = hermes_path("projects.json")
     if not projects_file.exists():
         return {"mappings": {}}
 
-    import re
     projects_data = json.loads(projects_file.read_text())
     projects = projects_data.get("items", projects_data) if isinstance(projects_data, dict) else projects_data
     sessions_dir = hermes_path("sessions")
     if not sessions_dir.exists():
         return {"mappings": {}}
 
-    mappings = {}
-
+    # Pre-build project search terms (only projects with keywords)
+    proj_terms = []
     for proj in projects:
-        pid = proj.get("id", "")
         name = proj.get("name", "").lower()
         keywords = [k.lower() for k in proj.get("keywords", [])]
         if not name and not keywords:
             continue
-
         search_terms = [name] + keywords
         long_terms = [t for t in search_terms if len(t) >= 4]
+        proj_terms.append({
+            "id": proj.get("id", ""),
+            "name": proj.get("name", ""),
+            "type": proj.get("type", ""),
+            "search_terms": search_terms,
+            "long_terms": long_terms,
+        })
 
-        # Scan session files for matches
-        for f in sessions_dir.glob("session_*.json"):
-            try:
-                data = json.loads(f.read_text())
-                sid = data.get("session_id", f.stem.replace("session_", ""))
-                if sid in mappings:
-                    continue
+    if not proj_terms:
+        return {"mappings": {}}
 
+    mappings = {}
+
+    # Single pass through sessions — read each file once
+    for f in sessions_dir.glob("session_*.json"):
+        try:
+            data = json.loads(f.read_text())
+            sid = data.get("session_id", f.stem.replace("session_", ""))
+
+            # Use the preview field from the JSON metadata (already extracted)
+            head_content = (data.get("preview", "") or "").lower()
+
+            # If preview is too short, read first 3 user messages from JSONL
+            if len(head_content) < 100:
                 jsonl_path = sessions_dir / f"{sid}.jsonl"
-                if not jsonl_path.exists():
-                    continue
-
-                # Scan first 5 messages only
-                head_content = ""
-                msg_count = 0
-                for line in jsonl_path.read_text(errors="replace").strip().split("\n")[:5]:
-                    if not line.strip():
-                        continue
-                    try:
-                        msg = json.loads(line)
-                        role = msg.get("role", "")
-                        if role in ("system", "context", "compaction", "session_meta"):
+                if jsonl_path.exists():
+                    extra = []
+                    for line in jsonl_path.read_text(errors="replace").strip().split("\n")[:10]:
+                        if not line.strip():
                             continue
-                        content = msg.get("content", "")
-                        if content:
-                            head_content += content.lower() + " "
-                            msg_count += 1
-                        if msg_count >= 5:
-                            break
-                    except Exception:
-                        continue
+                        try:
+                            msg = json.loads(line)
+                            if msg.get("role") in ("system", "context", "compaction", "session_meta"):
+                                continue
+                            c = msg.get("content", "")
+                            if isinstance(c, str) and c:
+                                extra.append(c.lower())
+                            if len(extra) >= 3:
+                                break
+                        except Exception:
+                            continue
+                    head_content = " ".join(extra)
 
-                # Match: require 2+ terms OR 1 long term
-                matches = sum(1 for t in search_terms if t and t in head_content)
-                long_matches = sum(1 for t in long_terms if t and t in head_content)
-
-                if (matches >= 2 and long_matches >= 1) or (len(search_terms) == 1 and matches >= 1):
-                    mappings[sid] = {
-                        "id": pid,
-                        "name": proj.get("name", ""),
-                        "type": proj.get("type", ""),
-                    }
-            except Exception:
+            if not head_content:
                 continue
+
+            # Match against all projects
+            for pt in proj_terms:
+                matches = sum(1 for t in pt["search_terms"] if t and t in head_content)
+                long_matches = sum(1 for t in pt["long_terms"] if t and t in head_content)
+
+                if (matches >= 2 and long_matches >= 1) or (len(pt["search_terms"]) == 1 and matches >= 1):
+                    mappings[sid] = {
+                        "id": pt["id"],
+                        "name": pt["name"],
+                        "type": pt["type"],
+                    }
+                    break  # One session → one project max
+
+        except Exception:
+            continue
 
     return {"mappings": mappings}
 
