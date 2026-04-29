@@ -239,10 +239,13 @@ def _copy_secrets(repo_dir: Path) -> list[str]:
     return files_pushed
 
 
+DAILY_MEMORY_DIR = Path("/root/memory")
+
+
 def _copy_daily_memories(repo_dir: Path, max_days: int = 30) -> list[str]:
     """Copy the last N daily memory files into the repo."""
     files_pushed = []
-    memories_dir = HERMES_HOME / "memories"
+    memories_dir = DAILY_MEMORY_DIR
     if not memories_dir.exists():
         return files_pushed
 
