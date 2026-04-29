@@ -471,7 +471,25 @@ async def get_project_sessions(project_id: str):
                     # from keywords mentioned mid-conversation in unrelated sessions)
                     all_lines = sf.read_text(errors="ignore").split("\n")
                     head_lines = all_lines[:10]
-                    head_content = "\n".join(head_lines).lower()
+                    head_content = ""
+
+                    # Build searchable content, skipping system/context/compaction messages
+                    # that contain cross-project references from session summaries
+                    for line in head_lines:
+                        if not line.strip():
+                            continue
+                        try:
+                            entry = json.loads(line)
+                            role = entry.get("role", entry.get("type", ""))
+                            if role in ("system", "context", "compaction", "session_meta"):
+                                continue
+                            # Skip context compaction summaries
+                            content = entry.get("content", "") or entry.get("message", "") or ""
+                            if "CONTEXT COMPACTION" in content or " Earlier turns were compacted" in content:
+                                continue
+                            head_content += "\n" + content.lower()
+                        except (json.JSONDecodeError, Exception):
+                            head_content += "\n" + line.lower()
 
                     matching_terms = [t for t in search_terms if t in head_content]
                     matching_long = [t for t in long_terms if t in head_content]
