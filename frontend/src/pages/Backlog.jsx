@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles, FolderKanban, Clock, Tag, MessageSquare, AlertTriangle, ExternalLink, FileText, Activity } from 'lucide-react'
+import { ClipboardList, Plus, Check, Pencil, Trash2, X, RefreshCw, Play, Loader2, Zap, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Sparkles, FolderKanban, Clock, Tag, MessageSquare, AlertTriangle, ExternalLink, FileText, Activity, ArrowRight } from 'lucide-react'
 import { api } from '../api'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -146,6 +146,14 @@ export default function Backlog() {
   var _useState20 = useState(null)
   var drawerItem = _useState20[0]
   var setDrawerItem = _useState20[1]
+
+  var _useState21 = useState([])
+  var drawerSessions = _useState21[0]
+  var setDrawerSessions = _useState21[1]
+
+  var _useState22 = useState(false)
+  var drawerSessionsLoading = _useState22[0]
+  var setDrawerSessionsLoading = _useState22[1]
 
   var toast = useToast().toast
 
@@ -427,6 +435,14 @@ export default function Backlog() {
 
   function openDrawer(item) {
     setDrawerItem(item)
+    setDrawerSessions([])
+    if (item.title) {
+      setDrawerSessionsLoading(true)
+      api.searchSessions(item.title).then(function (results) {
+        setDrawerSessions((results || []).slice(0, 5))
+        setDrawerSessionsLoading(false)
+      }).catch(function () { setDrawerSessionsLoading(false) })
+    }
   }
 
   function closeDrawer() {
@@ -744,18 +760,32 @@ export default function Backlog() {
                 </div>
               )}
 
-              {/* Linked Project */}
-              {drawerItem.project_id && (
+              {/* Projet lié */}
+              {drawerItem.project_id && projectMap[drawerItem.project_id] && (
                 <div className="drawer-section">
                   <h4 className="drawer-section-title"><FolderKanban size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Projet lié</h4>
-                  <button
-                    className="drawer-project-link"
-                    onClick={function () { navigate('/projects') }}
+                  <div
+                    onClick={function () { closeDrawer(); navigate('/projects') }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 12px',
+                      background: 'rgba(139,92,246,0.1)',
+                      border: '1px solid rgba(139,92,246,0.2)',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      color: '#a78bfa',
+                      transition: 'border-color 0.15s'
+                    }}
+                    onMouseEnter={function (e) { e.currentTarget.style.borderColor = '#a78bfa' }}
+                    onMouseLeave={function (e) { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.2)' }}
                   >
                     <FolderKanban size={14} />
-                    {projectMap[drawerItem.project_id] ? projectMap[drawerItem.project_id].name : drawerItem.project_id}
-                    <ExternalLink size={12} style={{ marginLeft: 4 }} />
-                  </button>
+                    <strong>{projectMap[drawerItem.project_id].name}</strong>
+                    <ArrowRight size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
+                  </div>
                 </div>
               )}
 
@@ -808,6 +838,48 @@ export default function Backlog() {
                     })}
                   </div>
                 </div>
+              )}
+
+              {/* Sessions liées */}
+              {drawerSessions.length > 0 && (
+                <div className="drawer-section">
+                  <h4 className="drawer-section-title">
+                    <MessageSquare size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />
+                    Sessions liées ({drawerSessions.length})
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {drawerSessions.map(function (s) {
+                      return (
+                        <div
+                          key={s.id}
+                          onClick={function () { closeDrawer(); navigate('/sessions/' + s.id) }}
+                          style={{
+                            padding: '8px 10px',
+                            background: 'var(--bg-tertiary)',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            border: '1px solid var(--border)',
+                            fontSize: 12,
+                            transition: 'border-color 0.15s'
+                          }}
+                          onMouseEnter={function (e) { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                          onMouseLeave={function (e) { e.currentTarget.style.borderColor = 'var(--border)' }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>{s.id.slice(0, 20)}...</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{s.messages_count} msgs</span>
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {s.preview || s.snippet || 'Aucun aperçu'}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {drawerSessionsLoading && (
+                <div style={{ textAlign: 'center', padding: 10 }}><div className="spinner" /></div>
               )}
             </div>
 
