@@ -467,6 +467,7 @@ async def get_project_sessions(project_id: str):
                         # Extract basic session info from first few lines
                         lines = content.split("\n")[:5]
                         session_info = {
+                            "id": sf.stem,
                             "filename": sf.name,
                             "name": sf.stem,
                             "size": sf.stat().st_size,
