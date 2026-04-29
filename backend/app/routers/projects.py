@@ -467,11 +467,15 @@ async def get_project_sessions(project_id: str):
             files = sorted(sessions_dir.glob("*.jsonl"), reverse=True)[:50]
             for sf in files:
                 try:
-                    content = sf.read_text(errors="ignore")
-                    content_lower = content.lower()
-                    matching_terms = [t for t in search_terms if t in content_lower]
-                    matching_long = [t for t in long_terms if t in content_lower]
-                    matching_short = [t for t in short_terms if t in content_lower]
+                    # Only scan first 10 messages for relevance (avoid false positives
+                    # from keywords mentioned mid-conversation in unrelated sessions)
+                    all_lines = sf.read_text(errors="ignore").split("\n")
+                    head_lines = all_lines[:10]
+                    head_content = "\n".join(head_lines).lower()
+
+                    matching_terms = [t for t in search_terms if t in head_content]
+                    matching_long = [t for t in long_terms if t in head_content]
+                    matching_short = [t for t in short_terms if t in head_content]
 
                     # Require at least min_matches total, AND at least one long term
                     if len(matching_terms) >= min_matches and len(matching_long) >= 1:
@@ -479,7 +483,6 @@ async def get_project_sessions(project_id: str):
                         score = len(matching_long) * 10 + len(matching_short)
 
                         # Extract basic session info from first few lines
-                        lines = content.split("\n")[:5]
                         session_info = {
                             "id": sf.stem,
                             "filename": sf.name,
@@ -487,7 +490,7 @@ async def get_project_sessions(project_id: str):
                             "size": sf.stat().st_size,
                         }
                         # Try to extract platform and date from first line
-                        for line in lines:
+                        for line in head_lines:
                             try:
                                 entry = json.loads(line)
                                 session_info["platform"] = entry.get("platform", "")
@@ -496,10 +499,9 @@ async def get_project_sessions(project_id: str):
                             except (json.JSONDecodeError, Exception):
                                 pass
 
-                        # Get a preview
-                        preview_lines = content.split("\n")[:10]
+                        # Get a preview from human messages in the header
                         preview_text = ""
-                        for line in preview_lines:
+                        for line in head_lines:
                             try:
                                 entry = json.loads(line)
                                 if entry.get("type") == "human":
