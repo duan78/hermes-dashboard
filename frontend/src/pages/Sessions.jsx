@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MessageSquare, Trash2, Download, ArrowLeft, Clock, RefreshCw, Search, X, Scissors, Loader2, BarChart3, Calendar, FileDown, FolderKanban, ClipboardList, FileText, Activity } from 'lucide-react'
+import { MessageSquare, Trash2, Download, ArrowLeft, ArrowRight, Clock, RefreshCw, Search, X, Scissors, Loader2, BarChart3, Calendar, FileDown, FolderKanban, ClipboardList, FileText, Activity } from 'lucide-react'
 import { useSessions, useSession, useSearchSessions, useDeleteSession, usePruneSessions, useExportSession } from '../hooks/useApi'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
@@ -40,8 +40,16 @@ function TokenUsageBar({ tokens, label, color }) {
 }
 
 function SessionDetail({ sessionId, onBack }) {
+  const navigate = useNavigate()
   const { data: session, isLoading, refetch } = useSession(sessionId)
   const [exporting, setExporting] = useState(false)
+  const [linkedProjects, setLinkedProjects] = useState({})
+
+  useEffect(() => {
+    api.getLinkedProjects().then(data => {
+      setLinkedProjects(data.mappings || {})
+    }).catch(() => {})
+  }, [])
 
   const handleExport = async () => {
     setExporting(true)
@@ -71,6 +79,28 @@ function SessionDetail({ sessionId, onBack }) {
     <div>
       <div className="page-title">
         <button className="btn btn-sm" onClick={onBack}><ArrowLeft size={14} /> Back</button>
+        {linkedProjects[sessionId] && (
+          <div
+            style={{
+              background: 'rgba(139,92,246,0.1)',
+              border: '1px solid rgba(139,92,246,0.2)',
+              borderRadius: 8,
+              padding: '8px 14px',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: 13,
+              color: '#a78bfa',
+              cursor: 'pointer'
+            }}
+            onClick={() => navigate('/projects')}
+          >
+            <FolderKanban size={14} />
+            <span>Projet lié : <strong>{linkedProjects[sessionId].name}</strong></span>
+            <ArrowRight size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
+          </div>
+        )}
         Session: {sessionId}
         <Tooltip text="Detailed view of a single conversation session. Shows the AI model used, the originating platform, and all messages exchanged." />
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
@@ -187,6 +217,13 @@ export default function Sessions() {
   const [exportingAll, setExportingAll] = useState(false)
   const [sortOrder, setSortOrder] = useState('date_desc')
   const debounceRef = useRef(null)
+  const [linkedProjects, setLinkedProjects] = useState({})
+
+  useEffect(() => {
+    api.getLinkedProjects().then(data => {
+      setLinkedProjects(data.mappings || {})
+    }).catch(() => {})
+  }, [])
 
   const onSearchChange = (e) => {
     const val = e.target.value
@@ -466,7 +503,27 @@ export default function Sessions() {
                   )}
                 </td>
                 <td>{s.model}</td>
-                <td><SourceBadge platform={s.platform} /></td>
+                <td><SourceBadge platform={s.platform} />
+                  {linkedProjects[s.id] && (
+                    <Tooltip text={"Projet: " + linkedProjects[s.id].name}>
+                      <span
+                        className="badge badge-info"
+                        style={{
+                          background: 'rgba(139,92,246,0.15)',
+                          borderColor: 'rgba(139,92,246,0.3)',
+                          color: '#a78bfa',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          marginLeft: 4
+                        }}
+                        onClick={(e) => { e.stopPropagation(); navigate('/projects') }}
+                      >
+                        <FolderKanban size={10} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />
+                        {linkedProjects[s.id].name}
+                      </span>
+                    </Tooltip>
+                  )}
+                </td>
                 <td>
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
