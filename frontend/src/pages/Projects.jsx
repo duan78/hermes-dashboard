@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useNavigate } from 'react-router-dom'
 import { FolderKanban, Plus, Search, Scan, ExternalLink, Trash2, Edit3, X, GitBranch, MessageSquare, ClipboardList, Tag, ChevronRight, Clock, Check, Play, Loader2, Pencil, ArrowRight, FileText, Link2, BookOpen, Save, Activity } from 'lucide-react'
 import { api } from '../api'
@@ -1112,6 +1114,14 @@ export default function Projects() {
               )}
             </div>
             <div className="drawer-actions">
+              <button
+                className="btn btn-sm"
+                style={{ color: '#a78bfa', borderColor: 'rgba(139,92,246,0.3)' }}
+                onClick={function () { closeSessionDrawer(); navigate('/sessions/' + sessionDrawer.id) }}
+              >
+                <ExternalLink size={14} /> Ouvrir la session
+                <Tooltip text="Ouvrir cette session dans la vue détaillée avec tous les messages" />
+              </button>
               <button className="btn btn-sm" onClick={function () { navigate('/sessions') }}>
                 <ArrowRight size={14} /> Voir toutes les sessions
               </button>
@@ -1237,8 +1247,10 @@ export default function Projects() {
                   </div>
                 </div>
               ) : (
-                <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', maxHeight: '60vh', overflow: 'auto' }}>
-                  {wikiContent.replace(/^---[\s\S]*?---\n*/, '')}
+                <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary)', maxHeight: '60vh', overflow: 'auto', padding: '4px 0' }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {wikiContent.replace(/^---[\s\S]*?---\n*/, '')}
+                  </ReactMarkdown>
                 </div>
               )}
             </div>
