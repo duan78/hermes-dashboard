@@ -227,14 +227,17 @@ async def chat_models():
 
 
 @router.get("/sessions")
-async def chat_sessions():
-    """List sessions for the chat sidebar."""
+async def chat_sessions(limit: int = 50):
+    """List recent sessions for the chat sidebar (excludes cron)."""
     sessions_dir = hermes_path("sessions")
     if not sessions_dir.exists():
         return []
 
     sessions = []
     for f in sorted(sessions_dir.glob("session_*.json"), reverse=True):
+        # Skip cron sessions at filename level
+        if "session_cron_" in f.name:
+            continue
         try:
             data = json.loads(f.read_text())
             sid = data.get("session_id", f.stem.replace("session_", ""))
@@ -246,6 +249,8 @@ async def chat_sessions():
                 "messages_count": data.get("message_count", 0),
                 "preview": data.get("preview", ""),
             })
+            if len(sessions) >= limit:
+                break
         except Exception:
             logger.debug("Skipping session file in chat_sessions listing")
             continue

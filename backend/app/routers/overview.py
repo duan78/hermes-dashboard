@@ -65,20 +65,13 @@ async def get_overview():
             "provider": model_cfg.get("provider", "unknown"),
         }
 
-    # Sessions count + total messages
+    # Sessions count (file count only, no JSON parsing)
     sessions_dir = hermes_path("sessions")
     if sessions_dir.exists():
-        session_files = list(sessions_dir.glob("session_*.json"))
-        result["sessions"]["total"] = len(session_files)
-        total_messages = 0
-        for f in session_files:
-            try:
-                sd = json.loads(f.read_text())
-                total_messages += sd.get("message_count", 0)
-            except (json.JSONDecodeError, Exception) as e:
-                logger.debug("Skipping session file in overview stats %s: %s", f.name, e)
-                continue
-        result["sessions"]["messages"] = total_messages
+        result["sessions"]["total"] = sum(
+            1 for f in sessions_dir.iterdir()
+            if f.name.startswith("session_") and f.name.endswith(".json")
+        )
 
     # Skills count
     skills_dir = hermes_path("skills")

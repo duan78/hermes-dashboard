@@ -242,6 +242,9 @@ async def _compute_insights(days: int) -> dict:
         cutoff = datetime.now(UTC) - timedelta(days=days)
 
         for f in sessions_dir.glob("session_*.json"):
+            # Skip cron sessions — noise for insights
+            if "session_cron_" in f.name:
+                continue
             try:
                 data = json.loads(f.read_text())
                 created = data.get("created_at", "")

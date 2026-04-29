@@ -77,17 +77,23 @@ def _update_project_stats(project):
         except Exception:
             pass
 
-    # Count sessions mentioning project name/keywords
+    # Count sessions mentioning project name/keywords using JSON metadata (fast)
     session_count = 0
     sessions_dir = HERMES_HOME / "sessions"
     if sessions_dir.exists():
         search_terms = [name.lower()] + [k.lower() for k in keywords]
         try:
-            files = sorted(sessions_dir.glob("*.jsonl"), reverse=True)[:50]
+            # Use JSON files with preview field — much faster than reading JSONL
+            files = sorted(
+                (f for f in sessions_dir.glob("session_*.json")
+                 if "session_cron_" not in f.name),
+                reverse=True,
+            )[:30]
             for sf in files:
                 try:
-                    content = sf.read_text(errors="ignore").lower()
-                    if any(t in content for t in search_terms):
+                    data = json.loads(sf.read_text())
+                    head = (data.get("preview", "") or "").lower()
+                    if any(t in head for t in search_terms):
                         session_count += 1
                 except Exception:
                     pass
