@@ -122,6 +122,8 @@ export default function Benchmark() {
       setResults(data.results || [])
       setRanking(data.ranking || [])
       setPrompt(data.prompt || '')
+      if (data.runs) setRuns(data.runs)
+      if (data.judge_enabled !== undefined) setJudgeEnabled(data.judge_enabled)
     } catch (e) {
       console.error('Failed to load history:', e)
     }
@@ -273,13 +275,13 @@ export default function Benchmark() {
                   <th>#</th>
                   <th>Modèle</th>
                   <th>Provider</th>
-                  {Array.from({ length: runs }, (_, i) => (
+                  {Array.from({ length: Math.max(runs, ...results.map(r => (r.times || []).length)) }, (_, i) => (
                     <th key={i}>Tps {i + 1}</th>
                   ))}
                   <th>Moy.</th>
                   <th>Min</th>
                   <th>Max</th>
-                  {judgeEnabled && <th>Qualité</th>}
+                  {(judgeEnabled || results.some(r => r.quality_score != null)) && <th>Qualité</th>}
                   <th>Score</th>
                 </tr>
               </thead>
