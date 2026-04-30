@@ -407,6 +407,24 @@ export const api = {
   contextStatus: () => request('/context/status'),
 
   // Vision Test (Task 13)
+  visionStatus: () => {
+    const userToken = localStorage.getItem('hermes_user_token') || '';
+    const legacyToken = localStorage.getItem('hermes_token') || '';
+    const token = userToken || legacyToken;
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch('/api/vision/status', { headers }).then(res => res.json());
+  },
+
+  visionUpdateConfig: (config) => {
+    const userToken = localStorage.getItem('hermes_user_token') || '';
+    const legacyToken = localStorage.getItem('hermes_token') || '';
+    const token = userToken || legacyToken;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch('/api/vision/config', { method: 'PUT', headers, body: JSON.stringify(config) }).then(res => res.json());
+  },
+
   visionTest: (formData) => {
     const userToken = localStorage.getItem('hermes_user_token') || '';
     const legacyToken = localStorage.getItem('hermes_token') || '';

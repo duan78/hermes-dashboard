@@ -99,8 +99,9 @@ TOOL_CATEGORIES = {
         "name": "Vision",
         "icon": "eye",
         "providers": [
-            {"name": "Z.AI Vision MCP", "tag": "Vision via Z.AI MCP (gratuit, coding plan)", "config_key": "mcp_servers.zai-vision", "config_value": "active", "env_vars": [{"key": "Z_AI_API_KEY", "label": "Z.AI API Key", "url": "https://z.ai"}]},
-            {"name": "Mistral (Pixtral)", "tag": "Pixtral Large via Mistral API (fallback)", "config_key": "auxiliary.vision.provider", "config_value": "custom", "env_vars": [{"key": "MISTRAL_API_KEY", "label": "Mistral API Key", "url": "https://console.mistral.ai/api-keys/"}]},
+            {"name": "Ollama Cloud (Gemma 4)", "tag": "Gemma 4 31B via Ollama Cloud — rapide (~2s), illimité Pro", "config_key": "auxiliary.vision.provider", "config_value": "ollama-cloud", "env_vars": [{"key": "OLLAMA_API_KEY", "label": "Ollama API Key", "url": "https://ollama.com/settings/keys"}]},
+            {"name": "Z.AI Vision MCP", "tag": "Vision via Z.AI MCP (gratuit, coding plan) — fallback", "config_key": "mcp_servers.zai-mcp-server", "config_value": "active", "env_vars": [{"key": "ZAI_API_KEY", "label": "Z.AI API Key", "url": "https://z.ai"}]},
+            {"name": "Mistral (Pixtral)", "tag": "Pixtral Large via Mistral API — fallback 2", "config_key": "auxiliary.vision.provider", "config_value": "mistral", "env_vars": [{"key": "MISTRAL_API_KEY", "label": "Mistral API Key", "url": "https://console.mistral.ai/api-keys/"}]},
         ],
     },
 }
