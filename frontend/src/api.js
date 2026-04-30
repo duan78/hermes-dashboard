@@ -232,7 +232,7 @@ export const api = {
   exportProfile: (name) => request('/profiles/export', { method: 'POST', body: JSON.stringify({ name }) }),
 
   // Backup & Restore
-  createBackup: (includeEnv, includeSkills) => request('/backup/create', { method: 'POST', body: JSON.stringify({ include_env: includeEnv, include_skills: includeSkills }) }),
+  createBackup: (opts = {}) => request('/backup/create', { method: 'POST', body: JSON.stringify(opts) }),
   listBackups: () => request('/backup/list'),
   restoreBackup: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   deleteBackup: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
@@ -346,9 +346,10 @@ export const api = {
   profilesRename: (name, newName) => request('/profiles/rename', { method: 'POST', body: JSON.stringify({ name, new_name: newName }) }),
   profilesDelete: (name) => request('/profiles/delete', { method: 'DELETE', body: JSON.stringify({ name }) }),
   backupList: () => request('/backup/list'),
-  backupCreate: (includeEnv, includeSkills) => request('/backup/create', { method: 'POST', body: JSON.stringify({ include_env: includeEnv, include_skills: includeSkills }) }),
+  backupCreate: (opts = {}) => request('/backup/create', { method: 'POST', body: JSON.stringify(opts) }),
   backupRestore: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   backupDelete: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
+  backupInspect: (filename) => request(`/backup/inspect/${encodeURIComponent(filename)}`),
 
   // GitHub Config Sync
   githubConfigStatus: () => request('/github-config/status'),

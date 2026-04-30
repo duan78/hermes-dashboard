@@ -1,9 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { HardDrive, RefreshCw, Plus, Trash2, Download, RotateCcw, Loader2, CheckCircle, GitBranch, Upload, ExternalLink } from 'lucide-react'
+import { HardDrive, RefreshCw, Plus, Trash2, Download, RotateCcw, Loader2, CheckCircle, GitBranch, Upload, ExternalLink, Search, X } from 'lucide-react'
 import { api } from '../api'
 import Tooltip from '../components/Tooltip'
 import ConfirmModal from '../components/ConfirmModal'
 import './backup.css'
+
+const CATEGORY_META = {
+  core: { label: 'Core', color: '#10b981', desc: 'SOUL.md, config, backlog, cron, dashboard configs' },
+  shell: { label: 'Shell', color: '#f59e0b', desc: '.bashrc, .gitconfig, .profile' },
+  scripts: { label: 'Scripts', color: '#3b82f6', desc: '~/.hermes/scripts/ (all scripts)' },
+  skills: { label: 'Skills', color: '#8b5cf6', desc: '~/.hermes/skills/ (700+ files)' },
+  wiki: { label: 'Wiki', color: '#ec4899', desc: '~/wiki/ (knowledge base)' },
+  system: { label: 'System', color: '#6366f1', desc: 'crontab, systemd, nginx, hosts' },
+  secrets: { label: 'Secrets', color: '#ef4444', desc: 'GPG-encrypted .env, auth, SSH, gcloud' },
+  claude_code: { label: 'Claude Code', color: '#06b6d4', desc: '.claude/CLAUDE.md, .claude/RTK.md' },
+  daily_memories: { label: 'Daily Memories', color: '#14b8a6', desc: 'Last 30 daily memory files' },
+  manifests: { label: 'Manifests', color: '#84cc16', desc: 'npm-globals, env-vars, project-repos, packages' },
+  docs: { label: 'Docs', color: '#a3a3a3', desc: 'RESTORE.md, install.sh, restore.sh' },
+}
 
 export default function BackupRestore() {
   const [backups, setBackups] = useState([])
@@ -12,10 +26,19 @@ export default function BackupRestore() {
   const [feedback, setFeedback] = useState(null)
   const feedbackTimer = useRef(null)
 
-  // Actions
+  // Create backup state
   const [createLoading, setCreateLoading] = useState(false)
+  const [selectedCategories, setSelectedCategories] = useState(Object.keys(CATEGORY_META))
+  const [includeSecrets, setIncludeSecrets] = useState(true)
+  const [description, setDescription] = useState('')
+
+  // Actions
   const [actionLoading, setActionLoading] = useState({})
-  const [confirmAction, setConfirmAction] = useState(null) // { type, filename }
+  const [confirmAction, setConfirmAction] = useState(null)
+
+  // Inspect modal
+  const [inspectData, setInspectData] = useState(null)
+  const [inspectLoading, setInspectLoading] = useState(false)
 
   // GitHub Sync state
   const [ghStatus, setGhStatus] = useState(null)
@@ -65,15 +88,33 @@ export default function BackupRestore() {
 
   useEffect(() => { loadGhStatus() }, [loadGhStatus])
 
+  const toggleCategory = (cat) => {
+    setSelectedCategories(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    )
+  }
+
+  const selectAll = () => setSelectedCategories(Object.keys(CATEGORY_META))
+  const deselectAll = () => setSelectedCategories([])
+
   const handleCreate = async () => {
     setCreateLoading(true)
     try {
-      const result = await api.backupCreate()
-      showFeedback(
-        `Backup created: ${result.filename} (${(result.size_bytes / 1024 / 1024).toFixed(2)} MB)`,
-        'success'
-      )
-      loadData()
+      const result = await api.backupCreate({
+        categories: selectedCategories.length === Object.keys(CATEGORY_META).length ? null : selectedCategories,
+        include_secrets: includeSecrets,
+        description,
+      })
+      if (result.success === false) {
+        showFeedback(`Backup failed: ${result.error}`, 'error')
+      } else {
+        showFeedback(
+          `Backup created: ${result.filename} (${(result.size_bytes / 1024 / 1024).toFixed(2)} MB, ${result.total_files} files)`,
+          'success'
+        )
+        setDescription('')
+        loadData()
+      }
     } catch (e) {
       showFeedback(`Backup failed: ${e.message}`, 'error')
     } finally {
@@ -111,8 +152,20 @@ export default function BackupRestore() {
 
   const handleDownload = (filename) => {
     const token = localStorage.getItem('hermes_token') || ''
-    const url = `/api/backup/download?filename=${encodeURIComponent(filename)}&token=${encodeURIComponent(token)}`
+    const url = `/api/backup/download/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`
     window.open(url, '_blank')
+  }
+
+  const handleInspect = async (filename) => {
+    setInspectLoading(true)
+    try {
+      const data = await api.backupInspect(filename)
+      setInspectData(data)
+    } catch (e) {
+      showFeedback(`Inspect failed: ${e.message}`, 'error')
+    } finally {
+      setInspectLoading(false)
+    }
   }
 
   const handleGhSync = async () => {
@@ -174,17 +227,68 @@ export default function BackupRestore() {
         <div className="card-header">
           <span className="card-title">
             Create Backup
-            <Tooltip text="Create a full backup of Hermes configuration, memory, and data." />
+            <Tooltip text="Select categories to include in the backup archive." />
           </span>
         </div>
         <div className="backup-create-section">
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>
-            Create a complete snapshot of your current Hermes configuration and data.
-          </p>
-          <button className="btn btn-backup-create" onClick={handleCreate} disabled={createLoading}>
-            {createLoading ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
-            Create Backup
-          </button>
+          <div style={{ flex: 1 }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 12px' }}>
+              Select categories to include in the backup archive.
+            </p>
+
+            {/* Category toggles */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <button className="btn btn-sm" onClick={selectAll}>Select All</button>
+              <button className="btn btn-sm" onClick={deselectAll}>Deselect All</button>
+            </div>
+
+            <div className="category-grid">
+              {Object.entries(CATEGORY_META).map(([key, meta]) => (
+                <label key={key} className={`category-checkbox ${selectedCategories.includes(key) ? 'selected' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(key)}
+                    onChange={() => toggleCategory(key)}
+                  />
+                  <span className="category-badge" style={{ background: meta.color + '22', color: meta.color, borderColor: meta.color + '44' }}>
+                    {meta.label}
+                  </span>
+                  <Tooltip text={meta.desc} />
+                </label>
+              ))}
+            </div>
+
+            {/* Secrets toggle */}
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={includeSecrets}
+                  onChange={e => setIncludeSecrets(e.target.checked)}
+                />
+                Include encrypted secrets (GPG)
+              </label>
+            </div>
+
+            {/* Description */}
+            <input
+              type="text"
+              className="backup-description-input"
+              placeholder="Optional description..."
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+            />
+
+            <button
+              className="btn btn-backup-create"
+              onClick={handleCreate}
+              disabled={createLoading || selectedCategories.length === 0}
+              style={{ marginTop: 12 }}
+            >
+              {createLoading ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
+              Create Backup ({selectedCategories.length} categories)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -216,10 +320,43 @@ export default function BackupRestore() {
                   </div>
                   <div className="backup-meta">
                     <span className="backup-size">{b.size_mb?.toFixed(2) || '?'} MB</span>
-                    {b.created_at && <span className="backup-date">{b.created_at}</span>}
+                    {b.total_files != null && (
+                      <span className="backup-file-count">{b.total_files} files</span>
+                    )}
+                    {b.created_at && <span className="backup-date">{formatDate(b.created_at)}</span>}
                   </div>
+                  {b.description && (
+                    <div className="backup-description">{b.description}</div>
+                  )}
+                  {/* Category badges */}
+                  {b.stats && Object.keys(b.stats).length > 0 && (
+                    <div className="backup-category-badges">
+                      {Object.entries(b.stats).map(([cat, count]) => {
+                        const meta = CATEGORY_META[cat]
+                        return meta ? (
+                          <span
+                            key={cat}
+                            className="backup-cat-badge"
+                            style={{ background: meta.color + '22', color: meta.color, borderColor: meta.color + '44' }}
+                            title={`${meta.label}: ${count} files`}
+                          >
+                            {meta.label} {count}
+                          </span>
+                        ) : null
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="backup-actions">
+                  <Tooltip text="Inspect backup contents">
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => handleInspect(b.filename)}
+                      disabled={inspectLoading}
+                    >
+                      {inspectLoading ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
+                    </button>
+                  </Tooltip>
                   <Tooltip text="Download backup file">
                     <button className="btn btn-sm" onClick={() => handleDownload(b.filename)}>
                       <Download size={14} />
@@ -346,6 +483,7 @@ export default function BackupRestore() {
         </div>
       </div>
 
+      {/* Confirm modal */}
       {confirmAction && (
         <ConfirmModal
           title={confirmAction.type === 'restore' ? 'Restore Backup' : 'Delete Backup'}
@@ -362,6 +500,65 @@ export default function BackupRestore() {
           onCancel={() => setConfirmAction(null)}
           loading={!!actionLoading[confirmAction.filename]}
         />
+      )}
+
+      {/* Inspect modal */}
+      {inspectData && (
+        <div className="modal-overlay" onClick={() => setInspectData(null)}>
+          <div className="modal-content inspect-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Inspect: {inspectData.filename}</h3>
+              <button className="btn btn-sm" onClick={() => setInspectData(null)}>
+                <X size={14} />
+              </button>
+            </div>
+            <div className="modal-body">
+              {inspectData.description && (
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 12px' }}>
+                  {inspectData.description}
+                </p>
+              )}
+              <div className="inspect-stats">
+                <span>Total: {inspectData.total_files} files</span>
+                <span>Size: {formatSize(inspectData.size_bytes)}</span>
+              </div>
+              {inspectData.stats && (
+                <div className="inspect-category-badges">
+                  {Object.entries(inspectData.stats).map(([cat, count]) => {
+                    const meta = CATEGORY_META[cat]
+                    return meta ? (
+                      <span
+                        key={cat}
+                        className="backup-cat-badge"
+                        style={{ background: meta.color + '22', color: meta.color, borderColor: meta.color + '44' }}
+                      >
+                        {meta.label}: {count}
+                      </span>
+                    ) : null
+                  })}
+                </div>
+              )}
+              <div className="inspect-file-list">
+                <div className="inspect-files-header">Files</div>
+                {inspectData.files?.map((f, i) => {
+                  const meta = CATEGORY_META[f.category]
+                  return (
+                    <div key={i} className="inspect-file-row">
+                      <span
+                        className="inspect-file-cat"
+                        style={{ background: meta ? meta.color + '22' : '#333', color: meta ? meta.color : '#999' }}
+                      >
+                        {meta ? meta.label : f.category}
+                      </span>
+                      <span className="inspect-file-path">{f.path}</span>
+                      <span className="inspect-file-size">{formatSize(f.size)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
