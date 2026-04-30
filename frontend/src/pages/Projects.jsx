@@ -135,7 +135,7 @@ export default function Projects() {
         setProjects(data.items || [])
       })
       .catch(function (err) {
-        toast('Erreur chargement projets: ' + err.message, 'error')
+        toast('Error loading projects: ' + err.message, 'error')
       })
       .finally(function () {
         setLoading(false)
@@ -265,7 +265,7 @@ export default function Projects() {
         loadProjects()
       })
       .catch(function (err) {
-        toast('Erreur: ' + err.message, 'error')
+        toast('Error: ' + err.message, 'error')
       })
       .finally(function () {
         setSaving(false)
@@ -285,7 +285,7 @@ export default function Projects() {
         loadProjects()
       })
       .catch(function (err) {
-        toast('Erreur suppression: ' + err.message, 'error')
+        toast('Delete error: ' + err.message, 'error')
       })
   }
 
@@ -347,7 +347,7 @@ export default function Projects() {
         loadProjects()
       })
       .catch(function (err) {
-        toast('Erreur: ' + err.message, 'error')
+        toast('Error: ' + err.message, 'error')
       })
       .finally(function () {
         setSaving(false)
@@ -412,7 +412,7 @@ export default function Projects() {
         toast('Claude Code started for: ' + item.title, 'success')
       })
       .catch(function (err) {
-        toast('Erreur au lancement : ' + (err.message || 'inconnu'), 'error')
+        toast('Launch error: ' + (err.message || 'unknown'), 'error')
       })
   }
 
@@ -449,7 +449,7 @@ export default function Projects() {
         delete detailCacheRef.current[selectedProject.id]
       })
       .catch(function (err) {
-        toast('Erreur sauvegarde: ' + err.message, 'error')
+        toast('Save error: ' + err.message, 'error')
       })
       .finally(function () {
         setWikiSaving(false)
@@ -464,7 +464,7 @@ export default function Projects() {
         loadProjectDetail(selectedProject)
       })
       .catch(function (err) {
-        toast('Erreur initialisation: ' + err.message, 'error')
+        toast('Init error: ' + err.message, 'error')
       })
   }
 
@@ -477,7 +477,7 @@ export default function Projects() {
         loadProjectDetail(selectedProject)
       })
       .catch(function (err) {
-        toast('Erreur suppression: ' + err.message, 'error')
+        toast('Delete error: ' + err.message, 'error')
       })
   }
 
@@ -514,7 +514,7 @@ export default function Projects() {
         loadProjectDetail(selectedProject)
       })
       .catch(function (err) {
-        toast('Erreur: ' + err.message, 'error')
+        toast('Error: ' + err.message, 'error')
       })
       .finally(function () {
         setLinkSaving(false)
@@ -529,7 +529,7 @@ export default function Projects() {
         loadProjectDetail(selectedProject)
       })
       .catch(function (err) {
-        toast('Erreur: ' + err.message, 'error')
+        toast('Error: ' + err.message, 'error')
       })
   }
 
@@ -730,12 +730,12 @@ export default function Projects() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <Tooltip text="Modifier ce projet">
+                  <Tooltip text="Edit this project">
                     <button className="projects-btn" onClick={function () { openEditModal(selectedProject) }}>
                       <Edit3 size={14} />
                     </button>
                   </Tooltip>
-                  <Tooltip text="Supprimer ce projet">
+                  <Tooltip text="Delete this project">
                     <button className="projects-btn projects-btn-danger" onClick={function () { setDeleteTarget(selectedProject) }}>
                       <Trash2 size={14} />
                     </button>
@@ -909,7 +909,7 @@ export default function Projects() {
                 <h4><BookOpen size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Wiki du projet ({projectWiki.length})</h4>
                 {projectWiki.length === 0 ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune page wiki</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>No wiki pages</p>
                     <button className="btn btn-sm" onClick={handleWikiInit} style={{ fontSize: 11, padding: '2px 8px' }}>
                       Initialiser le wiki
                     </button>
@@ -944,7 +944,7 @@ export default function Projects() {
                             autoFocus
                           />
                           <button className="btn btn-sm" onClick={handleNewWikiPage} style={{ fontSize: 11, padding: '2px 8px' }}>Create</button>
-                          <button className="btn btn-sm" onClick={function () { setShowNewWikiPage(false); setNewWikiPageName('') }} style={{ fontSize: 11, padding: '2px 8px' }}>Annuler</button>
+                          <button className="btn btn-sm" onClick={function () { setShowNewWikiPage(false); setNewWikiPageName('') }} style={{ fontSize: 11, padding: '2px 8px' }}>Cancel</button>
                         </div>
                       ) : (
                         <button className="btn btn-sm" onClick={function () { setShowNewWikiPage(true) }} style={{ fontSize: 11, padding: '2px 8px' }}>
@@ -961,9 +961,9 @@ export default function Projects() {
                 <h4><Link2 size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Liens ({projectLinks.length})</h4>
                 {projectLinks.length === 0 && !showAddLink ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucun lien</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>No links</p>
                     <button className="btn btn-sm" onClick={function () { setShowAddLink(true) }} style={{ fontSize: 11, padding: '2px 8px' }}>
-                      <Plus size={12} /> Ajouter
+                      <Plus size={12} /> Add
                     </button>
                   </div>
                 ) : (
@@ -997,14 +997,14 @@ export default function Projects() {
                         </select>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="btn btn-primary btn-sm" onClick={handleAddLink} disabled={linkSaving} style={{ fontSize: 11, padding: '4px 12px' }}>
-                            {linkSaving ? 'Enregistrement...' : 'Ajouter'}
+                            {linkSaving ? 'Saving...' : 'Add'}
                           </button>
-                          <button className="btn btn-sm" onClick={function () { setShowAddLink(false); setLinkForm({ title: '', url: '', category: 'other' }) }} style={{ fontSize: 11, padding: '4px 12px' }}>Annuler</button>
+                          <button className="btn btn-sm" onClick={function () { setShowAddLink(false); setLinkForm({ title: '', url: '', category: 'other' }) }} style={{ fontSize: 11, padding: '4px 12px' }}>Cancel</button>
                         </div>
                       </div>
                     ) : (
                       <button className="btn btn-sm" onClick={function () { setShowAddLink(true) }} style={{ fontSize: 11, padding: '2px 8px', marginTop: 2 }}>
-                        <Plus size={12} /> Ajouter un lien
+                        <Plus size={12} /> Add link
                       </button>
                     )}
                   </div>
@@ -1109,7 +1109,7 @@ export default function Projects() {
                 </div>
               ) : (
                 <div className="drawer-section">
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>Aucun message disponible</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>No messages available</p>
                 </div>
               )}
             </div>
@@ -1119,7 +1119,7 @@ export default function Projects() {
                 style={{ color: '#a78bfa', borderColor: 'rgba(139,92,246,0.3)' }}
                 onClick={function () { closeSessionDrawer(); navigate('/sessions/' + sessionDrawer.id) }}
               >
-                <ExternalLink size={14} /> Ouvrir la session
+                <ExternalLink size={14} /> Open session
                 <Tooltip text="Open this session in detailed view with all messages" />
               </button>
               <button className="btn btn-sm" onClick={function () { navigate('/sessions') }}>
@@ -1241,9 +1241,9 @@ export default function Projects() {
                   />
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     <button className="btn btn-primary btn-sm" onClick={handleWikiSave} disabled={wikiSaving}>
-                      <Save size={14} /> {wikiSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+                      <Save size={14} /> {wikiSaving ? 'Saving...' : 'Save'}
                     </button>
-                    <button className="btn btn-sm" onClick={function () { setWikiEditing(false) }}>Annuler</button>
+                    <button className="btn btn-sm" onClick={function () { setWikiEditing(false) }}>Cancel</button>
                   </div>
                 </div>
               ) : (
@@ -1257,11 +1257,11 @@ export default function Projects() {
             <div className="drawer-actions">
               {!wikiEditing && (
                 <button className="btn btn-sm" onClick={function () { setWikiEditing(true) }}>
-                  <Edit3 size={14} /> Modifier
+                  <Edit3 size={14} /> Edit
                 </button>
               )}
               <button className="btn btn-sm projects-btn-danger" onClick={function () { handleWikiDelete(wikiDrawer.name) }}>
-                <Trash2 size={14} /> Supprimer
+                <Trash2 size={14} /> Delete
               </button>
             </div>
           </div>
@@ -1273,7 +1273,7 @@ export default function Projects() {
         <div className="projects-modal-overlay" onClick={closeModal}>
           <div className="projects-modal" onClick={function (e) { e.stopPropagation() }}>
             <div className="projects-modal-header">
-              <h3>{editingProject ? 'Modifier le projet' : 'Nouveau projet'}</h3>
+              <h3>{editingProject ? 'Edit Project' : 'New Project'}</h3>
               <button className="btn btn-sm" onClick={closeModal}><X size={16} /></button>
             </div>
             <div className="projects-form-group">
@@ -1336,7 +1336,7 @@ export default function Projects() {
               />
             </div>
             <div className="projects-form-actions">
-              <button className="btn" onClick={closeModal} disabled={saving}>Annuler</button>
+              <button className="btn" onClick={closeModal} disabled={saving}>Cancel</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving || !formData.name.trim()}>
                 {saving ? 'Saving...' : (editingProject ? 'Update' : 'Create')}
               </button>
@@ -1399,7 +1399,7 @@ export default function Projects() {
                   })}
                 </div>
                 <div className="projects-form-actions">
-                  <button className="btn" onClick={function () { setShowDetectModal(false) }}>Annuler</button>
+                  <button className="btn" onClick={function () { setShowDetectModal(false) }}>Cancel</button>
                   <button className="btn btn-primary" onClick={createSelectedCandidates} disabled={saving || selectedCount === 0}>
                     {saving ? 'Creating...' : 'Create ' + selectedCount + ' selected project(s)'}
                   </button>
@@ -1413,12 +1413,12 @@ export default function Projects() {
       {/* Delete confirmation */}
       {deleteTarget && (
         <ConfirmModal
-          title="Supprimer le projet"
+          title="Delete project"
           message={'Delete "' + (deleteTarget.name || deleteTarget.id) + '"? This action is irreversible.'}
           onConfirm={handleDelete}
           onCancel={function () { setDeleteTarget(null) }}
           danger={true}
-          confirmLabel="Supprimer"
+          confirmLabel="Delete"
         />
       )}
     </div>

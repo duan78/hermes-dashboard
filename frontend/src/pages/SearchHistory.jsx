@@ -312,10 +312,10 @@ export default function SearchHistory() {
             </p>
             <div className="sh-modal-actions">
               <button className="sh-btn sh-btn-ghost" onClick={() => setShowConfirm(false)} disabled={deleting}>
-                Annuler
+                Cancel
               </button>
               <button className="sh-btn sh-btn-danger" onClick={handleDeleteAll} disabled={deleting}>
-                {deleting ? 'Suppression...' : 'Effacer tout'}
+                {deleting ? 'Deleting...' : 'Delete All'}
               </button>
             </div>
           </div>

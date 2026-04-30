@@ -169,7 +169,7 @@ export default function Benchmark() {
 
         {/* Provider & model selection */}
         {loading ? (
-          <div className="bench-loading"><Loader2 size={20} className="spin" /> Chargement des providers...</div>
+          <div className="bench-loading"><Loader2 size={20} className="spin" /> Loading providers...</div>
         ) : providers.length === 0 ? (
           <div className="bench-empty">No providers configured. Check your API keys.</div>
         ) : (
@@ -345,7 +345,7 @@ export default function Benchmark() {
           </Tooltip>
         </h3>
         {history.length === 0 ? (
-          <div className="bench-empty">Aucun benchmark dans l'historique.</div>
+          <div className="bench-empty">No benchmarks in history.</div>
         ) : (
           <div className="bench-history-list">
             {history.map(h => (
@@ -365,7 +365,7 @@ export default function Benchmark() {
                   <button
                     className="btn btn-sm btn-danger"
                     onClick={e => { e.stopPropagation(); deleteHistoryItem(h.filename) }}
-                    title="Supprimer"
+                    title="Delete"
                   >
                     <Trash2 size={12} />
                   </button>

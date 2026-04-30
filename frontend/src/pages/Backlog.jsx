@@ -175,7 +175,7 @@ export default function Backlog() {
         fetchStats()
       })
       .catch(function (err) {
-        toast('Erreur au lancement : ' + (err.message || 'inconnu'), 'error')
+        toast('Launch error: ' + (err.message || 'unknown'), 'error')
       })
       .finally(function () {
         setLaunching(function (prev) { var next = {}; next[item.id] = false; return Object.assign({}, prev, next) })
@@ -410,7 +410,7 @@ export default function Backlog() {
         fetchStats()
         fetchIntelStats()
       })
-      .catch(function (err) { toast('Erreur: ' + err.message, 'error') })
+      .catch(function (err) { toast('Error: ' + err.message, 'error') })
       .finally(function () {
         setAcceptingSuggestion(function (prev) { var n = {}; n[id] = false; return Object.assign({}, prev, n) })
       })
@@ -423,7 +423,7 @@ export default function Backlog() {
         fetchSuggestions()
         fetchIntelStats()
       })
-      .catch(function (err) { toast('Erreur: ' + err.message, 'error') })
+      .catch(function (err) { toast('Error: ' + err.message, 'error') })
   }
 
   function resetFilters() {
@@ -945,7 +945,7 @@ export default function Backlog() {
             <div className="backlog-form-group">
               <label className="form-label">Project</label>
               <select className="form-input" value={formData.project_id || ''} onChange={function (e) { handleFormChange('project_id', e.target.value) }}>
-                <option value="">Aucun (auto-match)</option>
+                <option value="">None (auto-match)</option>
                 {projects.map(function (p) { return <option key={p.id} value={p.id}>{p.name || p.id}</option> })}
               </select>
             </div>
