@@ -25,6 +25,7 @@ from .routers import (
     auth_pairing,
     backlog,
     backup,
+    benchmark,
     chat,
     claude_code,
     code_execution,
@@ -330,6 +331,7 @@ app.include_router(activity.router)
 app.include_router(search.router)
 app.include_router(export.router)
 app.include_router(cross_references.router)
+app.include_router(benchmark.router)
 
 
 # ── WebSocket Hub for real-time dashboard updates ──

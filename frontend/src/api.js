@@ -532,6 +532,13 @@ export const api = {
 
   // Backlog Intelligence
   getBacklogIntelligenceStatus: () => request('/backlog/intelligence/status'),
+
+  // Benchmark
+  benchmarkProviders: () => request('/benchmark/providers'),
+  benchmarkRun: (data) => request('/benchmark/run', { method: 'POST', body: JSON.stringify(data) }),
+  benchmarkHistory: () => request('/benchmark/history'),
+  benchmarkHistoryDetail: (filename) => request(`/benchmark/history/${encodeURIComponent(filename)}`),
+  benchmarkDelete: (filename) => request(`/benchmark/history/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
   getBacklogSuggestions: () => request('/backlog/intelligence/suggestions'),
   acceptBacklogSuggestion: (id) => request('/backlog/intelligence/accept/' + encodeURIComponent(id), { method: 'POST' }),
   rejectBacklogSuggestion: (id, reason) => request('/backlog/intelligence/reject/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify({ reason: reason || '' }) }),

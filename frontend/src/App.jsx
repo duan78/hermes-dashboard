@@ -4,7 +4,7 @@ import {
  LayoutDashboard, Settings, MessageSquare, MessageCircle, FolderOpen, Terminal, Puzzle, Wrench, BookOpen,
   Clock, Brain, Cpu, Radio, BarChart3, Menu, X, Key, Mic, Activity, Stethoscope, Webhook,
  Shield, Network, UserCheck, Users, HardDrive, Bot, Layers, FileText, ClipboardList,
- Search as SearchIcon, FolderKanban, Download,
+ Search as SearchIcon, FolderKanban, Download, Timer,
  LogOut
 } from 'lucide-react'
 import { ThemeToggle } from './contexts/ThemeContext'
@@ -59,6 +59,7 @@ const UsersPage = lazy(() => import('./pages/Users'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const SearchHistory = lazy(() => import('./pages/SearchHistory'))
 const ActivityPage = lazy(() => import('./pages/Activity'))
+const Benchmark = lazy(() => import('./pages/Benchmark'))
 
 // Page-level error boundaries — each page gets its own boundary
 // so a crash in one page doesn't take down the entire dashboard
@@ -96,6 +97,7 @@ const BoundedProjects = withErrorBoundary(Projects, 'Projects')
 const BoundedNotFound = withErrorBoundary(NotFound, 'Not Found')
 const BoundedSearchHistory = withErrorBoundary(SearchHistory, 'Search History')
 const BoundedActivity = withErrorBoundary(ActivityPage, 'Activit\u00e9')
+const BoundedBenchmark = withErrorBoundary(Benchmark, 'Benchmark')
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -119,6 +121,7 @@ const NAV_ITEMS = [
   { to: '/moa', icon: Layers, label: 'MOA' },
   { to: '/fine-tune', icon: Mic, label: 'Fine-Tune' },
   { to: '/insights', icon: BarChart3, label: 'Insights' },
+  { to: '/benchmark', icon: Timer, label: 'Benchmark' },
   { to: '/diagnostics', icon: Stethoscope, label: 'Diagnostics' },
   { to: '/webhooks', icon: Webhook, label: 'Webhooks' },
   { to: '/env-vars', icon: Shield, label: 'Environment' },
@@ -354,6 +357,7 @@ function App() {
             <Route path="/projects" element={<BoundedProjects />} />
             <Route path="/backlog" element={<BoundedBacklog />} />
             <Route path="/activity" element={<BoundedActivity />} />
+            <Route path="/benchmark" element={<BoundedBenchmark />} />
             <Route path="*" element={<BoundedNotFound />} />
           </Routes>
         </Suspense>
