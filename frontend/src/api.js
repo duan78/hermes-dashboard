@@ -235,7 +235,6 @@ export const api = {
   listBackups: () => request('/backup/list'),
   restoreBackup: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   deleteBackup: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
-  backupInspect: (filename) => request(`/backup/inspect/${encodeURIComponent(filename)}`),
 
   // MOA (Mixture of Agents)
   getMoaConfig: () => request('/config/moa'),
@@ -348,7 +347,6 @@ export const api = {
   backupList: () => request('/backup/list'),
   backupRestore: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   backupDelete: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
-  backupInspect: (filename) => request(`/backup/inspect/${encodeURIComponent(filename)}`),
 
   // GitHub Config Sync (unified backup)
   githubConfigSetupStatus: () => request('/github-config/setup-status'),

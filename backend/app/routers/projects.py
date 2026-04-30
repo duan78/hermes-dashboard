@@ -220,7 +220,7 @@ async def auto_detect_projects():
                     content = sf.read_text(errors="ignore")
                     # Look for common project patterns
                     # GitHub repo patterns
-                    repos = re.findall(r"duan78/([a-zA-Z0-9_-]+)", content)
+                    repos = re.findall(r"[a-zA-Z0-9_-]+/([a-zA-Z0-9_-]+)", content)
                     for r in repos:
                         project_mentions[r.lower()] += 1
                     # CamelCase / kebab-case project names in titles
@@ -270,18 +270,31 @@ async def auto_detect_projects():
         except Exception:
             pass
 
-    # 4. GitHub repos via gh
+    # 4. GitHub repos via gh (detect current user dynamically)
     try:
-        result = subprocess.run(
-            ["gh", "repo", "list", "duan78", "--limit", "30", "--json", "name,description"],
-            capture_output=True, text=True, timeout=15
+        # Detect the current GitHub user
+        gh_user_result = subprocess.run(
+            ["gh", "api", "user", "--jq", ".login"],
+            capture_output=True, text=True, timeout=10,
         )
+        gh_username = gh_user_result.stdout.strip() if gh_user_result.returncode == 0 else ""
+        if gh_username:
+            result = subprocess.run(
+                ["gh", "repo", "list", gh_username, "--limit", "30", "--json", "name,description"],
+                capture_output=True, text=True, timeout=15,
+            )
+        else:
+            result = subprocess.run(
+                ["gh", "repo", "list", "--limit", "30", "--json", "name,description"],
+                capture_output=True, text=True, timeout=15,
+            )
         if result.returncode == 0:
             repos = json.loads(result.stdout)
             for repo in repos:
                 slug = _slugify(repo.get("name", ""))
+                repo_full = f"{gh_username}/{repo.get('name', '')}" if gh_username else repo.get('name', '')
                 if slug in candidates:
-                    candidates[slug]["github_repo"] = f"duan78/{repo.get('name', '')}"
+                    candidates[slug]["github_repo"] = repo_full
                     candidates[slug]["confidence"] = min(0.95, candidates[slug]["confidence"] + 0.15)
                     if repo.get("description"):
                         candidates[slug]["description"] = repo["description"]
@@ -303,8 +316,8 @@ async def auto_detect_projects():
                         "id": slug,
                         "name": name,
                         "type": ptype,
-                        "description": desc or f"Repo GitHub: duan78/{name}",
-                        "github_repo": f"duan78/{name}",
+                        "description": desc or f"Repo GitHub: {repo_full}",
+                        "github_repo": repo_full,
                         "keywords": [name.lower()],
                         "confidence": 0.5,
                         "source": "github",
