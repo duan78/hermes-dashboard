@@ -23,6 +23,7 @@ HISTORY_DIR = HERMES_HOME / "benchmark" / "history"
 JUDGE_MODEL = "gemma4:31b"
 JUDGE_TIMEOUT = 60
 CALL_TIMEOUT = 60
+LLM_TIMEOUT = 120
 
 
 def _get_env_value(key: str) -> str:
@@ -260,6 +261,114 @@ async def get_providers():
     return {"providers": providers}
 
 
+async def _run_single(bm: BenchmarkModel, prompt: str, run_idx: int) -> tuple[int, float, str | None, str | None]:
+    """Execute a single LLM call. Returns (run_idx, elapsed, content, error)."""
+    logger.info("benchmark run start: %s/%s run %d", bm.provider, bm.model, run_idx)
+    api_key = _get_api_key(bm.provider, bm.api_key_env)
+    resolved_url = bm.base_url
+    if not resolved_url:
+        default_urls = {
+            "ollama-cloud": "https://ollama.com/v1",
+            "zai": "https://api.z.ai/api/coding/paas/v4",
+            "mistral": "https://api.mistral.ai/v1",
+        }
+        resolved_url = default_urls.get(bm.provider, "")
+        if not resolved_url:
+            config = _load_yaml_config()
+            provider_cfg = config.get("providers", {}).get(bm.provider, {})
+            resolved_url = provider_cfg.get("api", "")
+    if not resolved_url:
+        logger.info("benchmark run fail: %s/%s run %d — no base_url", bm.provider, bm.model, run_idx)
+        return (run_idx, 0.0, None, f"Cannot determine base_url for provider '{bm.provider}'")
+    try:
+        start = time.time()
+        result = await asyncio.wait_for(
+            _call_llm(
+                resolved_url, api_key, bm.model,
+                [{"role": "user", "content": prompt}],
+            ),
+            timeout=LLM_TIMEOUT,
+        )
+        elapsed = round(time.time() - start, 3)
+        logger.info("benchmark run done: %s/%s run %d — %.3fs", bm.provider, bm.model, run_idx, elapsed)
+        return (run_idx, elapsed, result["content"], None)
+    except asyncio.TimeoutError:
+        logger.warning("benchmark run timeout: %s/%s run %d — exceeded %ds", bm.provider, bm.model, run_idx, LLM_TIMEOUT)
+        return (run_idx, 0.0, None, f"Timeout after {LLM_TIMEOUT}s")
+    except Exception as e:
+        logger.warning("benchmark run fail: %s/%s run %d: %s", bm.provider, bm.model, run_idx, e)
+        return (run_idx, 0.0, None, str(e))
+
+
+async def _benchmark_model(bm: BenchmarkModel, prompt: str, runs: int, judge_enabled: bool, judge_api_key: str) -> dict:
+    """Run all runs for one model in parallel, then optional judge scoring."""
+    logger.info("benchmark model start: %s/%s (%d runs)", bm.provider, bm.model, runs)
+
+    # Launch all runs in parallel
+    run_tasks = [_run_single(bm, prompt, i) for i in range(runs)]
+    run_results = await asyncio.gather(*run_tasks)
+
+    # Collect results in run order
+    times: list[float] = []
+    responses: list[str] = []
+    error: str | None = None
+
+    for run_idx, elapsed, content, err in sorted(run_results, key=lambda x: x[0]):
+        if err is not None:
+            error = err
+            continue
+        times.append(elapsed)
+        responses.append(content)
+
+    if not times:
+        logger.info("benchmark model fail: %s/%s — %s", bm.provider, bm.model, error or "All calls failed")
+        return {
+            "model": bm.model,
+            "provider": bm.provider,
+            "error": error or "All calls failed",
+            "times": [],
+            "responses": [],
+            "avg_time": None,
+            "min_time": None,
+            "max_time": None,
+            "std_dev": None,
+            "quality_score": None,
+            "quality_detail": None,
+            "composite_score": None,
+        }
+
+    avg_time = round(sum(times) / len(times), 3)
+    min_time = round(min(times), 3)
+    max_time = round(max(times), 3)
+    std_dev = _compute_std_dev(times)
+
+    quality_score = None
+    quality_detail = None
+
+    if judge_enabled and judge_api_key and responses:
+        quality_detail = await _judge_response(judge_api_key, prompt, responses[0])
+        quality_score = round(
+            (quality_detail["precision"] + quality_detail["completude"] + quality_detail["clarte"]) / 3, 2
+        )
+
+    logger.info("benchmark model done: %s/%s — avg %.3fs, quality %s", bm.provider, bm.model, avg_time, quality_score)
+
+    return {
+        "model": bm.model,
+        "provider": bm.provider,
+        "times": times,
+        "responses": responses,
+        "avg_time": avg_time,
+        "min_time": min_time,
+        "max_time": max_time,
+        "std_dev": std_dev,
+        "quality_score": quality_score,
+        "quality_detail": quality_detail,
+        "composite_score": None,
+        "error": None,
+    }
+
+
 @router.post("/run")
 async def run_benchmark(req: BenchmarkRequest):
     """Run benchmark: N calls per model, optional LLM Judge scoring."""
@@ -268,96 +377,14 @@ async def run_benchmark(req: BenchmarkRequest):
     if not req.prompt.strip():
         raise HTTPException(400, "Prompt is empty")
 
-    results = []
     judge_api_key = _get_env_value("OLLAMA_API_KEY") if req.judge_enabled else ""
 
-    for bm in req.models:
-        api_key = _get_api_key(bm.provider, bm.api_key_env)
-        # Auto-detect base_url from provider if not provided
-        resolved_url = bm.base_url
-        if not resolved_url:
-            default_urls = {
-                "ollama-cloud": "https://ollama.com/v1",
-                "zai": "https://api.z.ai/api/coding/paas/v4",
-                "mistral": "https://api.mistral.ai/v1",
-            }
-            resolved_url = default_urls.get(bm.provider, "")
-            if not resolved_url:
-                config = _load_yaml_config()
-                provider_cfg = config.get("providers", {}).get(bm.provider, {})
-                resolved_url = provider_cfg.get("api", "")
-        if not resolved_url:
-            results.append({
-                "model": bm.model, "provider": bm.provider,
-                "error": f"Cannot determine base_url for provider '{bm.provider}'",
-                "times": [], "responses": [], "avg_time": None, "min_time": None, "max_time": None,
-            })
-            continue
-
-        times = []
-        responses = []
-        error = None
-
-        for run_idx in range(req.runs):
-            try:
-                start = time.time()
-                result = await _call_llm(
-                    resolved_url, api_key, bm.model,
-                    [{"role": "user", "content": req.prompt}],
-                )
-                elapsed = round(time.time() - start, 3)
-                times.append(elapsed)
-                responses.append(result["content"])
-            except Exception as e:
-                error = str(e)
-                logger.warning("Benchmark call failed for %s/%s run %d: %s", bm.provider, bm.model, run_idx, e)
-                break
-
-        if not times:
-            results.append({
-                "model": bm.model,
-                "provider": bm.provider,
-                "error": error or "All calls failed",
-                "times": [],
-                "responses": [],
-                "avg_time": None,
-                "min_time": None,
-                "max_time": None,
-                "std_dev": None,
-                "quality_score": None,
-                "quality_detail": None,
-                "composite_score": None,
-            })
-            continue
-
-        avg_time = round(sum(times) / len(times), 3)
-        min_time = round(min(times), 3)
-        max_time = round(max(times), 3)
-        std_dev = _compute_std_dev(times)
-
-        quality_score = None
-        quality_detail = None
-
-        if req.judge_enabled and judge_api_key and responses:
-            quality_detail = await _judge_response(judge_api_key, req.prompt, responses[0])
-            quality_score = round(
-                (quality_detail["precision"] + quality_detail["completude"] + quality_detail["clarte"]) / 3, 2
-            )
-
-        results.append({
-            "model": bm.model,
-            "provider": bm.provider,
-            "times": times,
-            "responses": responses,
-            "avg_time": avg_time,
-            "min_time": min_time,
-            "max_time": max_time,
-            "std_dev": std_dev,
-            "quality_score": quality_score,
-            "quality_detail": quality_detail,
-            "composite_score": None,  # computed below
-            "error": None,
-        })
+    # Run all models in parallel — each model runs its N runs in parallel internally
+    model_tasks = [
+        _benchmark_model(bm, req.prompt, req.runs, req.judge_enabled, judge_api_key)
+        for bm in req.models
+    ]
+    results = list(await asyncio.gather(*model_tasks))
 
     # ── Compute composite scores ──
     valid = [r for r in results if r["avg_time"] is not None]
