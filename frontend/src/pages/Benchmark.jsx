@@ -5,9 +5,9 @@ import Tooltip from '../components/Tooltip'
 import './Benchmark.css'
 
 const PRESETS = [
-  { label: 'TCP vs UDP', prompt: 'Explique la différence entre TCP et UDP en 3 points.' },
-  { label: 'Quicksort Python', prompt: 'Code un tri rapide (quicksort) en Python avec commentaires.' },
-  { label: 'React vs Vue', prompt: 'Résume les avantages et inconvénients de React vs Vue.js.' },
+  { label: 'TCP vs UDP', prompt: 'Explain the difference between TCP and UDP in 3 points.' },
+  { label: 'Quicksort Python', prompt: 'Write a quicksort in Python with comments.' },
+  { label: 'React vs Vue', prompt: 'Summarize the pros and cons of React vs Vue.js.' },
 ]
 
 export default function Benchmark() {
@@ -157,7 +157,7 @@ export default function Benchmark() {
       <div className="page-title">
         <Timer size={28} />
         Benchmark
-        <Tooltip text="Testez et comparez les temps de réponse et la qualité des LLM disponibles" />
+        <Tooltip text="Test and compare response times and quality of available LLMs" />
       </div>
 
       {/* ── Configuration ── */}
@@ -171,16 +171,16 @@ export default function Benchmark() {
         {loading ? (
           <div className="bench-loading"><Loader2 size={20} className="spin" /> Chargement des providers...</div>
         ) : providers.length === 0 ? (
-          <div className="bench-empty">Aucun provider configuré. Vérifiez vos clés API.</div>
+          <div className="bench-empty">No providers configured. Check your API keys.</div>
         ) : (
           <div className="bench-providers">
             {providers.map(prov => (
               <div key={prov.name} className="bench-provider">
                 <div className="bench-provider-header" onClick={() => setExpandedProvider(expandedProvider === prov.name ? null : prov.name)}>
                   <span className="bench-provider-name">{prov.name}</span>
-                  <span className="badge badge-info" style={{ fontSize: 10 }}>{prov.models.length} modèles</span>
+                  <span className="badge badge-info" style={{ fontSize: 10 }}>{prov.models.length} models</span>
                   <button className="btn btn-sm" onClick={e => { e.stopPropagation(); toggleProviderAll(prov) }} style={{ marginLeft: 8, padding: '2px 8px', fontSize: 10 }}>
-                    {prov.models.every(m => isSelected(prov.name, m.id)) ? 'Tout déselectionner' : 'Tout sélectionner'}
+                    {prov.models.every(m => isSelected(prov.name, m.id)) ? 'Deselect all' : 'Select all'}
                   </button>
                   {expandedProvider === prov.name ? <ChevronUp size={14} style={{ marginLeft: 'auto' }} /> : <ChevronDown size={14} style={{ marginLeft: 'auto' }} />}
                 </div>
@@ -228,7 +228,7 @@ export default function Benchmark() {
         {/* Controls */}
         <div className="bench-controls">
           <div className="bench-control-group">
-            <Tooltip text="Nombre d'appels par modèle pour calculer la moyenne">
+            <Tooltip text="Number of calls per model to calculate average">
               <label className="bench-label">
                 Runs
                 <select value={runs} onChange={e => setRuns(Number(e.target.value))} className="bench-select">
@@ -240,10 +240,10 @@ export default function Benchmark() {
             </Tooltip>
           </div>
           <div className="bench-control-group">
-            <Tooltip text="Utilise gemma4:31b comme juge pour scorer la qualité des réponses">
+            <Tooltip text="Uses gemma4:31b as judge to score response quality">
               <label className="bench-checkbox-label">
                 <input type="checkbox" checked={judgeEnabled} onChange={e => setJudgeEnabled(e.target.checked)} />
-                Scoring qualité (LLM Judge)
+                Quality Scoring (LLM Judge)
               </label>
             </Tooltip>
           </div>
@@ -253,7 +253,7 @@ export default function Benchmark() {
             disabled={running || selectedModels.length === 0 || !prompt.trim()}
           >
             {running ? <Loader2 size={16} className="spin" /> : <Play size={16} />}
-            {running ? 'Benchmark en cours...' : `Lancer (${selectedModels.length} modèles)`}
+            {running ? 'Running benchmark...' : `Run (${selectedModels.length} models)`}
           </button>
         </div>
       </div>
@@ -263,9 +263,9 @@ export default function Benchmark() {
         <div className="bench-section">
           <h3 className="bench-section-title">
             <Trophy size={16} />
-            Résultats
+            Results
             <span className="badge badge-success" style={{ fontSize: 10, marginLeft: 8 }}>
-              70% vitesse + 30% qualité
+              70% speed + 30% quality
             </span>
           </h3>
           <div className="bench-table-wrap">
@@ -273,7 +273,7 @@ export default function Benchmark() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Modèle</th>
+                  <th>Model</th>
                   <th>Provider</th>
                   {Array.from({ length: Math.max(runs, ...results.map(r => (r.times || []).length)) }, (_, i) => (
                     <th key={i}>Tps {i + 1}</th>
@@ -281,7 +281,7 @@ export default function Benchmark() {
                   <th>Moy.</th>
                   <th>Min</th>
                   <th>Max</th>
-                  {(judgeEnabled || results.some(r => r.quality_score != null)) && <th>Qualité</th>}
+                  {(judgeEnabled || results.some(r => r.quality_score != null)) && <th>Quality</th>}
                   <th>Score</th>
                 </tr>
               </thead>
@@ -340,7 +340,7 @@ export default function Benchmark() {
         <h3 className="bench-section-title">
           <History size={16} />
           Historique
-          <Tooltip text="Les 20 derniers benchmarks exécutés">
+          <Tooltip text="Last 20 benchmark runs">
             <span className="badge badge-info" style={{ fontSize: 10, marginLeft: 8 }}>{history.length}</span>
           </Tooltip>
         </h3>
@@ -353,7 +353,7 @@ export default function Benchmark() {
                 <div className="bench-history-info">
                   <span className="bench-history-date">{h.timestamp?.replace('T', ' ').replace('Z', '')}</span>
                   <span className="bench-history-prompt">{h.prompt || '—'}</span>
-                  <span className="bench-history-meta">{h.model_count} modèles, {h.runs} runs</span>
+                  <span className="bench-history-meta">{h.model_count} models, {h.runs} runs</span>
                 </div>
                 <div className="bench-history-actions">
                   {h.ranking?.[0] && (
@@ -396,12 +396,12 @@ export default function Benchmark() {
                   <span className="bench-stat-value">{drawerResult.min_time?.toFixed(3)}s / {drawerResult.max_time?.toFixed(3)}s</span>
                 </div>
                 <div className="bench-stat">
-                  <span className="bench-stat-label">Écart-type</span>
+                  <span className="bench-stat-label">Std Dev</span>
                   <span className="bench-stat-value">{drawerResult.std_dev?.toFixed(3)}s</span>
                 </div>
                 {drawerResult.quality_score != null && (
                   <div className="bench-stat">
-                    <span className="bench-stat-label">Qualité</span>
+                    <span className="bench-stat-label">Quality</span>
                     <span className="bench-stat-value">{drawerResult.quality_score}/10</span>
                   </div>
                 )}
@@ -415,7 +415,7 @@ export default function Benchmark() {
 
               {drawerResult.quality_detail && (
                 <div className="bench-quality-detail">
-                  <h4>Juge qualité</h4>
+                  <h4>Quality Judge</h4>
                   <div className="bench-quality-bars">
                     {['precision', 'completude', 'clarte'].map(k => (
                       <div key={k} className="bench-quality-bar-row">
@@ -434,7 +434,7 @@ export default function Benchmark() {
               )}
 
               <div className="bench-responses">
-                <h4>Réponses ({drawerResult.responses?.length || 0})</h4>
+                <h4>Responses ({drawerResult.responses?.length || 0})</h4>
                 {drawerResult.responses?.map((resp, i) => (
                   <div key={i} className="bench-response-block">
                     <span className="bench-response-run">Run {i + 1} — {drawerResult.times?.[i]?.toFixed(3)}s</span>

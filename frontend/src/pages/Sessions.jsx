@@ -97,7 +97,7 @@ function SessionDetail({ sessionId, onBack }) {
             onClick={() => navigate('/projects')}
           >
             <FolderKanban size={14} />
-            <span>Projet lié : <strong>{linkedProjects[sessionId].name}</strong></span>
+            <span>Related project: <strong>{linkedProjects[sessionId].name}</strong></span>
             <ArrowRight size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
           </div>
         )}
@@ -380,7 +380,7 @@ export default function Sessions() {
         <span className="nav-pill" onClick={() => navigate('/projects')}><FolderKanban size={12} /> Projets</span>
         <span className="nav-pill" onClick={() => navigate('/backlog')}><ClipboardList size={12} /> Backlog</span>
         <span className="nav-pill" onClick={() => navigate('/wiki')}><FileText size={12} /> Wiki</span>
-        <span className="nav-pill" onClick={() => navigate('/activity')}><Activity size={12} /> Activité</span>
+        <span className="nav-pill" onClick={() => navigate('/activity')}><Activity size={12} /> Activity</span>
       </div>
 
       {sessionsError && <div className="error-box">{sessionsError.message}</div>}

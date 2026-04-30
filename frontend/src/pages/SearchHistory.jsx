@@ -22,8 +22,8 @@ function BackendBadge({ backend }) {
 function formatDate(ts) {
   if (!ts) return ''
   const d = new Date(ts + 'Z')
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-    ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 export default function SearchHistory() {
@@ -110,25 +110,25 @@ export default function SearchHistory() {
         <div className="sh-header-left">
           <h2>
             <Search size={20} />
-            Historique des Recherches
+            Search History
           </h2>
-          <span className="sh-badge" title="Nombre total de recherches">
+          <span className="sh-badge" title="Total searches">
             {stats?.total_searches ?? total}
           </span>
         </div>
         <div className="sh-header-actions">
-          <button className="sh-btn sh-btn-ghost" onClick={handleRefresh} title="Rafraîchir les données">
+          <button className="sh-btn sh-btn-ghost" onClick={handleRefresh} title="Refresh data">
             <RefreshCw size={15} />
-            Rafraîchir
+            Refresh
           </button>
           <button
             className="sh-btn sh-btn-danger"
             onClick={() => setShowConfirm(true)}
-            title="Effacer tout l'historique des recherches"
+            title="Clear all search history"
             disabled={total === 0}
           >
             <Trash2 size={15} />
-            Effacer tout
+            Clear All
           </button>
         </div>
       </div>
@@ -136,25 +136,25 @@ export default function SearchHistory() {
       {/* Stats cards */}
       {stats && (
         <div className="sh-stats-row">
-          <div className="sh-stat-card" title="Nombre de recherches effectuées aujourd'hui">
+          <div className="sh-stat-card" title="Searches performed today">
             <div className="sh-stat-icon"><Clock size={20} /></div>
             <div>
               <div className="sh-stat-value">{stats.searches_today ?? 0}</div>
-              <div className="sh-stat-label">Recherches aujourd'hui</div>
+              <div className="sh-stat-label">Searches today</div>
             </div>
           </div>
-          <div className="sh-stat-card" title="Nombre de recherches cette semaine (7 derniers jours)">
+          <div className="sh-stat-card" title="Searches this week (last 7 days)">
             <div className="sh-stat-icon"><TrendingUp size={20} /></div>
             <div>
               <div className="sh-stat-value">{stats.searches_this_week ?? 0}</div>
-              <div className="sh-stat-label">Recherches cette semaine</div>
+              <div className="sh-stat-label">Searches this week</div>
             </div>
           </div>
-          <div className="sh-stat-card" title="Nombre moyen de résultats par recherche">
+          <div className="sh-stat-card" title="Average results per search">
             <div className="sh-stat-icon"><BarChart3 size={20} /></div>
             <div>
               <div className="sh-stat-value">{stats.avg_results ?? 0}</div>
-              <div className="sh-stat-label">Résultats moy./recherche</div>
+              <div className="sh-stat-label">Avg results/search</div>
             </div>
           </div>
         </div>
@@ -164,38 +164,38 @@ export default function SearchHistory() {
       <div className="sh-filters">
         <input
           type="text"
-          placeholder="Filtrer par requête..."
+          placeholder="Filter by query..."
           value={filterQuery}
           onChange={e => { setFilterQuery(e.target.value); setPage(1) }}
-          title="Rechercher dans les requêtes passées"
+          title="Search past queries"
         />
         <select
           value={filterBackend}
           onChange={e => { setFilterBackend(e.target.value); setPage(1) }}
-          title="Filtrer par provider/backend"
+          title="Filter by provider/backend"
         >
-          <option value="">Tous les providers</option>
+          <option value="">All providers</option>
           {availableBackends.map(b => (
             <option key={b} value={b}>{b}</option>
           ))}
         </select>
         {(filterBackend || filterQuery) && (
-          <button className="sh-btn sh-btn-ghost" onClick={handleResetFilters} title="Réinitialiser les filtres">
+          <button className="sh-btn sh-btn-ghost" onClick={handleResetFilters} title="Reset filters">
             <X size={14} />
-            Réinitialiser
+            Reset
           </button>
         )}
       </div>
 
       {/* Table */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Chargement...</div>
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading...</div>
       ) : items.length === 0 ? (
         <div className="sh-empty">
           <Search size={40} />
-          <p>Aucune recherche enregistrée</p>
+          <p>No searches recorded</p>
           <p className="sh-empty-hint">
-            Les recherches effectuées par l'agent Hermes apparaîtront ici automatiquement.
+            Searches performed by the Hermes agent will appear here automatically.
           </p>
         </div>
       ) : (
@@ -204,11 +204,11 @@ export default function SearchHistory() {
             <table className="sh-table">
               <thead>
                 <tr>
-                  <th>Date/Heure</th>
-                  <th>Requête</th>
+                  <th>Date/Time</th>
+                  <th>Query</th>
                   <th>Backend</th>
-                  <th>Résultats</th>
-                  <th>Temps (ms)</th>
+                  <th>Results</th>
+                  <th>Time (ms)</th>
                   <th>Top URLs</th>
                 </tr>
               </thead>
@@ -252,19 +252,19 @@ export default function SearchHistory() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                title="Page précédente"
+                title="Previous page"
               >
-                Précédent
+                Previous
               </button>
               <span>
-                Page {page} / {totalPages} — {total} entrée{total > 1 ? 's' : ''}
+                Page {page} / {totalPages} — {total} {total === 1 ? 'entry' : 'entries'}
               </span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                title="Page suivante"
+                title="Next page"
               >
-                Suivant
+                Next
               </button>
             </div>
           )}
@@ -276,7 +276,7 @@ export default function SearchHistory() {
         <div className="sh-provider-stats">
           <h3>
             <BarChart3 size={16} />
-            Répartition par provider
+            Distribution by provider
           </h3>
           {stats.by_backend.map(b => {
             const pct = stats.total_searches > 0 ? (b.count / stats.total_searches * 100) : 0
@@ -308,7 +308,7 @@ export default function SearchHistory() {
               Confirmer la suppression
             </h3>
             <p>
-              Voulez-vous effacer tout l'historique des recherches ? Cette action est irréversible.
+              Are you sure you want to clear all search history? This action is irreversible.
             </p>
             <div className="sh-modal-actions">
               <button className="sh-btn sh-btn-ghost" onClick={() => setShowConfirm(false)} disabled={deleting}>

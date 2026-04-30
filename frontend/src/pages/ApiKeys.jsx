@@ -197,6 +197,16 @@ export default function ApiKeys() {
       </div>
 
       {/* Categories */}
+      {data && search && !Object.entries(CATEGORY_META).some(([catName]) => {
+        const categories = data.categories[catName]
+        if (!categories) return false
+        return Object.values(categories).some(keys => filterKeys(keys).length > 0)
+      }) && (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
+          <Search size={32} style={{ marginBottom: 12, opacity: 0.4 }} />
+          <p style={{ margin: 0 }}>No keys matching "{search}"</p>
+        </div>
+      )}
       {data && Object.entries(CATEGORY_META).map(([catName, meta]) => {
         const categories = data.categories[catName]
         if (!categories) return null

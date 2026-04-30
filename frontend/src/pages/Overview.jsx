@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { LayoutDashboard, Activity, Cpu, MessageSquare, Radio, RefreshCw, Package, ChevronDown, Loader2, RotateCcw, Database, FolderKanban, ClipboardList, Bell, Zap, Lightbulb } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useOverview, useLogs, useSystemMetrics, useHermesVersion, useHermesChangelog, useHermesUpdate } from '../hooks/useApi'
 import { useQuery } from '@tanstack/react-query'
 import Tooltip from '../components/Tooltip'
@@ -233,7 +234,7 @@ function DashboardWidgets() {
         {intelStatus && intelStatus.analysis_count > 0 && (
           <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 11, color: 'var(--text-muted)' }}>
             <span>{intelStatus.accepted || 0} auto</span>
-            <span>{intelStatus.rejected || 0} rejetées</span>
+            <span>{intelStatus.rejected || 0} rejected</span>
             {intelStatus.analysis_count > 0 && <span>{intelStatus.analysis_count} analyses</span>}
           </div>
         )}
@@ -388,6 +389,7 @@ export default function Overview() {
 
       {/* Row 1: Status bar */}
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
+        <Link to="/gateway" style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="stat-card">
           <div className="stat-label">
             Gateway
@@ -404,6 +406,8 @@ export default function Overview() {
             <Tooltip text="How long the gateway has been running since last restart." />
           </div>
         </div>
+        </Link>
+        <Link to="/models" style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="stat-card">
           <div className="stat-label">
             Model
@@ -412,6 +416,8 @@ export default function Overview() {
           <div className="stat-value" style={{ fontSize: 18 }}>{data.model?.name || 'N/A'}</div>
           <div className="stat-detail">{data.model?.provider || ''}</div>
         </div>
+        </Link>
+        <Link to="/sessions" style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="stat-card">
           <div className="stat-label">
             Sessions
@@ -423,6 +429,8 @@ export default function Overview() {
             {data.sessions?.messages || 0} messages
           </div>
         </div>
+        </Link>
+        <Link to="/skills" style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="stat-card">
           <div className="stat-label">
             Skills / Cron
@@ -431,6 +439,7 @@ export default function Overview() {
           <div className="stat-value">{data.skills_installed} / {data.cron_active}</div>
           <div className="stat-detail">Installed / Active</div>
         </div>
+        </Link>
       </div>
 
       {/* Row 2: System Metrics */}

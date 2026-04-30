@@ -96,7 +96,7 @@ const BoundedBacklog = withErrorBoundary(Backlog, 'Backlog')
 const BoundedProjects = withErrorBoundary(Projects, 'Projects')
 const BoundedNotFound = withErrorBoundary(NotFound, 'Not Found')
 const BoundedSearchHistory = withErrorBoundary(SearchHistory, 'Search History')
-const BoundedActivity = withErrorBoundary(ActivityPage, 'Activit\u00e9')
+const BoundedActivity = withErrorBoundary(ActivityPage, 'Activity')
 const BoundedBenchmark = withErrorBoundary(Benchmark, 'Benchmark')
 
 const NAV_ITEMS = [
@@ -106,7 +106,7 @@ const NAV_ITEMS = [
   { to: '/chat', icon: MessageCircle, label: 'Chat' },
   { to: '/config', icon: Settings, label: 'Configuration' },
   { to: '/sessions', icon: MessageSquare, label: 'Sessions' },
-  { to: '/search-history', icon: SearchIcon, label: 'Recherches' },
+  { to: '/search-history', icon: SearchIcon, label: 'Searches' },
   { to: '/files', icon: FolderOpen, label: 'Files' },
   { to: '/terminal', icon: Terminal, label: 'Terminal' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
@@ -131,9 +131,9 @@ const NAV_ITEMS = [
   { to: '/users', icon: Users, label: 'Users' },
   { to: '/profiles', icon: Users, label: 'Profiles' },
   { to: '/backup', icon: HardDrive, label: 'Backup' },
-  { to: '/projects', icon: FolderKanban, label: 'Projets' },
+  { to: '/projects', icon: FolderKanban, label: 'Projects' },
   { to: '/backlog', icon: ClipboardList, label: 'Backlog' },
-  { to: '/activity', icon: Activity, label: 'Activit\u00e9' },
+  { to: '/activity', icon: Activity, label: 'Activity' },
 ]
 
 function Spinner() {

@@ -68,7 +68,7 @@ function AgentReachChannelList({ channels, onRecheck, rechecking }) {
           {okCount}/{totalCount} actifs
         </span>
         {onRecheck && (
-          <Tooltip text="Revérifier les statuts de tous les canaux Agent-Reach">
+          <Tooltip text="Recheck status of all Agent-Reach channels">
             <button
               className="btn btn-sm"
               onClick={onRecheck}
@@ -76,7 +76,7 @@ function AgentReachChannelList({ channels, onRecheck, rechecking }) {
               style={{ marginLeft: 'auto', padding: '2px 8px', fontSize: 11 }}
             >
               {rechecking ? <Loader2 size={11} className="spin" /> : <RefreshCw size={11} />}
-              {' '}Revérifier
+              {' '}Recheck
             </button>
           </Tooltip>
         )}
@@ -133,7 +133,7 @@ function AgentReachCombinedSection({ channels }) {
         <Radio size={13} style={{ color: 'var(--accent)' }} />
         <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--accent)' }}>Agent-Reach Channels</span>
         <span className="badge badge-success" style={{ fontSize: 10 }}>{channels.length} actifs</span>
-        <Tooltip text="Agent-Reach fournit l'accès direct à 16 plateformes internet. Les canaux actifs sont automatiquement utilisés par le mode Combined pour enrichir les résultats de recherche." />
+        <Tooltip text="Agent-Reach provides direct access to 16 internet platforms. Active channels are automatically used by Combined mode to enrich search results." />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
         {channels.map(ch => (

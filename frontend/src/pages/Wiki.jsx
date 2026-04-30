@@ -645,7 +645,7 @@ export default function Wiki() {
               <span className="nav-pill" onClick={() => navigate('/projects')}><FolderKanban size={12} /> Projets</span>
               <span className="nav-pill" onClick={() => navigate('/backlog')}><ClipboardList size={12} /> Backlog</span>
               <span className="nav-pill" onClick={() => navigate('/sessions')}><MessageSquare size={12} /> Sessions</span>
-              <span className="nav-pill" onClick={() => navigate('/activity')}><Activity size={12} /> Activité</span>
+              <span className="nav-pill" onClick={() => navigate('/activity')}><Activity size={12} /> Activity</span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>

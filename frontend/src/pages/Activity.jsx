@@ -19,15 +19,15 @@ const ENTITY_ROUTES = {
 }
 
 const ACTION_LABELS = {
-  'project.created': 'Projet créé',
-  'project.updated': 'Projet modifié',
-  'project.deleted': 'Projet supprimé',
-  'backlog.created': 'Tâche créée',
-  'backlog.updated': 'Tâche modifiée',
-  'backlog.status_changed': 'Statut changé',
-  'backlog.deleted': 'Tâche supprimée',
-  'wiki.created': 'Page wiki créée',
-  'wiki.updated': 'Page wiki modifiée',
+  'project.created': 'Project created',
+  'project.updated': 'Project updated',
+  'project.deleted': 'Project deleted',
+  'backlog.created': 'Task created',
+  'backlog.updated': 'Task updated',
+  'backlog.status_changed': 'Status changed',
+  'backlog.deleted': 'Task deleted',
+  'wiki.created': 'Wiki page created',
+  'wiki.updated': 'Wiki page updated',
 }
 
 export default function ActivityPage() {
@@ -41,9 +41,9 @@ export default function ActivityPage() {
 
   return (
     <div>
-      <h1 className="page-title"><Activity size={24} /> Activité Récente</h1>
+      <h1 className="page-title"><Activity size={24} /> Recent Activity</h1>
       <div className="nav-pills" style={{ marginBottom: 16 }}>
-        <span className="nav-pill" onClick={() => navigate('/projects')}><FolderKanban size={12} /> Projets</span>
+        <span className="nav-pill" onClick={() => navigate('/projects')}><FolderKanban size={12} /> Projects</span>
         <span className="nav-pill" onClick={() => navigate('/backlog')}><ClipboardList size={12} /> Backlog</span>
         <span className="nav-pill" onClick={() => navigate('/wiki')}><FileText size={12} /> Wiki</span>
         <span className="nav-pill" onClick={() => navigate('/sessions')}><MessageSquare size={12} /> Sessions</span>
@@ -54,7 +54,7 @@ export default function ActivityPage() {
       {!isLoading && entries.length === 0 && (
         <div className="empty-state">
           <Activity size={48} />
-          <p>Aucune activité enregistrée</p>
+          <p>No activity recorded</p>
         </div>
       )}
 
@@ -62,7 +62,7 @@ export default function ActivityPage() {
         {entries.map(entry => {
           const Icon = ENTITY_ICONS[entry.entity_type] || Activity
           const actionLabel = ACTION_LABELS[entry.action] || entry.action
-          const time = entry.timestamp ? new Date(entry.timestamp).toLocaleString('fr-FR') : ''
+          const time = entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-US') : ''
           const route = ENTITY_ROUTES[entry.entity_type]
           return (
             <div key={entry.id} className="activity-entry" style={route ? { cursor: 'pointer' } : {}} onClick={route ? () => navigate(route) : undefined}>
@@ -78,7 +78,7 @@ export default function ActivityPage() {
                   <div className="activity-entry-name">{entry.entity_name}</div>
                 )}
                 {entry.actor && entry.actor !== 'system' && (
-                  <span className="activity-entry-actor">par {entry.actor}</span>
+                  <span className="activity-entry-actor">by {entry.actor}</span>
                 )}
               </div>
             </div>

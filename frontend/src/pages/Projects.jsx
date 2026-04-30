@@ -260,7 +260,7 @@ export default function Projects() {
 
     promise
       .then(function () {
-        toast(editingProject ? 'Projet mis à jour' : 'Projet créé', 'success')
+        toast(editingProject ? 'Project updated' : 'Project created', 'success')
         closeModal()
         loadProjects()
       })
@@ -277,7 +277,7 @@ export default function Projects() {
     if (!deleteTarget) return
     api.deleteProject(deleteTarget.id)
       .then(function () {
-        toast('Projet supprimé', 'success')
+        toast('Project deleted', 'success')
         if (selectedProject && selectedProject.id === deleteTarget.id) {
           setSelectedProject(null)
         }
@@ -308,7 +308,7 @@ export default function Projects() {
         setSelectedCandidates(sel)
       })
       .catch(function (err) {
-        toast('Erreur détection: ' + err.message, 'error')
+        toast('Detection error: ' + err.message, 'error')
       })
       .finally(function () {
         setDetecting(false)
@@ -327,7 +327,7 @@ export default function Projects() {
   function createSelectedCandidates() {
     var toCreate = detectCandidates.filter(function (c) { return selectedCandidates[c.id] })
     if (toCreate.length === 0) {
-      toast('Aucun projet sélectionné', 'error')
+      toast('No project selected', 'error')
       return
     }
     setSaving(true)
@@ -342,7 +342,7 @@ export default function Projects() {
       })
     }))
       .then(function () {
-        toast(toCreate.length + ' projet(s) créé(s)', 'success')
+        toast(toCreate.length + ' project(s) created', 'success')
         setShowDetectModal(false)
         loadProjects()
       })
@@ -409,7 +409,7 @@ export default function Projects() {
   function handleBacklogLaunch(item) {
     api.runBacklogItem(item.id)
       .then(function () {
-        toast('Claude Code lancé pour : ' + item.title, 'success')
+        toast('Claude Code started for: ' + item.title, 'success')
       })
       .catch(function (err) {
         toast('Erreur au lancement : ' + (err.message || 'inconnu'), 'error')
@@ -444,7 +444,7 @@ export default function Projects() {
     setWikiSaving(true)
     api.projectWikiSave(selectedProject.id, wikiDrawer.name, wikiContent)
       .then(function () {
-        toast('Page wiki sauvegardée', 'success')
+        toast('Wiki page saved', 'success')
         setWikiEditing(false)
         delete detailCacheRef.current[selectedProject.id]
       })
@@ -459,7 +459,7 @@ export default function Projects() {
   function handleWikiInit() {
     api.projectWikiInit(selectedProject.id)
       .then(function (data) {
-        toast(data.created.length + ' page(s) créée(s)', 'success')
+        toast(data.created.length + ' page(s) created', 'success')
         delete detailCacheRef.current[selectedProject.id]
         loadProjectDetail(selectedProject)
       })
@@ -471,7 +471,7 @@ export default function Projects() {
   function handleWikiDelete(pageName) {
     api.projectWikiDelete(selectedProject.id, pageName)
       .then(function () {
-        toast('Page supprimée', 'success')
+        toast('Page deleted', 'success')
         closeWikiDrawer()
         delete detailCacheRef.current[selectedProject.id]
         loadProjectDetail(selectedProject)
@@ -487,14 +487,14 @@ export default function Projects() {
     var content = '---\ntitle: ' + newWikiPageName + '\ntags: []\ncreated: ' + new Date().toISOString().split('T')[0] + '\nupdated: ' + new Date().toISOString().split('T')[0] + '\nproject_id: true\n---\n\n# ' + newWikiPageName + '\n\n'
     api.projectWikiSave(selectedProject.id, slug, content)
       .then(function () {
-        toast('Page créée', 'success')
+        toast('Page created', 'success')
         setNewWikiPageName('')
         setShowNewWikiPage(false)
         delete detailCacheRef.current[selectedProject.id]
         loadProjectDetail(selectedProject)
       })
       .catch(function (err) {
-        toast('Erreur création: ' + err.message, 'error')
+        toast('Creation error: ' + err.message, 'error')
       })
   }
 
@@ -507,7 +507,7 @@ export default function Projects() {
     setLinkSaving(true)
     api.projectAddLink(selectedProject.id, linkForm)
       .then(function () {
-        toast('Lien ajouté', 'success')
+        toast('Link added', 'success')
         setLinkForm({ title: '', url: '', category: 'other' })
         setShowAddLink(false)
         delete detailCacheRef.current[selectedProject.id]
@@ -524,7 +524,7 @@ export default function Projects() {
   function handleDeleteLink(linkId) {
     api.projectDeleteLink(selectedProject.id, linkId)
       .then(function () {
-        toast('Lien supprimé', 'success')
+        toast('Link removed', 'success')
         delete detailCacheRef.current[selectedProject.id]
         loadProjectDetail(selectedProject)
       })
@@ -579,23 +579,23 @@ export default function Projects() {
       <div className="projects-header">
         <div className="page-title">
           <FolderKanban size={28} />
-          Projets
-          <Tooltip text="Gestion et suivi de vos projets. Organisez vos travaux par type, suivez les sessions et tâches backlog associées." />
+          Projects
+          <Tooltip text="Manage and track your projects. Organize work by type, track sessions and backlog tasks." />
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Tooltip text="Scanner les sessions, backlog et repos GitHub pour détecter automatiquement des projets">
+          <Tooltip text="Scan sessions, backlog, and GitHub repos to automatically detect projects">
             <button className="btn btn-sm" onClick={openDetectModal}>
-              <Scan size={14} /> Détecter
+              <Scan size={14} /> Detect
             </button>
           </Tooltip>
           <button className="btn btn-primary" onClick={openCreateModal}>
-            <Plus size={14} /> Nouveau projet
+            <Plus size={14} /> New Project
           </button>
         </div>
       </div>
       <div className="nav-pills" style={{ marginBottom: 12 }}>
         <span className="nav-pill" onClick={function () { navigate('/wiki') }}><BookOpen size={12} /> Wiki</span>
-        <span className="nav-pill" onClick={function () { navigate('/activity') }}><Activity size={12} /> Activité</span>
+        <span className="nav-pill" onClick={function () { navigate('/activity') }}><Activity size={12} /> Activity</span>
         <span className="nav-pill" onClick={function () { navigate('/sessions') }}><MessageSquare size={12} /> Sessions</span>
         <span className="nav-pill" onClick={function () { navigate('/backlog') }}><ClipboardList size={12} /> Backlog</span>
       </div>
@@ -607,26 +607,26 @@ export default function Projects() {
           <input
             className="projects-search-input"
             type="text"
-            placeholder="Rechercher un projet..."
+            placeholder="Search projects..."
             value={search}
             onChange={function (e) { setSearch(e.target.value) }}
           />
         </div>
         <select className="projects-filter-select" value={typeFilter} onChange={function (e) { setTypeFilter(e.target.value) }}>
-          <option value="">Tous les types</option>
+          <option value="">All types</option>
           {TYPES.map(function (t) { return <option key={t} value={t}>{t}</option> })}
         </select>
         <select className="projects-filter-select" value={statusFilter} onChange={function (e) { setStatusFilter(e.target.value) }}>
-          <option value="">Tous les statuts</option>
+          <option value="">All statuses</option>
           {STATUSES.map(function (s) { return <option key={s} value={s}>{s}</option> })}
         </select>
         {(typeFilter || statusFilter || search) && (
           <button className="btn btn-sm" onClick={function () { setSearch(''); setTypeFilter(''); setStatusFilter('') }}>
-            <X size={14} /> Réinitialiser
+            <X size={14} /> Reset
           </button>
         )}
         <div style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 13 }}>
-          {filteredProjects.length} projet{filteredProjects.length !== 1 ? 's' : ''}
+          {filteredProjects.length} {filteredProjects.length === 1 ? 'project' : 'projects'}
         </div>
       </div>
 
@@ -642,7 +642,7 @@ export default function Projects() {
               if (p) loadProjectDetail(p)
             }}
           >
-            <option value="">Sélectionnez un projet...</option>
+            <option value="">Select a project...</option>
             {filteredProjects.map(function (p) {
               return <option key={p.id} value={p.id}>{p.name}</option>
             })}
@@ -658,7 +658,7 @@ export default function Projects() {
           ) : filteredProjects.length === 0 ? (
             <div className="projects-empty">
               <FolderKanban size={32} />
-              <p>Aucun projet</p>
+              <p>No projects yet</p>
             </div>
           ) : (
             <div className="projects-sidebar-list">
@@ -698,7 +698,7 @@ export default function Projects() {
           {!selectedProject ? (
             <div className="projects-detail-empty">
               <FolderKanban size={48} />
-              <p>Sélectionnez un projet</p>
+              <p>Select a project</p>
             </div>
           ) : detailLoading ? (
             <div className="projects-loading"><div className="spinner" /></div>
@@ -769,15 +769,15 @@ export default function Projects() {
                   </div>
                   <div className="projects-summary-stat" style={{ color: '#ef4444' }}>
                     <span className="projects-summary-stat-value">{summaryStats.blocked}</span>
-                    <span className="projects-summary-stat-label">Bloqués</span>
+                    <span className="projects-summary-stat-label">Blocked</span>
                   </div>
                 </div>
                 <div className="projects-summary-meta">
                   {lastActivity && (
-                    <span><Clock size={12} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />Dernière activité: {relativeDate(lastActivity.toISOString())}</span>
+                    <span><Clock size={12} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />Last activity: {relativeDate(lastActivity.toISOString())}</span>
                   )}
                   {selectedProject.created && (
-                    <span>Créé {relativeDate(selectedProject.created)}</span>
+                    <span>Created {relativeDate(selectedProject.created)}</span>
                   )}
                 </div>
               </div>
@@ -825,7 +825,7 @@ export default function Projects() {
               {/* Keywords */}
               {selectedProject.keywords && selectedProject.keywords.length > 0 && (
                 <div className="projects-detail-section">
-                  <h4><Tag size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Mots-clés</h4>
+                  <h4><Tag size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Keywords</h4>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {selectedProject.keywords.map(function (kw, i) {
                       return <span key={i} className="projects-keyword-tag">{kw}</span>
@@ -836,11 +836,11 @@ export default function Projects() {
 
               {/* Sessions - Clickable */}
               <div className="projects-detail-section">
-                <h4><MessageSquare size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Sessions liées ({projectSessions.length}){' '}
+                <h4><MessageSquare size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Related Sessions ({projectSessions.length}){' '}
                   <button onClick={function() { navigate('/sessions') }} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>View All</button>
                 </h4>
                 {projectSessions.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune session trouvée</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>No sessions found</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {projectSessions.slice(0, 20).map(function (s, i) {
@@ -869,11 +869,11 @@ export default function Projects() {
 
               {/* Backlog - Clickable */}
               <div className="projects-detail-section">
-                <h4><ClipboardList size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Tâches backlog ({projectBacklog.length}){' '}
+                <h4><ClipboardList size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Backlog Tasks ({projectBacklog.length}){' '}
                 <button onClick={function() { navigate('/backlog') }} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>Tout voir</button>
               </h4>
                 {projectBacklog.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Aucune tâche backlog liée</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>No backlog tasks linked</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {projectBacklog.map(function (item) {
@@ -943,7 +943,7 @@ export default function Projects() {
                             onKeyDown={function (e) { if (e.key === 'Enter') handleNewWikiPage() }}
                             autoFocus
                           />
-                          <button className="btn btn-sm" onClick={handleNewWikiPage} style={{ fontSize: 11, padding: '2px 8px' }}>Créer</button>
+                          <button className="btn btn-sm" onClick={handleNewWikiPage} style={{ fontSize: 11, padding: '2px 8px' }}>Create</button>
                           <button className="btn btn-sm" onClick={function () { setShowNewWikiPage(false); setNewWikiPageName('') }} style={{ fontSize: 11, padding: '2px 8px' }}>Annuler</button>
                         </div>
                       ) : (
@@ -1014,7 +1014,7 @@ export default function Projects() {
               {/* Cross-references / Related */}
               {crossRefs && (crossRefs.wiki_pages.length > 0 || crossRefs.links.length > 0) && (
                 <div className="projects-detail-section">
-                  <h4><FolderKanban size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Entités liées</h4>
+                  <h4><FolderKanban size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Related Entities</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {crossRefs.wiki_pages.map(function (wp) {
                       return (
@@ -1040,8 +1040,8 @@ export default function Projects() {
 
               {/* Meta footer */}
               <div className="projects-detail-meta">
-                <span>Créé: {formatDate(selectedProject.created)}</span>
-                <span>Modifié: {formatDate(selectedProject.updated)}</span>
+                <span>Created: {formatDate(selectedProject.created)}</span>
+                <span>Modified: {formatDate(selectedProject.updated)}</span>
               </div>
             </>
           )}
@@ -1120,7 +1120,7 @@ export default function Projects() {
                 onClick={function () { closeSessionDrawer(); navigate('/sessions/' + sessionDrawer.id) }}
               >
                 <ExternalLink size={14} /> Ouvrir la session
-                <Tooltip text="Ouvrir cette session dans la vue détaillée avec tous les messages" />
+                <Tooltip text="Open this session in detailed view with all messages" />
               </button>
               <button className="btn btn-sm" onClick={function () { navigate('/sessions') }}>
                 <ArrowRight size={14} /> Voir toutes les sessions
@@ -1189,12 +1189,12 @@ export default function Projects() {
                 <h4 className="drawer-section-title"><Clock size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Dates</h4>
                 <div className="drawer-dates">
                   <div className="drawer-date-row">
-                    <span className="drawer-date-label">Créé</span>
+                    <span className="drawer-date-label">Created</span>
                     <span className="drawer-date-value">{formatDate(backlogDrawer.created)}</span>
                   </div>
                   {backlogDrawer.done_date && (
                     <div className="drawer-date-row">
-                      <span className="drawer-date-label">Terminé</span>
+                      <span className="drawer-date-label">Completed</span>
                       <span className="drawer-date-value">{formatDate(backlogDrawer.done_date)}</span>
                     </div>
                   )}
@@ -1320,7 +1320,7 @@ export default function Projects() {
               />
             </div>
             <div className="projects-form-group">
-              <label className="form-label">Mots-clés (séparés par des virgules)</label>
+              <label className="form-label">Keywords (comma-separated)</label>
               <input
                 className="form-input"
                 value={formData.keywords}
@@ -1338,7 +1338,7 @@ export default function Projects() {
             <div className="projects-form-actions">
               <button className="btn" onClick={closeModal} disabled={saving}>Annuler</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving || !formData.name.trim()}>
-                {saving ? 'Enregistrement...' : (editingProject ? 'Mettre à jour' : 'Créer')}
+                {saving ? 'Saving...' : (editingProject ? 'Update' : 'Create')}
               </button>
             </div>
           </div>
@@ -1350,16 +1350,16 @@ export default function Projects() {
         <div className="projects-modal-overlay" onClick={function () { setShowDetectModal(false) }}>
           <div className="projects-modal" onClick={function (e) { e.stopPropagation() }}>
             <div className="projects-modal-header">
-              <h3>Détection automatique</h3>
+              <h3>Auto-detection</h3>
               <button className="btn btn-sm" onClick={function () { setShowDetectModal(false) }}><X size={16} /></button>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>
-              Scanner les sessions, backlog, mémoire et repos GitHub pour détecter des projets existants.
+              Scan sessions, backlog, memory, and GitHub repos to detect existing projects.
             </p>
             {detectCandidates.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
                 <button className="btn btn-primary" onClick={runDetection} disabled={detecting}>
-                  {detecting ? 'Analyse en cours...' : <><Scan size={14} /> Lancer la détection</>}
+                  {detecting ? 'Analyzing...' : <><Scan size={14} /> Run detection</>}
                 </button>
               </div>
             ) : (
@@ -1401,7 +1401,7 @@ export default function Projects() {
                 <div className="projects-form-actions">
                   <button className="btn" onClick={function () { setShowDetectModal(false) }}>Annuler</button>
                   <button className="btn btn-primary" onClick={createSelectedCandidates} disabled={saving || selectedCount === 0}>
-                    {saving ? 'Création...' : 'Créer ' + selectedCount + ' projet(s) sélectionné(s)'}
+                    {saving ? 'Creating...' : 'Create ' + selectedCount + ' selected project(s)'}
                   </button>
                 </div>
               </>
@@ -1414,7 +1414,7 @@ export default function Projects() {
       {deleteTarget && (
         <ConfirmModal
           title="Supprimer le projet"
-          message={'Supprimer "' + (deleteTarget.name || deleteTarget.id) + '" ? Cette action est irréversible.'}
+          message={'Delete "' + (deleteTarget.name || deleteTarget.id) + '"? This action is irreversible.'}
           onConfirm={handleDelete}
           onCancel={function () { setDeleteTarget(null) }}
           danger={true}

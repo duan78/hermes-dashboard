@@ -165,7 +165,7 @@ export default function Backlog() {
     setLaunching(function (prev) { var next = {}; next[item.id] = true; return Object.assign({}, prev, next) })
     api.runBacklogItem(item.id)
       .then(function (data) {
-        toast('Claude Code lancé pour : ' + item.title, 'success')
+        toast('Claude Code started for: ' + item.title, 'success')
         setRunningSessions(function (prev) {
           var next = prev || {}
           next[item.id] = data.session
@@ -404,7 +404,7 @@ export default function Backlog() {
     setAcceptingSuggestion(function (prev) { var n = {}; n[id] = true; return Object.assign({}, prev, n) })
     api.acceptBacklogSuggestion(id)
       .then(function () {
-        toast('Suggestion acceptée et ajoutée au backlog', 'success')
+        toast('Suggestion accepted and added to backlog', 'success')
         fetchSuggestions()
         fetchItems()
         fetchStats()
@@ -419,7 +419,7 @@ export default function Backlog() {
   function handleRejectSuggestion(id) {
     api.rejectBacklogSuggestion(id)
       .then(function () {
-        toast('Suggestion rejetée', 'success')
+        toast('Suggestion rejected', 'success')
         fetchSuggestions()
         fetchIntelStats()
       })
@@ -518,7 +518,7 @@ export default function Backlog() {
         </select>
         <select className="backlog-filter-select" value={filterSource} onChange={function (e) { setFilterSource(e.target.value) }}>
           <option value="">Toutes sources</option>
-          <option value="autofeed">Auto-détectées</option>
+          <option value="autofeed">Auto-detected</option>
           <option value="manual">Manuelles</option>
         </select>
         {(filterStatus || filterCategory || filterPriority || filterSource) && (
@@ -538,15 +538,15 @@ export default function Backlog() {
       {intelStats.analysis_count > 0 && (
         <div className="backlog-intel-stats">
           <Zap size={14} />
-          <span>{intelStats.accepted || 0} auto-détectées</span>
+          <span>{intelStats.accepted || 0} auto-detected</span>
           <span className="backlog-intel-stat-sep">&middot;</span>
           <span>{suggestions.length} suggestions</span>
           <span className="backlog-intel-stat-sep">&middot;</span>
-          <span>{intelStats.rejected || 0} rejetées</span>
+          <span>{intelStats.rejected || 0} rejected</span>
           {intelStats.last_analysis && (
             <>
               <span className="backlog-intel-stat-sep">&middot;</span>
-              <span>Dernière analyse: {new Date(intelStats.last_analysis).toLocaleTimeString()}</span>
+              <span>Last analysis: {new Date(intelStats.last_analysis).toLocaleTimeString()}</span>
             </>
           )}
         </div>
@@ -648,7 +648,7 @@ export default function Backlog() {
                     {item.category}
                   </span>
                   {(item.source === 'autofeed' || item.autofeed_source) && (
-                    <Tooltip text={"Ajouté automatiquement par le système autofeed"}>
+                    <Tooltip text={"Automatically added by the autofeed system"}>
                       <span className="backlog-badge" style={{ backgroundColor: '#8b5cf620', color: '#8b5cf6', borderColor: '#8b5cf640', fontSize: 11 }}>
                         auto
                       </span>
@@ -686,7 +686,7 @@ export default function Backlog() {
                   </span>
                   <div className="backlog-item-actions">
                     {item.status !== 'done' && item.status !== 'waiting-human' && (
-                      <Tooltip text={"Lancer Claude Code pour exécuter cette tâche automatiquement"}>
+                      <Tooltip text={"Start Claude Code to execute this task automatically"}>
                         <button
                           className={"backlog-btn backlog-btn-launch" + (runningSessions && runningSessions[item.id] ? ' backlog-btn-launching' : '')}
                           disabled={launching && launching[item.id]}
@@ -697,7 +697,7 @@ export default function Backlog() {
                       </Tooltip>
                     )}
                     {!isDone && (
-                      <Tooltip text={"Marquer cette tâche comme terminée"}>
+                      <Tooltip text={"Mark this task as completed"}>
                         <button className="backlog-btn backlog-btn-done" onClick={function (e) { e.stopPropagation(); handleMarkDone(item) }}>
                           <Check size={14} />
                         </button>
@@ -760,10 +760,10 @@ export default function Backlog() {
                 </div>
               )}
 
-              {/* Projet lié */}
+              {/* Related Project */}
               {drawerItem.project_id && projectMap[drawerItem.project_id] && (
                 <div className="drawer-section">
-                  <h4 className="drawer-section-title"><FolderKanban size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Projet lié</h4>
+                  <h4 className="drawer-section-title"><FolderKanban size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Related Project</h4>
                   <div
                     onClick={function () { closeDrawer(); navigate('/projects') }}
                     style={{
@@ -802,18 +802,18 @@ export default function Backlog() {
                 <h4 className="drawer-section-title"><Clock size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Dates</h4>
                 <div className="drawer-dates">
                   <div className="drawer-date-row">
-                    <span className="drawer-date-label">Créé</span>
+                    <span className="drawer-date-label">Created</span>
                     <span className="drawer-date-value">{formatDate(drawerItem.created)} <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>({relativeDate(drawerItem.created)})</span></span>
                   </div>
                   {drawerItem.done_date && (
                     <div className="drawer-date-row">
-                      <span className="drawer-date-label">Terminé</span>
+                      <span className="drawer-date-label">Completed</span>
                       <span className="drawer-date-value">{formatDate(drawerItem.done_date)}</span>
                     </div>
                   )}
                   {drawerItem.updated && drawerItem.updated !== drawerItem.created && (
                     <div className="drawer-date-row">
-                      <span className="drawer-date-label">Modifié</span>
+                      <span className="drawer-date-label">Modified</span>
                       <span className="drawer-date-value">{formatDate(drawerItem.updated)}</span>
                     </div>
                   )}
@@ -840,12 +840,12 @@ export default function Backlog() {
                 </div>
               )}
 
-              {/* Sessions liées */}
+              {/* Related Sessions */}
               {drawerSessions.length > 0 && (
                 <div className="drawer-section">
                   <h4 className="drawer-section-title">
                     <MessageSquare size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />
-                    Sessions liées ({drawerSessions.length})
+                    Related Sessions ({drawerSessions.length})
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {drawerSessions.map(function (s) {
@@ -870,7 +870,7 @@ export default function Backlog() {
                             <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{s.messages_count} msgs</span>
                           </div>
                           <div style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {s.preview || s.snippet || 'Aucun aperçu'}
+                            {s.preview || s.snippet || 'No preview'}
                           </div>
                         </div>
                       )
