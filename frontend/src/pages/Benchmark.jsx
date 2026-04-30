@@ -273,7 +273,7 @@ export default function Benchmark() {
                   <th>#</th>
                   <th>Modèle</th>
                   <th>Provider</th>
-                  {results[0]?.times?.map((_, i) => (
+                  {Array.from({ length: runs }, (_, i) => (
                     <th key={i}>Tps {i + 1}</th>
                   ))}
                   <th>Moy.</th>

@@ -204,13 +204,26 @@
 
 .bench-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .bench-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  table-layout: fixed;
 }
+
+.bench-table th:nth-child(1),
+.bench-table td:nth-child(1) { width: 32px; text-align: center; }
+.bench-table th:nth-child(2),
+.bench-table td:nth-child(2) { width: 200px; }
+.bench-table th:nth-child(3),
+.bench-table td:nth-child(3) { width: 100px; }
+.bench-table th:nth-child(-2),
+.bench-table td:nth-child(-2) { width: 60px; text-align: center; }
+.bench-table th:last-child,
+.bench-table td:last-child { width: 64px; text-align: center; font-weight: 700; }
 
 .bench-table th {
   text-align: left;
