@@ -283,11 +283,11 @@ async def moa_run(body: MoaRunRequest):
     try:
         result = await asyncio.wait_for(
             run_moa(body.prompt, moa_config, providers),
-            timeout=120,
+            timeout=300,
         )
         return result
     except asyncio.TimeoutError:
-        raise HTTPException(504, "MOA run timed out after 120 seconds")
+        raise HTTPException(504, "MOA run timed out after 300 seconds")
     except Exception as e:
         logger.error("MOA run error: %s", e, exc_info=True)
         raise HTTPException(500, f"MOA run failed: {e}")

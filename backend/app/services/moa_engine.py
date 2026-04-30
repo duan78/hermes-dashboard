@@ -45,9 +45,23 @@ AGGREGATOR_SYSTEM_PROMPT = (
     "Responses from models:"
 )
 
-_TIMEOUT_PER_CALL = 45  # seconds per individual API call
+_TIMEOUT_PER_CALL = 90       # seconds per individual API call (base)
+_TIMEOUT_PER_CALL_LONG = 300  # extended timeout for large outputs (writing tasks)
+_LONG_TASK_PROMPT_THRESHOLD = 2000  # chars in prompt that triggers extended timeout
 _MAX_RETRIES = 2
 
+def _get_timeout_for_prompt(prompt: str) -> int:
+    """Return appropriate timeout based on prompt size.
+
+    Large prompts (writing tasks, long-form content) need significantly more
+    time for the LLM to generate responses.  Scale linearly above the threshold.
+    """
+    prompt_len = len(prompt) if prompt else 0
+    if prompt_len > _LONG_TASK_PROMPT_THRESHOLD:
+        extra_chars = prompt_len - _LONG_TASK_PROMPT_THRESHOLD
+        extra_time = min(int(extra_chars / 10), _TIMEOUT_PER_CALL_LONG - _TIMEOUT_PER_CALL)
+        return _TIMEOUT_PER_CALL + extra_time
+    return _TIMEOUT_PER_CALL
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -226,7 +240,9 @@ async def run_moa(
     proposer_messages = [{"role": "user", "content": prompt}]
     proposer_results = []
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT_PER_CALL) as client:
+    proposer_timeout = _get_timeout_for_prompt(prompt)
+    logger.info("MOA proposer timeout: %ds (prompt: %d chars)", proposer_timeout, len(prompt))
+    async with httpx.AsyncClient(timeout=proposer_timeout) as client:
         tasks = [
             _run_proposer_with_fallback(
                 client, e["model"], e["provider"], providers,
@@ -288,7 +304,8 @@ async def run_moa(
     agg_success = False
     agg_provider_used = ""
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT_PER_CALL) as client:
+    agg_timeout = _get_timeout_for_prompt(prompt)
+    async with httpx.AsyncClient(timeout=agg_timeout) as client:
         # Try assigned aggregator provider, then fallback chain
         resolved = _resolve_provider_config(aggregator_provider, providers)
         agg_providers_to_try = []

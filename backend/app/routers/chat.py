@@ -159,7 +159,7 @@ async def chat_send(request: Request):
     try:
         chat_url = f"{gateway_url}/v1/chat/completions"
         payload = {"model": model, "messages": api_messages}
-        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=15.0)) as client:
             resp = await client.post(chat_url, json=payload, headers={"Content-Type": "application/json"})
             if resp.status_code != 200:
                 return {"error": f"Gateway error {resp.status_code}: {resp.text[:300]}"}
@@ -183,7 +183,7 @@ async def chat_send(request: Request):
         chat_url = f"{base_url}/chat/completions"
         payload = {"model": model, "messages": api_messages}
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=15.0)) as client:
             resp = await client.post(chat_url, json=payload, headers=headers)
             if resp.status_code != 200:
                 return {"error": f"API error {resp.status_code}"}
@@ -311,7 +311,7 @@ async def chat_stream(request: Request):
                 "stream": True,
             }
 
-            async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=15.0)) as client:
                 async with client.stream(
                     "POST",
                     chat_url,
@@ -394,7 +394,7 @@ async def chat_stream(request: Request):
                 }
 
             try:
-                async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=15.0)) as client:
                     async with client.stream("POST", chat_url, json=payload, headers=headers) as resp:
                         if resp.status_code != 200:
                             error_text = await resp.aread()
