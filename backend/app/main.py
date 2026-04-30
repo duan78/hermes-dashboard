@@ -333,6 +333,25 @@ app.include_router(export.router)
 app.include_router(cross_references.router)
 app.include_router(benchmark.router)
 
+# ── MCP StreamableHTTP server for MOA ──
+from .mcp_server import mcp_app, start_mcp_session, stop_mcp_session
+
+app.mount("/api/mcp/moa", mcp_app)
+
+_mcp_session_cm = None
+
+
+@app.on_event("startup")
+async def _start_mcp():
+    global _mcp_session_cm
+    _mcp_session_cm = await start_mcp_session()
+    logger.info("MCP StreamableHTTP server started at /api/mcp/moa")
+
+
+@app.on_event("shutdown")
+async def _stop_mcp():
+    if _mcp_session_cm:
+        await stop_mcp_session(_mcp_session_cm)
 
 # ── WebSocket Hub for real-time dashboard updates ──
 from .websocket_hub import poll_bridge, ws_hub_handler

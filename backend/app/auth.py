@@ -98,6 +98,13 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # Allow MCP StreamableHTTP endpoint from localhost only
+        if path.startswith("/api/mcp/moa"):
+            client_ip = scope.get("client", ("", 0))[0]
+            if client_ip in ("127.0.0.1", "::1", "localhost"):
+                await self.app(scope, receive, send)
+                return
+
         # WebSocket auth for sensitive endpoints
         if scope["type"] == "websocket":
             # Terminal WebSocket REQUIRES token even when DASHBOARD_TOKEN is empty
