@@ -421,19 +421,29 @@ function ProviderRoutingSection({ config }) {
   const [fallbackTesting, setFallbackTesting] = useState({})
   const [fallbackTestResults, setFallbackTestResults] = useState({})
   const [savingFallbacks, setSavingFallbacks] = useState(false)
+  // Auxiliary chain state
+  const [auxChain, setAuxChain] = useState([])
+  const [auxAvailable, setAuxAvailable] = useState({})
+  const [auxCustom, setAuxCustom] = useState(false)
+  const [auxSaving, setAuxSaving] = useState(false)
+  const [auxShowAdd, setAuxShowAdd] = useState(false)
   const { toast } = useToast()
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [p, a, f] = await Promise.all([
+      const [p, a, f, aux] = await Promise.all([
         api.listProviders(),
         api.getActiveProvider(),
         api.getFallbackProviders(),
+        api.getAuxiliaryChain(),
       ])
       setProviders(p.providers || {})
       setActive(a)
       setFallbacks(f.fallback_providers || [])
+      setAuxChain(aux.chain || [])
+      setAuxAvailable(aux.available || {})
+      setAuxCustom(aux.custom || false)
     } catch (e) {
       toast.error(e.message)
     } finally {
@@ -551,6 +561,63 @@ function ProviderRoutingSection({ config }) {
       setFallbackTesting(prev => ({ ...prev, [index]: false }))
     }
   }
+
+  // ── Auxiliary Chain handlers ──
+  const AUX_DESCRIPTIONS = {
+    'local/custom': "Your custom endpoint (Z.AI). This is tried first - your primary API endpoint for all auxiliary tasks like compression, session search, and web extraction.",
+    'api-key': "Direct API key providers (Ollama Cloud, Mistral, DeepSeek, etc.). These are tried using their configured API keys from .env. Ollama Cloud is the main one here.",
+    'nous': "Nous Portal - Nous Research OAuth provider. Only available if authenticated via hermes login.",
+    'openrouter': "OpenRouter - aggregator with multiple models. Requires credits. Placed last as fallback.",
+    'openai-codex': "OpenAI Codex - OAuth-based OpenAI provider. Only available if authenticated via hermes login.",
+  }
+
+  const moveAuxItem = (index, direction) => {
+    setAuxChain(prev => {
+      const next = [...prev]
+      const target = index + direction
+      if (target < 0 || target >= next.length) return prev
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
+    setAuxCustom(true)
+  }
+
+  const removeAuxItem = (index) => {
+    setAuxChain(prev => prev.filter((_, i) => i !== index))
+    setAuxCustom(true)
+  }
+
+  const addAuxItem = (id) => {
+    setAuxChain(prev => [...prev, { id, label: auxAvailable[id] || id }])
+    setAuxCustom(true)
+    setAuxShowAdd(false)
+  }
+
+  const handleSaveAuxChain = async () => {
+    try {
+      setAuxSaving(true)
+      await api.saveAuxiliaryChain(auxChain)
+      toast.success('Auxiliary chain saved')
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setAuxSaving(false)
+    }
+  }
+
+  const handleResetAuxChain = async () => {
+    try {
+      await api.resetAuxiliaryChain()
+      toast.success('Auxiliary chain reset to defaults')
+      await load()
+    } catch (e) {
+      toast.error(e.message)
+    }
+  }
+
+  const auxChainIds = new Set(auxChain.map(item => item.id))
+  const auxAvailableToAdd = Object.keys(auxAvailable).filter(id => !auxChainIds.has(id))
 
   return (
     <div className="accordion-card">
@@ -763,6 +830,71 @@ function ProviderRoutingSection({ config }) {
                           <Tooltip text="Remove this fallback entry from the chain." />
                         </button>
                       </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Auxiliary Provider Chain */}
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+                      Auxiliary Provider Chain
+                      <Tooltip text="Order in which auxiliary task providers (compression, session search, web extraction) are tried. Top-to-bottom priority." />
+                    </span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm" onClick={() => setAuxShowAdd(!auxShowAdd)} disabled={auxAvailableToAdd.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                        <Plus size={12} /> Add Provider
+                        <Tooltip text="Add a provider to the auxiliary chain from the available options." />
+                      </button>
+                      <button className="btn btn-sm btn-primary" onClick={handleSaveAuxChain} disabled={auxSaving} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                        <Save size={12} /> {auxSaving ? 'Saving...' : 'Save'}
+                        <Tooltip text="Save the auxiliary chain order to ~/.hermes/auxiliary_chain.yaml" />
+                      </button>
+                      {auxCustom && (
+                        <button className="btn btn-sm" onClick={handleResetAuxChain} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#ef4444' }}>
+                          <RotateCcw size={12} /> Reset to Defaults
+                          <Tooltip text="Delete the custom config file and revert to hardcoded default order." />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {!auxCustom && (
+                    <div style={{ padding: '4px 8px', marginBottom: 8, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Using default order (edit and save to customize)
+                    </div>
+                  )}
+                  {auxShowAdd && auxAvailableToAdd.length > 0 && (
+                    <div style={{ marginBottom: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {auxAvailableToAdd.map(id => (
+                        <button key={id} className="btn btn-sm" onClick={() => addAuxItem(id)} style={{ fontSize: 11 }}>
+                          + {auxAvailable[id] || id}
+                          <Tooltip text={AUX_DESCRIPTIONS[id] || ''} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {auxChain.map((item, i) => (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: 24, textAlign: 'center' }}>#{i + 1}</span>
+                      <span style={{ flex: 1 }}>
+                        <span style={{ fontWeight: 500 }}>{item.label || item.id}</span>
+                        <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>({item.id})</span>
+                        <Tooltip text={AUX_DESCRIPTIONS[item.id] || ''} />
+                      </span>
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        <button className="btn btn-sm" onClick={() => moveAuxItem(i, -1)} disabled={i === 0} style={{ padding: '2px 4px', fontSize: 10, lineHeight: 1 }}>
+                          <ArrowUp size={11} />
+                          <Tooltip text="Move up (higher priority)" />
+                        </button>
+                        <button className="btn btn-sm" onClick={() => moveAuxItem(i, 1)} disabled={i === auxChain.length - 1} style={{ padding: '2px 4px', fontSize: 10, lineHeight: 1 }}>
+                          <ArrowDown size={11} />
+                          <Tooltip text="Move down (lower priority)" />
+                        </button>
+                      </div>
+                      <button className="btn btn-sm" onClick={() => removeAuxItem(i)} style={{ fontSize: 10, color: '#ef4444', padding: '2px 4px' }}>
+                        <Trash2 size={11} />
+                        <Tooltip text="Remove this provider from the auxiliary chain." />
+                      </button>
                     </div>
                   ))}
                 </div>

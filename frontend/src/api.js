@@ -254,6 +254,9 @@ export const api = {
   setActiveProvider: (data) => request('/config/providers/active', { method: 'PUT', body: JSON.stringify(data) }),
   getFallbackProviders: () => request('/config/fallback-providers'),
   saveFallbackProviders: (list) => request('/config/fallback-providers', { method: 'PUT', body: JSON.stringify({ fallback_providers: list }) }),
+  getAuxiliaryChain: () => request('/config/auxiliary-chain'),
+  saveAuxiliaryChain: (chain) => request('/config/auxiliary-chain', { method: 'PUT', body: JSON.stringify({ chain }) }),
+  resetAuxiliaryChain: () => request('/config/auxiliary-chain/reset', { method: 'POST', body: JSON.stringify({}) }),
   testProvider: (provider, baseUrl, apiKeyEnv, model) => request('/config/providers/test', { method: 'POST', body: JSON.stringify({ provider, base_url: baseUrl, api_key_env: apiKeyEnv, model }) }),
 
   // System Prompt Viewer

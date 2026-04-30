@@ -543,6 +543,67 @@ async def save_fallback_providers(body: MoaProvidersUpdateRequest):
     return {"status": "saved"}
 
 
+# ── Auxiliary Provider Chain ──
+
+KNOWN_AUX_IDS = {
+    "local/custom": "Custom Endpoint (Z.AI)",
+    "api-key": "API Key Providers (Ollama Cloud, Mistral, etc.)",
+    "nous": "Nous Portal",
+    "openrouter": "OpenRouter",
+    "openai-codex": "OpenAI Codex",
+}
+
+DEFAULT_AUX_CHAIN = [
+    {"id": "openrouter", "label": "OpenRouter"},
+    {"id": "nous", "label": "Nous Portal"},
+    {"id": "local/custom", "label": "Custom Endpoint (Z.AI)"},
+    {"id": "openai-codex", "label": "OpenAI Codex"},
+    {"id": "api-key", "label": "API Key Providers (Ollama Cloud, Mistral, etc.)"},
+]
+
+
+@router.get("/auxiliary-chain")
+async def get_auxiliary_chain():
+    """Return the auxiliary provider chain order."""
+    chain_path = hermes_path("auxiliary_chain.yaml")
+    if chain_path.exists():
+        try:
+            data = yaml.safe_load(chain_path.read_text())
+            if data and isinstance(data.get("auxiliary_chain"), list):
+                chain = data["auxiliary_chain"]
+                return {"chain": chain, "available": KNOWN_AUX_IDS, "custom": True}
+        except Exception:
+            pass
+    return {"chain": DEFAULT_AUX_CHAIN, "available": KNOWN_AUX_IDS, "custom": False}
+
+
+@router.put("/auxiliary-chain")
+async def save_auxiliary_chain(body: dict):
+    """Save the auxiliary provider chain order."""
+    chain = body.get("chain", [])
+    if not isinstance(chain, list) or len(chain) == 0:
+        raise HTTPException(400, "chain must be a non-empty list")
+    for item in chain:
+        if not isinstance(item, dict) or "id" not in item:
+            raise HTTPException(400, "Each chain item must have an 'id'")
+        if item["id"] not in KNOWN_AUX_IDS:
+            raise HTTPException(400, f"Unknown provider id: {item['id']}")
+    data = {"auxiliary_chain": chain}
+    yaml_str = yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    chain_path = hermes_path("auxiliary_chain.yaml")
+    chain_path.write_text(yaml_str)
+    return {"status": "saved"}
+
+
+@router.post("/auxiliary-chain/reset")
+async def reset_auxiliary_chain():
+    """Delete the auxiliary chain config file, reverting to hardcoded defaults."""
+    chain_path = hermes_path("auxiliary_chain.yaml")
+    if chain_path.exists():
+        chain_path.unlink()
+    return {"status": "reset"}
+
+
 @router.post("/providers/test")
 async def test_provider(body: ProviderTestRequest):
     """Test connectivity to a provider endpoint."""
