@@ -231,11 +231,11 @@ export const api = {
   renameProfile: (name, newName) => request('/profiles/rename', { method: 'POST', body: JSON.stringify({ name, new_name: newName }) }),
   exportProfile: (name) => request('/profiles/export', { method: 'POST', body: JSON.stringify({ name }) }),
 
-  // Backup & Restore
-  createBackup: (opts = {}) => request('/backup/create', { method: 'POST', body: JSON.stringify(opts) }),
+  // Backup & Restore (local archives — legacy)
   listBackups: () => request('/backup/list'),
   restoreBackup: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   deleteBackup: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
+  backupInspect: (filename) => request(`/backup/inspect/${encodeURIComponent(filename)}`),
 
   // MOA (Mixture of Agents)
   getMoaConfig: () => request('/config/moa'),
@@ -346,15 +346,29 @@ export const api = {
   profilesRename: (name, newName) => request('/profiles/rename', { method: 'POST', body: JSON.stringify({ name, new_name: newName }) }),
   profilesDelete: (name) => request('/profiles/delete', { method: 'DELETE', body: JSON.stringify({ name }) }),
   backupList: () => request('/backup/list'),
-  backupCreate: (opts = {}) => request('/backup/create', { method: 'POST', body: JSON.stringify(opts) }),
   backupRestore: (filename) => request('/backup/restore', { method: 'POST', body: JSON.stringify({ filename }) }),
   backupDelete: (filename) => request('/backup/delete', { method: 'DELETE', body: JSON.stringify({ filename }) }),
   backupInspect: (filename) => request(`/backup/inspect/${encodeURIComponent(filename)}`),
 
-  // GitHub Config Sync
+  // GitHub Config Sync (unified backup)
+  githubConfigSetupStatus: () => request('/github-config/setup-status'),
+  githubConfigSetup: (data) => request('/github-config/setup', { method: 'POST', body: JSON.stringify(data) }),
   githubConfigStatus: () => request('/github-config/status'),
-  githubConfigSync: () => request('/github-config/sync', { method: 'POST' }),
+  githubConfigSync: (opts = {}) => request('/github-config/sync', { method: 'POST', body: JSON.stringify(opts) }),
   githubConfigFiles: () => request('/github-config/files'),
+  githubConfigCommits: () => request('/github-config/commits'),
+  githubConfigRestoreCommit: (sha) => request('/github-config/restore-commit', { method: 'POST', body: JSON.stringify({ commit_sha: sha }) }),
+  githubConfigDownloadArchive: () => {
+    const userToken = localStorage.getItem('hermes_user_token') || '';
+    const legacyToken = localStorage.getItem('hermes_token') || '';
+    const token = userToken || legacyToken;
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch('/api/github-config/download-archive', { method: 'POST', headers }).then(res => {
+      if (!res.ok) throw new Error('Download failed');
+      return res.blob();
+    });
+  },
 
   // Wiki
   wikiSavePage: (path, content) => request('/wiki/page/' + encodeURIComponent(path), { method: 'PUT', body: JSON.stringify({ content }) }),
