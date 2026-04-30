@@ -27,9 +27,15 @@ async def search_sessions(q: str = Query(min_length=1, max_length=200)):
     query_lower = q.lower()
     results = []
     seen_ids = set()
+    max_results = 50
+    files_checked = 0
+    max_files = 2000
 
     # Search through session JSON files for metadata matches
     for f in sorted(sessions_dir.glob("session_*.json"), reverse=True):
+        files_checked += 1
+        if len(results) >= max_results or files_checked > max_files:
+            break
         try:
             data = json.loads(f.read_text())
             sid = data.get("session_id", f.stem.replace("session_", ""))
@@ -184,7 +190,13 @@ async def sessions_stats():
     """Global sessions stats."""
     try:
         output = await run_hermes("sessions", "stats", timeout=15)
-        return {"output": output}
+        # Try to parse JSON output, fall back to raw text
+        try:
+            import json
+            data = json.loads(output)
+            return {"output": output, "stats": data}
+        except Exception:
+            return {"output": output}
     except RuntimeError as e:
         return {"output": "", "error": str(e)}
 
@@ -333,7 +345,7 @@ async def prune_sessions(days: int = Query(default=30)):
     """Prune old sessions."""
     logger.info("Pruning sessions older than %d days", days)
     try:
-        output = await run_hermes("sessions", "prune", "--days", str(days), "--yes", timeout=15)
+        output = await run_hermes("sessions", "prune", "--older-than", str(days), "--yes", timeout=15)
         return {"status": "pruned", "output": output}
     except RuntimeError as e:
         raise HTTPException(500, str(e))

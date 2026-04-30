@@ -277,13 +277,20 @@ async def browse_registry(page: int = 1, size: int = 20, source: str = "all", qu
             output = await run_hermes(
                 "skills", "search", query, "--source", source, "--limit", str(size), timeout=30
             )
-            result = _parse_browse_table(output, is_search=True)
         else:
             output = await run_hermes(
                 "skills", "browse", "--page", str(page), "--size", str(size), "--source", source, timeout=30
             )
-            result = _parse_browse_table(output, is_search=False)
 
+        # Detect help/usage output instead of actual results
+        if "Usage:" in output or "usage:" in output or "--help" in output:
+            return {
+                "skills": [], "total": 0, "page": page, "total_pages": 1,
+                "source": source, "source_stats": {},
+                "error": "Skills registry command not available. Check hermes CLI version.",
+            }
+
+        result = _parse_browse_table(output, is_search=bool(query))
         result["source"] = source
         return result
     except RuntimeError as e:

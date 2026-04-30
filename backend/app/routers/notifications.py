@@ -161,6 +161,18 @@ async def create_notification(body: NotificationCreate):
     return new_notif
 
 
+@router.get("/list")
+async def list_notifications_alias(
+    status: str | None = Query(None),
+    category: str | None = Query(None),
+    type: str | None = Query(None),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Alias for GET /api/notifications (for clients that call /list)."""
+    return await list_notifications(status=status, category=category, type=type, limit=limit, offset=offset)
+
+
 @router.get("/{notif_id}")
 async def get_notification(notif_id: str):
     data = _read_notifications()

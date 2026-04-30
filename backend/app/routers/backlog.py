@@ -273,7 +273,7 @@ Respond ONLY with the JSON array, no other text."""
         return candidates
 
     except Exception as e:
-        logger.error("LLM validation error: %s", e)
+        logger.error("LLM validation error [%s]: %s", type(e).__name__, e)
         for c in candidates:
             c["is_valid"] = True
             c["llm_category"] = c.get("category") or "other"

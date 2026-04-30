@@ -155,12 +155,8 @@ async def get_model_catalog():
 
 @router.post("/refresh-cache")
 async def refresh_model_cache():
-    """Refresh the models.dev cache by running hermes models refresh."""
-    try:
-        output = await run_hermes("models", "refresh", timeout=120)
-        return {"status": "ok", "output": output}
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
+    """Refresh the models cache."""
+    return {"status": "error", "message": "Model cache refresh not available via CLI. Use /api/models/available endpoint."}
 
 
 @router.post("/switch")

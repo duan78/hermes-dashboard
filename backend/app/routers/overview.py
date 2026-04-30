@@ -294,4 +294,8 @@ async def hermes_changelog():
 
         return {"commits": commits[:20], "total_behind": len(commits)}
     except Exception as e:
-        return {"commits": [], "total_behind": 0, "error": str(e)}
+        error_msg = str(e) if e else None
+        result = {"commits": [], "total_behind": 0}
+        if error_msg:
+            result["error"] = error_msg
+        return result

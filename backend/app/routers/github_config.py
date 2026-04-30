@@ -609,7 +609,7 @@ async def get_status():
     """Check the status of the configured GitHub repository."""
     repo = _get_repo()
     if not repo:
-        return {"connected": False, "configured": False, "error": "Not configured"}
+        return {"connected": False, "configured": False, "error": "No repository configured. Run setup first."}
 
     try:
         data = _run_gh([

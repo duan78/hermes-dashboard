@@ -841,7 +841,7 @@ Répondre UNIQUEMENT avec le tableau JSON, aucun autre texte."""
             return candidates
 
         except Exception as e:
-            logger.error("LLM validation error: %s", e)
+            logger.error("LLM validation error [%s]: %s", type(e).__name__, e)
             return self._fallback_validate(candidates)
 
     @staticmethod
