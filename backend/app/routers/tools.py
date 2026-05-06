@@ -40,6 +40,7 @@ TOOL_CATEGORIES = {
             {"name": "Firecrawl Cloud", "tag": "Hosted service — search, extract, and crawl", "env_vars": [{"key": "FIRECRAWL_API_KEY", "label": "Firecrawl API key", "url": "https://firecrawl.dev"}], "config_key": "web.backend", "config_value": "firecrawl"},
             {"name": "Exa", "tag": "AI-native search and contents", "env_vars": [{"key": "EXA_API_KEY", "label": "Exa API key", "url": "https://exa.ai"}], "config_key": "web.backend", "config_value": "exa"},
             {"name": "Parallel", "tag": "AI-native search and extract", "env_vars": [{"key": "PARALLEL_API_KEY", "label": "Parallel API key", "url": "https://parallel.ai"}], "config_key": "web.backend", "config_value": "parallel"},
+            {"name": "Web Search API (MCP)", "tag": "Auto-hébergé — serveur MCP web-search-api sur Ambre (recherche web via MCP)", "env_vars": [], "config_key": "mcp_servers.web-search-api", "config_value": "enabled", "is_mcp": True},
             {"name": "Firecrawl Self-Hosted", "tag": "Free — run your own instance", "env_vars": [{"key": "FIRECRAWL_API_URL", "label": "Firecrawl instance URL"}], "config_key": "web.backend", "config_value": "firecrawl"},
         ],
         # All backends that can participate in combined mode
@@ -50,6 +51,7 @@ TOOL_CATEGORIES = {
             {"key": "PARALLEL_API_KEY", "name": "Parallel", "url": "https://parallel.ai"},
             {"key": "FIRECRAWL_API_KEY", "name": "Firecrawl Cloud", "url": "https://firecrawl.dev"},
             {"key": "EXA_API_KEY", "name": "Exa", "url": "https://exa.ai"},
+            {"key": "MCP_WEB_SEARCH_API", "name": "Web Search API (MCP)", "url": "http://100.127.182.61:9092/mcp/sse", "is_mcp": True},
         ],
         # Agent-Reach channels are now fetched dynamically from agent_reach package
         # (no hardcoded list — see _get_agent_reach_channels_dynamic)
@@ -335,14 +337,25 @@ async def get_tool_config():
             )
             entry["combined_backends"] = []
             for be in cat["combined_backends"]:
-                val = _get_env_value(be["key"])
-                entry["combined_backends"].append({
-                    "key": be["key"],
-                    "name": be["name"],
-                    "url": be.get("url", ""),
-                    "is_set": bool(val),
-                    "value_preview": val[:4] + "****" if val and len(val) > 8 else ("****" if val else ""),
-                })
+                if be.get("is_mcp"):
+                    mcp_cfg = config.get("mcp_servers", {}).get("web-search-api", {})
+                    is_configured = bool(mcp_cfg) and not mcp_cfg.get("disabled", False)
+                    entry["combined_backends"].append({
+                        "key": be["key"],
+                        "name": be["name"],
+                        "url": be.get("url", ""),
+                        "is_set": is_configured,
+                        "value_preview": "✅ Connecté" if is_configured else "❌ MCP absent",
+                    })
+                else:
+                    val = _get_env_value(be["key"])
+                    entry["combined_backends"].append({
+                        "key": be["key"],
+                        "name": be["name"],
+                        "url": be.get("url", ""),
+                        "is_set": bool(val),
+                        "value_preview": val[:4] + "****" if val and len(val) > 8 else ("****" if val else ""),
+                    })
             entry["combined_active_count"] = sum(1 for be in entry["combined_backends"] if be["is_set"])
 
         for prov in cat.get("providers", []):

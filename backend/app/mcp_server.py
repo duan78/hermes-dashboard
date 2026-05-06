@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP(
     "hermes-dashboard-moa",
     streamable_http_path="/",
+    stateless_http=True,
 )
 
 
