@@ -113,12 +113,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        f"http://{os.getenv('SERVER_IP', '82.29.175.64')}",
-        f"http://{os.getenv('SERVER_IP', '82.29.175.64')}/dashboard",
+        f"http://{os.getenv('SERVER_IP', '127.0.0.1')}",
+        f"http://{os.getenv('SERVER_IP', '127.0.0.1')}/dashboard",
         "http://127.0.0.1:3100",
         "http://localhost:3100",
-        "http://100.113.69.73",  # Tailscale
-        "http://100.113.69.73/dashboard",
+        os.getenv("TAILSCALE_IP", "http://127.0.0.1"),
+        f"{os.getenv('TAILSCALE_IP', 'http://127.0.0.1')}/dashboard",
     ],
     allow_credentials=True,
     allow_methods=["*"],

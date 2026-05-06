@@ -51,7 +51,7 @@ TOOL_CATEGORIES = {
             {"key": "PARALLEL_API_KEY", "name": "Parallel", "url": "https://parallel.ai"},
             {"key": "FIRECRAWL_API_KEY", "name": "Firecrawl Cloud", "url": "https://firecrawl.dev"},
             {"key": "EXA_API_KEY", "name": "Exa", "url": "https://exa.ai"},
-            {"key": "MCP_WEB_SEARCH_API", "name": "Web Search API (MCP)", "url": "http://100.127.182.61:9092/mcp/sse", "is_mcp": True},
+            {"key": "MCP_WEB_SEARCH_API", "name": "Web Search API (MCP)", "url": os.getenv("WEB_SEARCH_API_URL", ""), "is_mcp": True},
         ],
         # Agent-Reach channels are now fetched dynamically from agent_reach package
         # (no hardcoded list — see _get_agent_reach_channels_dynamic)
