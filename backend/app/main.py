@@ -440,7 +440,7 @@ def _log_terminal_event(entry: dict):
 
 
 @app.websocket("/ws/terminal")
-async def terminal_ws(websocket):
+async def terminal_ws(websocket: WebSocket):
     """WebSocket endpoint that spawns an interactive PTY shell.
 
     Security flow:
@@ -467,9 +467,21 @@ async def terminal_ws(websocket):
         auth_msg = json.loads(auth_raw)
         if auth_msg.get("type") != "auth":
             raise ValueError("First message must be auth")
-        from .auth import verify_token
-        if not verify_token(auth_msg.get("token", "")):
-            raise ValueError("Invalid token")
+        from .auth import verify_token, _try_parse_jwt, _load_user_by_id
+        token_val = auth_msg.get("token", "")
+        # Accept if already authenticated by middleware (JWT or legacy)
+        if websocket.scope.get("hermes_ws_authenticated"):
+            pass  # Already verified by AuthMiddleware
+        elif verify_token(token_val):
+            pass  # Legacy DASHBOARD_TOKEN verified
+        else:
+            # Last resort: try JWT directly
+            jwt_payload = _try_parse_jwt(token_val)
+            if not jwt_payload:
+                raise ValueError("Invalid token")
+            user = _load_user_by_id(int(jwt_payload.get("sub", 0)))
+            if not user or user.get("role") not in ("admin", "owner"):
+                raise ValueError("Insufficient permissions")
     except TimeoutError:
         _log_terminal_event({
             "event": "auth_timeout",
