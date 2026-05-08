@@ -25,9 +25,28 @@ export default function Insights() {
 
   useEffect(() => { load() }, [days])
 
-  if (loading) return <div className="spinner" />
-  if (error) return <div className="error-box">{error}</div>
-  if (!data) return null
+  if (loading && !data) return <div className="spinner" />
+  if (error && !data) return <div className="error-box">{error}</div>
+  if (!data) return (
+    <div>
+      <div className="page-title">
+        <BarChart3 size={28}/> Insights
+      </div>
+      <div className="error-box">Failed to load insights data.</div>
+    </div>
+  )
+
+  const hasData = data && (
+    Object.keys(data.overview || {}).length > 0 ||
+    (data.models || []).length > 0 ||
+    (data.platforms || []).length > 0 ||
+    (data.tools || []).length > 0 ||
+    Object.keys(data.activity?.days || {}).length > 0 ||
+    (data.notable || []).length > 0 ||
+    (data.top_skills || []).length > 0 ||
+    (data.hourly_activity || []).some(v => v > 0) ||
+    Object.keys(data.tokens_by_day || {}).length > 0
+  )
 
   return (
     <div>
@@ -47,6 +66,8 @@ export default function Insights() {
           </button>
         </div>
       </div>
+
+      {loading && data && <div style={{textAlign:"center",padding:20,opacity:0.5}}><span className="spinner" style={{margin:"0 auto"}} /></div>}
 
       {/* Period info */}
       {data.period && (
@@ -431,6 +452,16 @@ export default function Insights() {
             </span>
           </div>
           <pre className="raw-output">{data.raw}</pre>
+        </div>
+      )}
+      {/* Empty state when no data for the period */}
+      {!hasData && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
+            <BarChart3 size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
+            <h3 style={{ margin: "0 0 8px", color: "var(--text-secondary)" }}>No insights data for this period</h3>
+            <p style={{ margin: 0, fontSize: 14 }}>Try selecting a longer time period, or check back after some activity.</p>
+          </div>
         </div>
       )}
     </div>
