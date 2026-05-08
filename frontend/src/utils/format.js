@@ -16,7 +16,17 @@ export function formatSize(bytes) {
 export function formatDate(ts) {
   if (!ts) return ''
   try {
-    const d = new Date(ts)
+    // Auto-detect seconds vs milliseconds: if the number is < 1e12 it's in seconds
+    let ms = ts
+    if (typeof ms === 'number' && ms < 1e12) {
+      ms = ms * 1000
+    } else if (typeof ms === 'string') {
+      const parsed = parseFloat(ms)
+      if (!isNaN(parsed) && parsed < 1e12) {
+        ms = parsed * 1000
+      }
+    }
+    const d = new Date(ms)
     return d.toLocaleDateString(undefined, {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
@@ -32,7 +42,14 @@ export function formatDate(ts) {
 export function formatTime(ts) {
   if (!ts) return ''
   try {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    // Auto-detect seconds vs milliseconds
+    let ms = ts
+    if (typeof ms === 'number' && ms < 1e12) ms = ms * 1000
+    else if (typeof ms === 'string') {
+      const parsed = parseFloat(ms)
+      if (!isNaN(parsed) && parsed < 1e12) ms = parsed * 1000
+    }
+    return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   } catch {
     return ''
   }
@@ -45,7 +62,14 @@ export function formatRelative(ts) {
   if (!ts) return ''
   try {
     const now = Date.now()
-    const then = new Date(ts).getTime()
+    // Auto-detect seconds vs milliseconds
+    let ms = ts
+    if (typeof ms === 'number' && ms < 1e12) ms = ms * 1000
+    else if (typeof ms === 'string') {
+      const parsed = parseFloat(ms)
+      if (!isNaN(parsed) && parsed < 1e12) ms = parsed * 1000
+    }
+    const then = new Date(ms).getTime()
     const diff = Math.max(0, now - then)
     const mins = Math.floor(diff / 60000)
     if (mins < 1) return 'just now'
