@@ -458,8 +458,17 @@
   border-color: var(--accent-color);
 }
 
+.cc-content {
+  min-height: 300px;
+}
+
 /* Empty states */
 .cc-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
   text-align: center;
   padding: 60px 20px;
   color: var(--text-tertiary);
