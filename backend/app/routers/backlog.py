@@ -399,6 +399,14 @@ def _is_claude_running(session_name: str) -> bool:
                     comm = f.read().strip()
                 if comm in ("claude", "node", "python3", "python"):
                     return True
+                # bash may be running claude via launcher script — check cmdline
+                if comm == "bash":
+                    try:
+                        cmdline = open(f"/proc/{cpid}/cmdline").read().replace("\0", " ")
+                        if "claude" in cmdline:
+                            return True
+                    except (FileNotFoundError, PermissionError):
+                        pass
                 # Also check children of children (claude spawns node)
                 sub_check = subprocess.run(
                     ["pgrep", "-P", cpid],
@@ -414,6 +422,14 @@ def _is_claude_running(session_name: str) -> bool:
                                 sub_comm = f.read().strip()
                             if sub_comm in ("claude", "node", "python3", "python"):
                                 return True
+                            # Check bash children for claude too
+                            if sub_comm == "bash":
+                                try:
+                                    cmdline = open(f"/proc/{sub_pid}/cmdline").read().replace("\0", " ")
+                                    if "claude" in cmdline:
+                                        return True
+                                except (FileNotFoundError, PermissionError):
+                                    pass
                         except (FileNotFoundError, PermissionError):
                             pass
             except (FileNotFoundError, PermissionError):
@@ -445,6 +461,26 @@ def _detect_claude_done(session_name: str, output: str = "") -> bool:
             non_prompt_lines = [l for l in lines if not l.strip().startswith(">") and l.strip()]
             if len(non_prompt_lines) > 3:
                 return True
+
+    # Signal 1b: Direct pgrep for claude processes in the tmux session
+    try:
+        pgrep_result = subprocess.run(
+            ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_pid}"],
+            capture_output=True, text=True, timeout=5
+        )
+        if pgrep_result.returncode == 0 and pgrep_result.stdout.strip():
+            pane_pid = pgrep_result.stdout.strip().split("\n")[0].strip()
+            # Use pgrep to find any claude process in the session's process tree
+            tree_check = subprocess.run(
+                ["pgrep", "-a", "-P", pane_pid],
+                capture_output=True, text=True, timeout=5
+            )
+            if tree_check.returncode == 0:
+                for line in tree_check.stdout.strip().split("\n"):
+                    if "claude" in line.lower():
+                        return False  # Claude is still running
+    except Exception:
+        pass
 
     # Signal 2: Output-based detection (fallback)
     if not output:
