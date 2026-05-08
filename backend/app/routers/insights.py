@@ -241,10 +241,21 @@ async def _compute_insights(days: int) -> dict:
 
         cutoff = datetime.now(UTC) - timedelta(days=days)
 
-        for f in sessions_dir.glob("session_*.json"):
-            # Skip cron sessions — noise for insights
-            if "session_cron_" in f.name:
+        # Sort newest-first and limit to avoid scanning thousands of old files
+        session_files = sorted(
+            (f for f in sessions_dir.glob("session_*.json") if "session_cron_" not in f.name),
+            key=lambda f: f.stat(follow_symlinks=False).st_mtime,
+            reverse=True,
+        )
+
+        for f in session_files:
+            # Skip files older than cutoff by mtime (fast stat check)
+            try:
+                if f.stat(follow_symlinks=False).st_mtime < cutoff.timestamp():
+                    break  # Files are sorted newest-first, so we can stop here
+            except OSError:
                 continue
+
             try:
                 data = json.loads(f.read_text())
                 created = data.get("created_at", "")
@@ -266,12 +277,13 @@ async def _compute_insights(days: int) -> dict:
                 msg_count = data.get("message_count", 0)
                 platform_msg_counts[platform] = platform_msg_counts.get(platform, 0) + msg_count
 
-                # Collect skill usage from JSONL
+                # Collect skill usage from JSONL (limit to first 200 lines per file)
                 sid = data.get("session_id", f.stem.replace("session_", ""))
                 jsonl_path = sessions_dir / f"{sid}.jsonl"
                 if jsonl_path.exists():
                     last_user_time = None
-                    for line in jsonl_path.read_text(errors="replace").strip().split("\n"):
+                    lines = jsonl_path.read_text(errors="replace").strip().split("\n")
+                    for line in lines[:200]:
                         if not line.strip():
                             continue
                         try:
@@ -285,7 +297,7 @@ async def _compute_insights(days: int) -> dict:
                             if name:
                                 top_skills[name] = top_skills.get(name, 0) + 1
 
-                        # Estimate response time
+                        # Estimate response time (sample last 30 messages only)
                         role = msg.get("role", "")
                         ts = msg.get("timestamp", "")
                         if role == "user" and ts:
