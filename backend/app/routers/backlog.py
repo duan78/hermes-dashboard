@@ -360,10 +360,10 @@ def _get_tmux_scrollback(session_name: str, lines: int = 2000) -> str:
 def _is_claude_running(session_name: str) -> bool:
     """Check if Claude Code process is still running inside a tmux session.
 
-    This is the MOST RELIABLE way to detect if Claude is done:
-    - Get the shell PID from tmux
-    - Walk the process tree to find any 'claude' or 'node' child
-    - If none found, Claude has exited = task is done
+    Uses multiple detection strategies:
+    1. Recursively walk process tree via pgrep from tmux pane PID
+    2. Fallback: use ps to find claude-related processes in the session's cgroup
+    3. Check /proc cmdline for 'claude' in any descendant
     """
     try:
         # Get the PID of the first pane's shell
@@ -378,67 +378,99 @@ def _is_claude_running(session_name: str) -> bool:
         if not pane_pid.isdigit():
             return False
 
-        # Check if 'claude' or 'node' process exists as child of this shell
-        # Use pgrep with parent PID to find child processes
-        check = subprocess.run(
-            ["pgrep", "-P", pane_pid],
+        # Strategy 1: Use pstree to find claude/node in the full process tree
+        # pstree -p shows the entire tree with PIDs
+        pstree = subprocess.run(
+            ["pstree", "-p", pane_pid],
             capture_output=True, text=True, timeout=5
         )
-        if check.returncode != 0 or not check.stdout.strip():
-            # No child processes = Claude is not running = done
-            return False
-
-        child_pids = check.stdout.strip().split("\n")
-        for cpid in child_pids:
-            cpid = cpid.strip()
-            if not cpid.isdigit():
-                continue
-            # Check the command name of this child
-            try:
-                with open(f"/proc/{cpid}/comm") as f:
-                    comm = f.read().strip()
-                if comm in ("claude", "node", "python3", "python"):
-                    return True
-                # bash may be running claude via launcher script — check cmdline
-                if comm == "bash":
-                    try:
-                        cmdline = open(f"/proc/{cpid}/cmdline").read().replace("\0", " ")
-                        if "claude" in cmdline:
-                            return True
-                    except (FileNotFoundError, PermissionError):
-                        pass
-                # Also check children of children (claude spawns node)
-                sub_check = subprocess.run(
-                    ["pgrep", "-P", cpid],
+        if pstree.returncode == 0:
+            tree_output = pstree.stdout.lower()
+            if "claude" in tree_output:
+                return True
+            # Check for node processes that are part of Claude Code
+            # Claude Code runs as a Node.js application
+            if "node" in tree_output:
+                # Verify it's actually claude's node, not some other node process
+                # by checking the cmdline of any node children
+                pgrep_result = subprocess.run(
+                    ["pgrep", "-a", "-P", pane_pid],
                     capture_output=True, text=True, timeout=5
                 )
-                if sub_check.returncode == 0:
-                    for sub_pid in sub_check.stdout.strip().split("\n"):
-                        sub_pid = sub_pid.strip()
-                        if not sub_pid.isdigit():
-                            continue
-                        try:
-                            with open(f"/proc/{sub_pid}/comm") as f:
-                                sub_comm = f.read().strip()
-                            if sub_comm in ("claude", "node", "python3", "python"):
-                                return True
-                            # Check bash children for claude too
-                            if sub_comm == "bash":
-                                try:
-                                    cmdline = open(f"/proc/{sub_pid}/cmdline").read().replace("\0", " ")
-                                    if "claude" in cmdline:
-                                        return True
-                                except (FileNotFoundError, PermissionError):
-                                    pass
-                        except (FileNotFoundError, PermissionError):
-                            pass
-            except (FileNotFoundError, PermissionError):
-                pass
+                if pgrep_result.returncode == 0:
+                    for line in pgrep_result.stdout.strip().split("\n"):
+                        if "claude" in line.lower():
+                            return True
+                    # Recursively check deeper descendants
+                    if _has_claude_descendant(pane_pid, max_depth=5):
+                        return True
+
+        # Strategy 2: Use ps to find any claude process whose session matches
+        # This catches edge cases where pstree misses something
+        ps_check = subprocess.run(
+            ["ps", "-eo", "pid,ppid,comm,args"],
+            capture_output=True, text=True, timeout=5
+        )
+        if ps_check.returncode == 0:
+            # Build a set of all descendant PIDs from pane_pid
+            descendants = _get_descendant_pids(pane_pid, ps_check.stdout)
+            for pid in descendants:
+                try:
+                    cmdline = open(f"/proc/{pid}/cmdline").read().replace("\0", " ")
+                    if "claude" in cmdline.lower():
+                        return True
+                except (FileNotFoundError, PermissionError):
+                    pass
 
         return False
     except Exception as e:
         logger.warning("Error checking Claude process in %s: %s", session_name, e)
         return False  # Assume not running on error = conservative
+
+
+def _has_claude_descendant(ppid: str, max_depth: int = 5) -> bool:
+    """Recursively check if any descendant process is Claude Code."""
+    if max_depth <= 0:
+        return False
+    try:
+        result = subprocess.run(
+            ["pgrep", "-a", "-P", ppid],
+            capture_output=True, text=True, timeout=3
+        )
+        if result.returncode != 0:
+            return False
+        for line in result.stdout.strip().split("\n"):
+            if "claude" in line.lower():
+                return True
+            # Get the PID from the line and recurse
+            pid = line.strip().split()[0] if line.strip() else ""
+            if pid.isdigit() and _has_claude_descendant(pid, max_depth - 1):
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def _get_descendant_pids(root_pid: str, ps_output: str) -> set[str]:
+    """Parse ps output to find all descendant PIDs of a given root PID."""
+    # Parse ps -eo pid,ppid,comm,args output
+    pid_to_ppid = {}
+    for line in ps_output.strip().split("\n")[1:]:  # Skip header
+        parts = line.strip().split(None, 2)
+        if len(parts) >= 2:
+            pid, ppid = parts[0], parts[1]
+            if pid.isdigit() and ppid.isdigit():
+                pid_to_ppid[pid] = ppid
+    # BFS to find all descendants
+    descendants = set()
+    queue = [root_pid]
+    while queue:
+        current = queue.pop(0)
+        for pid, ppid in pid_to_ppid.items():
+            if ppid == current and pid not in descendants:
+                descendants.add(pid)
+                queue.append(pid)
+    return descendants
 
 
 def _detect_claude_done(session_name: str, output: str = "") -> bool:
