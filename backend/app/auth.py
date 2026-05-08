@@ -107,32 +107,47 @@ class AuthMiddleware:
 
         # WebSocket auth for sensitive endpoints
         if scope["type"] == "websocket":
-            # Terminal WebSocket REQUIRES token even when DASHBOARD_TOKEN is empty
-            # This forces explicit token setup before exposing a root shell
+            # Terminal WebSocket requires auth (JWT admin or legacy DASHBOARD_TOKEN)
             if path == "/ws/terminal":
                 token = _extract_ws_token(scope)
+                authenticated = False
 
-                if not _get_token():
-                    logger.error(
-                        "SECURITY: /ws/terminal connection rejected — "
-                        "HERMES_DASHBOARD_TOKEN not configured. "
-                        "A root shell endpoint CANNOT run without auth."
-                    )
-                    close = WebSocketClose(code=4008, reason="Server misconfigured: no auth token")
-                    await close(scope, receive, send)
-                    return
+                # 1. Try JWT user token first (admin/owner only)
+                if token:
+                    jwt_payload = _try_parse_jwt(token)
+                    if jwt_payload:
+                        user = _load_user_by_id(int(jwt_payload.get("sub", 0)))
+                        if user and user.get("role") in ("admin", "owner"):
+                            authenticated = True
+                            scope.setdefault("state", {})["user"] = {
+                                "id": user["id"],
+                                "username": user["username"],
+                                "role": user["role"],
+                            }
 
-                if not token or not hmac.compare_digest(token, _get_token()):
+                # 2. Fall back to legacy DASHBOARD_TOKEN
+                if not authenticated and _get_token():
+                    if token and hmac.compare_digest(token, _get_token()):
+                        authenticated = True
+
+                # 3. Reject if neither auth method works
+                if not authenticated:
                     client_ip = scope.get("client", ("unknown", 0))[0]
-                    logger.warning(
-                        "SECURITY: /ws/terminal rejected — invalid token from %s",
-                        client_ip,
-                    )
-                    close = WebSocketClose(code=4008, reason="Unauthorized")
+                    if not _get_token() and not token:
+                        logger.error(
+                            "SECURITY: /ws/terminal rejected — no auth configured. "
+                            "Set HERMES_DASHBOARD_TOKEN or use JWT login."
+                        )
+                        close = WebSocketClose(code=4008, reason="No auth configured")
+                    else:
+                        logger.warning(
+                            "SECURITY: /ws/terminal rejected — invalid token from %s",
+                            client_ip,
+                        )
+                        close = WebSocketClose(code=4008, reason="Unauthorized")
                     await close(scope, receive, send)
                     return
 
-                # Store validated token in scope for downstream re-auth
                 scope["hermes_ws_authenticated"] = True
                 await self.app(scope, receive, send)
                 return

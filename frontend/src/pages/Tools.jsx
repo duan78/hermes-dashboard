@@ -1026,7 +1026,7 @@ export default function Tools() {
                         <td>
                           <span className="badge badge-info" style={{ fontSize: 10 }}>{t.toolset}</span>
                         </td>
-                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{t.description}</td>
+                        <td title={t.description} style={{ fontSize: 12, color: 'var(--text-secondary)', maxWidth: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1133,7 +1133,7 @@ export default function Tools() {
                             <td style={{ fontSize: 12 }}>{proc.user}</td>
                             <td style={{ fontSize: 12 }}>{proc.cpu}%</td>
                             <td style={{ fontSize: 12 }}>{proc.mem}%</td>
-                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.command}</td>
+                            <td title={proc.command} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.command}</td>
                           </tr>
                         ))}
                       </tbody>

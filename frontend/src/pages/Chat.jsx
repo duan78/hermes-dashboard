@@ -34,7 +34,10 @@ function formatTime(ts) {
 }
 
 function getSessionPreview(session) {
-  if (session.preview) return session.preview.slice(0, 60)
+  if (session.preview) {
+    const s = session.preview.slice(0, 60)
+    return session.preview.length > 60 ? s + '...' : s
+  }
   if (session.created) {
     try {
       const d = new Date(session.created)
@@ -176,7 +179,7 @@ function ChatSidebar({ sessions, activeId, onSelect, onNew, onDelete, collapsed,
             className={`chat-sidebar-item ${s.id === activeId ? 'active' : ''}`}
             onClick={() => onSelect(s.id)}
           >
-            <div className="chat-sidebar-item-title">{getSessionPreview(s)}</div>
+            <div className="chat-sidebar-item-title" title={s.preview}>{getSessionPreview(s)}</div>
             <div className="chat-sidebar-item-meta">
               {s.model && <span>{s.model}</span>}
               <span>{s.messages_count || 0} msgs</span>

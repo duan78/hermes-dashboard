@@ -91,7 +91,7 @@ export default function TerminalPage() {
     }
 
     ws.onerror = () => {
-      setError('WebSocket error')
+      setError('WebSocket connection failed. Check that you are logged in with an admin account or that HERMES_DASHBOARD_TOKEN is configured on the server.')
     }
 
     ws.onclose = () => {
