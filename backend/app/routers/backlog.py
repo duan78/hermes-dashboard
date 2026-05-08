@@ -20,8 +20,6 @@ router = APIRouter(prefix="/api/backlog", tags=["backlog"])
 
 BACKLOG_FILE = Path("/root/.hermes/backlog.json")
 
-TMUX_SOCKET = "-L tmux-0"
-
 
 def _read_backlog():
     """Read the backlog file with file locking."""
@@ -329,7 +327,7 @@ def _is_duplicate(title: str, existing_items: list[dict], threshold: float = SIM
 def _tmux_session_exists(session_name: str) -> bool:
     """Check if a tmux session exists."""
     result = subprocess.run(
-        ["tmux", TMUX_SOCKET, "has-session", "-t", session_name],
+        ["tmux", "has-session", "-t", session_name],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
@@ -340,7 +338,7 @@ def _get_tmux_output(session_name: str, lines: int = 500) -> str:
     """Capture the current visible output of a tmux session."""
     # Use capture-pane to get the visible buffer
     result = subprocess.run(
-        ["tmux", TMUX_SOCKET, "capture-pane", "-t", session_name, "-p", "-S", f"-{lines}"],
+        ["tmux", "capture-pane", "-t", session_name, "-p", "-S", f"-{lines}"],
         capture_output=True, text=True
     )
     if result.returncode == 0:
@@ -351,7 +349,7 @@ def _get_tmux_output(session_name: str, lines: int = 500) -> str:
 def _get_tmux_scrollback(session_name: str, lines: int = 2000) -> str:
     """Capture the scrollback history of a tmux session."""
     result = subprocess.run(
-        ["tmux", TMUX_SOCKET, "capture-pane", "-t", session_name, "-p", "-S", f"-{lines}"],
+        ["tmux", "capture-pane", "-t", session_name, "-p", "-S", f"-{lines}"],
         capture_output=True, text=True
     )
     if result.returncode == 0:
@@ -370,7 +368,7 @@ def _is_claude_running(session_name: str) -> bool:
     try:
         # Get the PID of the first pane's shell
         result = subprocess.run(
-            ["tmux", TMUX_SOCKET, "list-panes", "-t", session_name, "-F", "#{pane_pid}"],
+            ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_pid}"],
             capture_output=True, text=True, timeout=5
         )
         if result.returncode != 0 or not result.stdout.strip():
@@ -1117,7 +1115,7 @@ async def run_backlog_item(item_id: str):
 
     # Check if tmux session already exists
     result = subprocess.run(
-        ["tmux", TMUX_SOCKET, "has-session", "-t", session_name],
+        ["tmux", "has-session", "-t", session_name],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
@@ -1126,10 +1124,10 @@ async def run_backlog_item(item_id: str):
         return {"ok": True, "session": session_name, "status": "in-progress", "prompt": task_prompt, "existing": True}
 
     # Create new tmux session
-    subprocess.run(["tmux", TMUX_SOCKET, "new-session", "-d", "-s", session_name])
+    subprocess.run(["tmux", "new-session", "-d", "-s", session_name])
 
     # Send Claude Code launch command (shlex.quote prevents shell injection via title/description)
-    subprocess.run(["tmux", TMUX_SOCKET, "send-keys", "-t", session_name, "/root/.local/bin/claude -p " + shlex.quote(task_prompt), "Enter"])
+    subprocess.run(["tmux", "send-keys", "-t", session_name, "/root/.local/bin/claude -p " + shlex.quote(task_prompt), "Enter"])
 
     # Wait for Claude Code to start
     time.sleep(2)
@@ -1148,7 +1146,7 @@ async def get_session_status(item_id: str):
     """Check if a Claude Code session is running for this backlog item."""
     session_name = "task-" + item_id
     result = subprocess.run(
-        ["tmux", TMUX_SOCKET, "has-session", "-t", session_name],
+        ["tmux", "has-session", "-t", session_name],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
@@ -1274,7 +1272,7 @@ async def force_complete_item(item_id: str, capture_lines: int = Query(200, ge=1
     # Optionally kill the tmux session
     if _tmux_session_exists(session_name):
         subprocess.run(
-            ["tmux", TMUX_SOCKET, "kill-session", "-t", session_name],
+            ["tmux", "kill-session", "-t", session_name],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
