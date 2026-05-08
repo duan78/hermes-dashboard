@@ -65,12 +65,13 @@ async def get_overview():
             "provider": model_cfg.get("provider", "unknown"),
         }
 
-    # Sessions count (file count only, no JSON parsing)
+    # Sessions count (file count only, no JSON parsing) — exclude cron sessions
     sessions_dir = hermes_path("sessions")
     if sessions_dir.exists():
         result["sessions"]["total"] = sum(
             1 for f in sessions_dir.iterdir()
             if f.name.startswith("session_") and f.name.endswith(".json")
+            and "session_cron_" not in f.name
         )
 
     # Skills count
