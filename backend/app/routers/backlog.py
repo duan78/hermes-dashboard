@@ -1126,11 +1126,25 @@ async def run_backlog_item(item_id: str):
     # Create new tmux session
     subprocess.run(["tmux", "new-session", "-d", "-s", session_name])
 
-    # Send Claude Code launch command (shlex.quote prevents shell injection via title/description)
-    subprocess.run(["tmux", "send-keys", "-t", session_name, "/root/.local/bin/claude -p " + shlex.quote(task_prompt), "Enter"])
+    # Write prompt to a temp file to avoid all quoting issues with tmux send-keys
+    prompt_file = f"/tmp/backlog-task-{item_id}.txt"
+    Path(prompt_file).write_text(task_prompt, encoding="utf-8")
+
+    # Write a small launcher script that reads the prompt file and runs Claude Code
+    # This avoids any quoting/escaping issues with tmux send-keys
+    launcher = f"/tmp/backlog-launch-{item_id}.sh"
+    Path(launcher).write_text(
+        f'#!/bin/bash\n'
+        f'/root/.local/bin/claude -p "$(cat {shlex.quote(prompt_file)})"\n',
+        encoding="utf-8",
+    )
+    os.chmod(launcher, 0o755)
+
+    # Send the short launcher command via tmux
+    subprocess.run(["tmux", "send-keys", "-t", session_name, f"bash {launcher}", "Enter"])
 
     # Wait for Claude Code to start
-    time.sleep(2)
+    time.sleep(5)
 
     # Update item status to in-progress
     items[target_index]["status"] = "in-progress"
