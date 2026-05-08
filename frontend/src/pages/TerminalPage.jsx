@@ -23,7 +23,7 @@ function buildWsUrl() {
     if (m) base = m[1]
   }
 
-  const token = localStorage.getItem('hermes_token') || ''
+  const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_token') || ''
   const sep = token ? '?' : ''
   return `${proto}//${host}${base}/ws/terminal${sep}${token ? 'token=' + encodeURIComponent(token) : ''}`
 }
@@ -51,7 +51,7 @@ export default function TerminalPage() {
 
     ws.onopen = () => {
       // Send auth message as first message (defense in depth)
-      const token = localStorage.getItem('hermes_token') || ''
+      const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_token') || ''
       ws.send(JSON.stringify({ type: 'auth', token }))
     }
 

@@ -440,7 +440,7 @@ function CrossValidationTab({ showToast }) {
     setBatchProgress({ reviewed: 0, errors: 0, total: 0, done: false })
 
     try {
-      const token = localStorage.getItem('hermes_token') || ''
+      const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_token') || ''
       const headers = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
 
@@ -498,7 +498,7 @@ function CrossValidationTab({ showToast }) {
     setBatchProgress({ reviewed: 0, errors: 0, total: 0, done: false })
 
     try {
-      const token = localStorage.getItem('hermes_token') || ''
+      const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_token') || ''
       const headers = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
 

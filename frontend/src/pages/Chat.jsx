@@ -376,7 +376,7 @@ export default function Chat() {
     abortRef.current = controller
 
     try {
-      const token = localStorage.getItem('hermes_token') || ''
+      const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_token') || ''
       const headers = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
 
