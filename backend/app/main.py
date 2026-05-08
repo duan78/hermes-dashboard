@@ -190,12 +190,8 @@ def _check_rate_limit(ip: str, path: str) -> tuple[bool, int, int]:
 # ── Body size + rate limiting + security headers + structured logging + audit middleware ──
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    # Skip WebSocket
-    if request.scope.get("type") == "websocket":
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        return response
+    # Note: @app.middleware("http") does NOT receive WebSocket connections
+    # in Starlette/FastAPI. WS handshakes are handled separately by the router.
 
     # Generate request_id for correlation
     request_id = str(uuid.uuid4())[:8]
@@ -448,8 +444,8 @@ async def terminal_ws(websocket):
     """WebSocket endpoint that spawns an interactive PTY shell.
 
     Security flow:
-    1. AuthMiddleware validates bearer token before connection is accepted
-    2. First message must be {"type": "auth", "token": "..."} (defense in depth)
+    1. AuthMiddleware validates JWT/legacy token before connection is accepted
+    2. First message must be {"type": "auth", "token": "***"} (defense in depth)
     3. All input is logged to /tmp/dashboard-terminal.log
     4. Connection closed after 30 min of inactivity
     """

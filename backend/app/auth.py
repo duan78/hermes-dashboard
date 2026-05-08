@@ -138,14 +138,17 @@ class AuthMiddleware:
                             "SECURITY: /ws/terminal rejected — no auth configured. "
                             "Set HERMES_DASHBOARD_TOKEN or use JWT login."
                         )
-                        close = WebSocketClose(code=4008, reason="No auth configured")
                     else:
                         logger.warning(
                             "SECURITY: /ws/terminal rejected — invalid token from %s",
                             client_ip,
                         )
-                        close = WebSocketClose(code=4008, reason="Unauthorized")
-                    await close(scope, receive, send)
+                    # Reject WS before handshake is accepted — send HTTP response
+                    response = JSONResponse(
+                        status_code=403,
+                        content={"detail": "Unauthorized: valid JWT admin token or DASHBOARD_TOKEN required"},
+                    )
+                    await response(scope, receive, send)
                     return
 
                 scope["hermes_ws_authenticated"] = True
