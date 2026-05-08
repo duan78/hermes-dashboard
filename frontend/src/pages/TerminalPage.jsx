@@ -14,18 +14,9 @@ function buildWsUrl() {
   const proto = WS_PROTOCOL
   const host = window.location.host
 
-  let base = ''
-  const baseEl = document.querySelector('base')
-  if (baseEl && baseEl.getAttribute('href')) {
-    base = baseEl.getAttribute('href').replace(/\/$/, '')
-  } else {
-    const m = window.location.pathname.match(/^(\/[^/]+)\//)
-    if (m) base = m[1]
-  }
-
   const token = localStorage.getItem('hermes_user_token') || localStorage.getItem('hermes_token') || ''
   const sep = token ? '?' : ''
-  return `${proto}//${host}${base}/ws/terminal${sep}${token ? 'token=' + encodeURIComponent(token) : ''}`
+  return `${proto}//${host}/ws/terminal${sep}${token ? 'token=' + encodeURIComponent(token) : ''}`
 }
 
 export default function TerminalPage() {
