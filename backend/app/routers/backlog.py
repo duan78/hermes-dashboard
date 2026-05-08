@@ -1240,7 +1240,7 @@ async def check_backlog_completion(item_id: str):
 
     # Session exists — check if Claude has finished
     output = _get_tmux_output(session_name)
-    claude_done = _detect_claude_done(output)
+    claude_done = _detect_claude_done(session_name, output)
 
     if claude_done and current_status == "in-progress":
         # Capture the last portion of output as the result
