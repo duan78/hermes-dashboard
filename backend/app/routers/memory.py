@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import UTC, datetime
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -204,7 +205,7 @@ async def list_memory_files():
             files.append({
                 "name": f.name,
                 "size": f.stat().st_size,
-                "modified": f.stat().st_mtime,
+                "modified": datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat(),
             })
     return {"files": files}
 
@@ -251,7 +252,7 @@ async def list_all_files():
                         "name": f.name,
                         "path": f.name,
                         "size": st.st_size,
-                        "modified": st.st_mtime,
+                        "modified": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
                         "is_root": True,
                     })
 
@@ -271,7 +272,7 @@ async def list_all_files():
                         "name": f.name,
                         "path": str(rel),
                         "size": st.st_size,
-                        "modified": st.st_mtime,
+                        "modified": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
                         "is_root": False,
                     })
 
@@ -291,7 +292,7 @@ async def read_file(path: str):
         "path": path,
         "content": resolved.read_text(errors="replace"),
         "size": st.st_size,
-        "modified": st.st_mtime,
+        "modified": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
     }
 
 
@@ -333,7 +334,7 @@ async def create_file(body: MemoryFileCreateRequest):
         "name": name,
         "path": f"memories/{name}",
         "size": 0,
-        "modified": st.st_mtime,
+        "modified": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
     }
 
 
@@ -397,11 +398,21 @@ async def vector_stats():
             "total_memories": total,
             "db_size_mb": round(db_size_mb, 2),
             "sources": sources,
-            "oldest": oldest,
-            "newest": newest,
+            "oldest": _ts_to_iso(oldest),
+            "newest": _ts_to_iso(newest),
         }
     except Exception as e:
         raise HTTPException(500, f"Stats error: {e}")
+
+
+def _ts_to_iso(val):
+    """Convert epoch seconds (float/int) to ISO 8601 string."""
+    if not val:
+        return ""
+    try:
+        return datetime.fromtimestamp(float(val), tz=UTC).isoformat()
+    except (TypeError, ValueError, OSError):
+        return ""
 
 
 @router.get("/vector/list")
@@ -425,7 +436,7 @@ async def vector_list(limit: int = 50, source: str = "all"):
                 "text": item.get("text", ""),
                 "score": item.get("score"),
                 "source": item.get("source", ""),
-                "created_at": item.get("created_at", ""),
+                "created_at": _ts_to_iso(item.get("created_at")),
                 "importance": item.get("importance"),
                 "category": item.get("category", ""),
                 "tier": item.get("tier", ""),
@@ -458,7 +469,7 @@ async def vector_search(q: str = "", top_k: int = 10):
                 "text": item.get("text", ""),
                 "score": item.get("score"),
                 "source": item.get("source", ""),
-                "created_at": item.get("created_at", ""),
+                "created_at": _ts_to_iso(item.get("created_at")),
                 "importance": item.get("importance"),
                 "category": item.get("category", ""),
                 "tier": item.get("tier", ""),
