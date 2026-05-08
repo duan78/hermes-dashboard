@@ -2,6 +2,7 @@ import json
 import logging
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from ..schemas.sessions import (
     SessionDetail,
@@ -108,15 +109,18 @@ async def search_sessions(q: str = Query(min_length=1, max_length=200)):
     return results
 
 
-@router.get("", response_model=list[SessionSummary])
+@router.get("")
 async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: int = Query(default=0, ge=0), show_cron: bool = Query(default=False)):
-    """List unique sessions with metadata, paginated and deduplicated by session_id."""
+    """List unique sessions with metadata, paginated and deduplicated by session_id.
+    Returns JSONResponse with X-Total-Count header for accurate totals."""
     sessions_dir = hermes_path("sessions")
     if not sessions_dir.exists():
-        return []
+        return JSONResponse(content=[], headers={"X-Total-Count": "0"})
 
     seen_ids = set()
     sessions = []
+    total_unique = 0
+    total_messages = 0
 
     # Filter cron sessions at the filename level to avoid reading thousands of files
     if show_cron:
@@ -136,10 +140,11 @@ async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: i
             if sid in seen_ids:
                 continue
             seen_ids.add(sid)
+            total_unique += 1
 
             # Early exit if we have enough sessions past the offset
             if len(sessions) >= offset + limit:
-                break
+                continue
 
             created_at = data.get("created_at", "")
             preview = data.get("preview", "")
@@ -166,6 +171,8 @@ async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: i
                 except Exception as e:
                     logger.debug("Skipping JSONL read for session %s: %s", sid, e)
 
+            total_messages += msg_count
+
             if not preview and created_at:
                 preview = created_at
 
@@ -182,7 +189,8 @@ async def list_sessions(limit: int = Query(default=100, ge=1, le=500), offset: i
             logger.debug("Skipping session file %s: %s", f.name, e)
             continue
     # Apply pagination
-    return sessions[offset:offset + limit]
+    page = sessions[offset:offset + limit]
+    return JSONResponse(content=page, headers={"X-Total-Count": str(total_unique), "X-Total-Messages": str(total_messages)})
 
 
 @router.get("/stats", response_model=SessionStats)

@@ -205,7 +205,10 @@ function HighlightText({ text, query }) {
 export default function Sessions() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { data: sessions = [], isLoading, error: sessionsError, refetch } = useSessions()
+  const { data: sessionsData, isLoading, error: sessionsError, refetch } = useSessions()
+  const sessions = sessionsData?.items || []
+  const sessionsTotalCount = sessionsData?.total_count || 0
+  const sessionsTotalMessages = sessionsData?.total_messages || 0
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const { data: searchResults, isLoading: searching } = useSearchSessions(debouncedQuery)
@@ -304,7 +307,7 @@ export default function Sessions() {
   }
 
   // Compute stats
-  const totalSessions = sessions.length
+  const totalSessions = sessionsTotalCount
   const platformCounts = sessions.reduce((acc, s) => {
     const p = s.platform || 'unknown'
     acc[p] = (acc[p] || 0) + 1
@@ -399,7 +402,7 @@ export default function Sessions() {
             Total Messages
             <Tooltip text="Total messages across all sessions." />
           </div>
-          <div className="stat-value">{sessions.reduce((sum, s) => sum + (s.messages_count || 0), 0)}</div>
+          <div className="stat-value">{sessionsTotalMessages || sessions.reduce((sum, s) => sum + (s.messages_count || 0), 0)}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">

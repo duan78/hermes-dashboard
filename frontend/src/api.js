@@ -54,7 +54,13 @@ export const api = {
   updateConfigValue: (key, value) => request('/config/update', { method: 'POST', body: JSON.stringify({ key, value }) }),
 
   // Sessions
-  listSessions: () => request('/sessions'),
+  listSessions: async () => {
+    const resp = await fetch('/api/sessions')
+    const data = await resp.json()
+    const totalCount = parseInt(resp.headers.get('X-Total-Count') || String(data.length), 10)
+    const totalMessages = parseInt(resp.headers.get('X-Total-Messages') || '0', 10)
+    return { items: data, total_count: totalCount, total_messages: totalMessages }
+  },
   searchSessions: (q) => request(`/sessions/search?q=${encodeURIComponent(q)}`),
   getSession: (id) => request(`/sessions/${id}`),
   deleteSession: (id) => request(`/sessions/${id}`, { method: 'DELETE' }),
