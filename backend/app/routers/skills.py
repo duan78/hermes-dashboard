@@ -210,6 +210,28 @@ async def skill_detail(skill_name: str):
     return detail
 
 
+
+def _extract_description_from_md(content: str) -> str:
+    """Extract a meaningful description from SKILL.md content.
+    Skips frontmatter (--- delimited sections) and heading lines."""
+    lines = content.split("\n")
+    in_frontmatter = False
+    for line in lines:
+        stripped = line.strip()
+        # Skip frontmatter delimiters
+        if stripped == "---":
+            in_frontmatter = not in_frontmatter
+            continue
+        if in_frontmatter:
+            continue
+        # Skip empty lines and headings
+        if not stripped or stripped.startswith("#"):
+            continue
+        # Found first real content line
+        return stripped[:150]
+    return ""
+
+
 @router.get("")
 async def list_skills():
     """List installed skills."""
@@ -248,8 +270,8 @@ async def list_skills():
             except json.JSONDecodeError:
                 pass
         if not skill["description"]:
-            first_lines = skill_md_path.read_text(errors="replace")[:200]
-            skill["description"] = first_lines.split("\n")[0].strip("# ")
+            content_text = skill_md_path.read_text(errors="replace")
+            skill["description"] = _extract_description_from_md(content_text)
         if not skill["category"] and skill_dir.parent != skills_dir:
             skill["category"] = skill_dir.parent.name
         skills.append(skill)
