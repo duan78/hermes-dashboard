@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "web-search-api": {
+      "baseUrl": "http://100.127.182.61:9092/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer 6c998e1e54a69a79dc094d054de3c0dc891b3015749e1b2d6e97ef00c606a292"
+      }
+    }
+  },
+  "imports": []
+}
