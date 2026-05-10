@@ -578,23 +578,40 @@ class AutofeedService:
                 # Find matching backlog item
                 for item in items:
                     if item.get("id") == item_id and item.get("status") == "in-progress":
-                        # Check if Claude is still running
+                        # Check if Claude is still running using pstree for deep detection
+                        # (single-level pgrep -P misses shell→node→claude chain)
                         try:
-                            check = subprocess.run(
-                                ["pgrep", "-P", subprocess.run(
-                                    ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_pid}"],
-                                    capture_output=True, text=True, timeout=3,
-                                ).stdout.strip()],
+                            pane_result = subprocess.run(
+                                ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_pid}"],
                                 capture_output=True, text=True, timeout=3,
                             )
-                            if check.returncode != 0:
-                                # No child process — Claude likely done
-                                self._log_activity(
-                                    "claude-code.task_completed", "backlog",
-                                    item_id, item.get("title", ""),
-                                    {"session": session_name, "status": "auto-detected-done"},
+                            if pane_result.returncode == 0 and pane_result.stdout.strip():
+                                pane_pid = pane_result.stdout.strip().split("\n")[0].strip()
+                                # Use pstree for reliable deep process tree check
+                                pstree = subprocess.run(
+                                    ["pstree", "-p", pane_pid],
+                                    capture_output=True, text=True, timeout=5,
                                 )
-                                entries_added += 1
+                                has_claude = False
+                                if pstree.returncode == 0:
+                                    has_claude = "claude" in pstree.stdout.lower() or "node" in pstree.stdout.lower()
+                                if not has_claude:
+                                    # Also check output for active work before declaring done
+                                    output = subprocess.run(
+                                        ["tmux", "capture-pane", "-t", session_name, "-p", "-S", "-50"],
+                                        capture_output=True, text=True, timeout=3,
+                                    )
+                                    tail = output.stdout[-200:] if output.returncode == 0 else ""
+                                    _ACTIVE = ["Thinking", "Building", "Writing", "Scanning",
+                                               "Searching", "Fetching", "Reading", "Running",
+                                               "esc to interrupt", "Analyzing"]
+                                    if not any(p in tail for p in _ACTIVE):
+                                        self._log_activity(
+                                            "claude-code.task_completed", "backlog",
+                                            item_id, item.get("title", ""),
+                                            {"session": session_name, "status": "auto-detected-done"},
+                                        )
+                                        entries_added += 1
                         except Exception:
                             continue
 

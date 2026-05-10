@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import re
-import shlex
 from datetime import datetime
 from pathlib import Path
 
@@ -69,6 +68,27 @@ async def _run(cmd: list, timeout: int = 10) -> str:
         return ""
 
 
+# Broad set of activity indicators — expanded to cover API calls, I/O,
+# web scraping, long-running operations, subagent activity, etc.
+_WORKING_KEYWORDS = [
+    # Thinking / processing
+    "Thinking", "Catapulting", "Processing", "Analyzing", "Computing",
+    # File / code operations
+    "Building", "Writing", "Creating", "Improving", "Reading", "Scanning",
+    "Editing", "Modifying", "Updating", "Replacing", "Fixing", "Refactoring",
+    # Search / exploration
+    "Searching", "Finding", "Exploring", "Gathering", "Collecting",
+    # I/O / network
+    "Fetching", "Downloading", "Uploading", "Loading", "Requesting",
+    "Running", "Executing", "Compiling", "Installing",
+    # Subagent / delegation
+    "Delegating", "Subagent", "Launching", "Invoking",
+]
+
+# Claude Code braille spinner characters
+_SPINNER_CHARS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+
 def _detect_status(output: str) -> str:
     """Detect Claude Code session status from tmux output."""
     lines = output.strip().split("\n")
@@ -77,16 +97,20 @@ def _detect_status(output: str) -> str:
     if "Do you want to make this edit?" in last_lines or "? for shortcuts" in last_lines:
         # Check if there's an active task indicator
         if any(p in last_lines for p in ["·", "❯", "⎿"]):
-            # Check if working or idle
-            if any(w in last_lines for w in ["Thinking", "Catapulting", "Building", "Writing", "Creating", "Improving", "Reading", "Scanning"]):
+            if any(w in last_lines for w in _WORKING_KEYWORDS):
                 return "working"
             if "❯\n" in last_lines or last_lines.endswith("❯"):
                 return "idle"
         return "idle"
 
-    if any(w in last_lines for w in ["Thinking", "Catapulting", "Building", "Writing", "Creating", "Improving"]):
+    if any(w in last_lines for w in _WORKING_KEYWORDS):
         return "working"
 
+    # Active spinner / progress characters indicate work in progress
+    if any(p in last_lines for p in _SPINNER_CHARS):
+        return "working"
+
+    # "esc to interrupt" means Claude is actively doing something
     if "esc to interrupt" in last_lines:
         return "working"
 
@@ -104,7 +128,7 @@ async def active_sessions():
     """List active Claude Code tmux sessions."""
     result = await _run(["tmux", "list-sessions", "-F", "#{session_name}"])
     sessions = []
-    active_tmux = [s for s in result.split("\n") if s.startswith("claude-")]
+    active_tmux = [s for s in result.split("\n") if s and not s.startswith("hermes")]
 
     for name in active_tmux:
         # Get output
@@ -243,10 +267,10 @@ async def new_session(body: ClaudeCodeNewRequest):
     if workdir:
         workdir = _validate_workdir(workdir)
 
-    await _run(["tmux", "new-session", "-d", "-s", name])
+    cmd = ["tmux", "new-session", "-d", "-s", name]
     if workdir:
-        await _run(["tmux", "send-keys", "-t", name, "-l", "--", f"cd {shlex.quote(workdir)}"])
-        await _run(["tmux", "send-keys", "-t", name, "Enter"])
+        cmd.extend(["-c", workdir])
+    await _run(cmd)
     await _run(["tmux", "send-keys", "-t", name, "-l", "--", "/root/.local/bin/claude"])
     await _run(["tmux", "send-keys", "-t", name, "Enter"])
     logger.info("Created new Claude Code session: %s (workdir=%s)", name, workdir)
@@ -321,7 +345,7 @@ async def claude_stats():
     """Get Claude Code statistics."""
     # Active sessions
     result = await _run(["tmux", "list-sessions", "-F", "#{session_name}"])
-    active = len([s for s in result.split("\n") if s.startswith("claude-")])
+    active = len([s for s in result.split("\n") if s and not s.startswith("hermes")])
 
     # Past sessions
     total_past = 0

@@ -473,61 +473,123 @@ def _get_descendant_pids(root_pid: str, ps_output: str) -> set[str]:
     return descendants
 
 
+
+# ── Stagnation tracking state ──
+# Maps session_name -> {"output_hash": str, "timestamp": float}
+# Used to require output to be unchanged across consecutive checks before
+# declaring a session done. Prevents false kills during active I/O.
+_stagnation_state: dict[str, dict] = {}
+STAGNATION_CONFIRM_SECONDS = 120  # Require 2 min of unchanged output
+
+
+def _get_output_fingerprint(output: str) -> str:
+    """Get a lightweight fingerprint of tmux output for change detection.
+
+    Uses the last 500 chars (most recent activity) plus total length.
+    This avoids re-hashing the entire scrollback on every check.
+    """
+    import hashlib
+    tail = output[-500:] if len(output) > 500 else output
+    # Also include total length to detect appending
+    payload = f"{len(output)}:{tail}"
+    return hashlib.md5(payload.encode()).hexdigest()
+
 def _detect_claude_done(session_name: str, output: str = "") -> bool:
     """Detect if Claude Code has finished its task.
 
     Uses a multi-signal approach for reliability:
-    1. Process check: if 'claude'/'node' is NOT running in the pane = done
-    2. Output markers: look for completion signals in scrollback
+    1. Working keyword check: if output shows active work, never declare done
+    2. Process check: if 'claude' is NOT running in the pane = candidate done
+    3. Stagnation confirmation: require output to be unchanged for STAGNATION_CONFIRM_SECONDS
+    4. Output markers: look for completion signals in scrollback
 
-    This avoids false positives from prompt echo and false negatives
-    when the ✻ marker scrolled out of the visible buffer.
+    The stagnation confirmation (step 3) is the key defense against false kills:
+    a session doing I/O (API calls, web scraping, file ops) will have changing
+    output, so its fingerprint changes between checks, preventing a false "done".
     """
-    # Signal 1: Process-based detection (most reliable)
-    if not _is_claude_running(session_name):
+    now = time.time()
+
+    # ── Pre-check: Working keyword detection ──
+    # If the last lines show active work indicators, the session is NOT done
+    # regardless of what the process tree looks like.
+    last_lines = output[-300:] if len(output) > 300 else output
+    _ACTIVE_PATTERNS = [
+        "Thinking", "Catapulting", "Processing", "Analyzing", "Computing",
+        "Building", "Writing", "Creating", "Improving", "Reading", "Scanning",
+        "Editing", "Modifying", "Updating", "Replacing", "Fixing", "Refactoring",
+        "Searching", "Finding", "Exploring", "Gathering", "Collecting",
+        "Fetching", "Downloading", "Uploading", "Loading", "Requesting",
+        "Running", "Executing", "Compiling", "Installing",
+        "Delegating", "Subagent", "Launching", "Invoking",
+        "esc to interrupt",
+    ]
+    if any(p in last_lines for p in _ACTIVE_PATTERNS):
+        # Output shows active work — reset stagnation tracking
+        _stagnation_state.pop(session_name, None)
+        return False
+
+    # ── Signal 1: Process-based detection (most reliable) ──
+    claude_running = _is_claude_running(session_name)
+
+    if claude_running:
+        # Claude is alive — but check if output is stagnant
+        fp = _get_output_fingerprint(output)
+        prev = _stagnation_state.get(session_name)
+
+        if prev and prev["output_hash"] == fp:
+            # Output hasn't changed since last check
+            elapsed = now - prev["timestamp"]
+            if elapsed < STAGNATION_CONFIRM_SECONDS:
+                # Not stagnant long enough — keep waiting
+                return False
+            # else: stagnant for long enough, fall through to completion checks
+        else:
+            # Output changed (or first check) — update tracking and keep alive
+            _stagnation_state[session_name] = {"output_hash": fp, "timestamp": now}
+            return False
+
+    # ── Signal 2: Process exited → check for real work done ──
+    if not claude_running:
         # Claude process exited — but verify it actually ran (not just launched)
-        # by checking for any output beyond the initial prompt
         if output:
-            # Check there's actual content (more than just the echoed prompt)
             lines = output.strip().split("\n")
             non_prompt_lines = [l for l in lines if not l.strip().startswith(">") and l.strip()]
             if len(non_prompt_lines) > 3:
+                _stagnation_state.pop(session_name, None)
                 return True
 
-    # Signal 1b: Direct pgrep for claude processes in the tmux session
+    # ── Signal 3: Deep recursive process tree check ──
+    # Use _has_claude_descendant instead of single-level pgrep
     try:
-        pgrep_result = subprocess.run(
+        pane_result = subprocess.run(
             ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_pid}"],
             capture_output=True, text=True, timeout=5
         )
-        if pgrep_result.returncode == 0 and pgrep_result.stdout.strip():
-            pane_pid = pgrep_result.stdout.strip().split("\n")[0].strip()
-            # Use pgrep to find any claude process in the session's process tree
-            tree_check = subprocess.run(
-                ["pgrep", "-a", "-P", pane_pid],
-                capture_output=True, text=True, timeout=5
-            )
-            if tree_check.returncode == 0:
-                for line in tree_check.stdout.strip().split("\n"):
-                    if "claude" in line.lower():
-                        return False  # Claude is still running
+        if pane_result.returncode == 0 and pane_result.stdout.strip():
+            pane_pid = pane_result.stdout.strip().split("\n")[0].strip()
+            if _has_claude_descendant(pane_pid, max_depth=6):
+                # Claude process tree is alive — not done
+                _stagnation_state.pop(session_name, None)
+                return False
     except Exception:
         pass
 
-    # Signal 2: Output-based detection (fallback)
+    # ── Signal 4: Output-based completion markers ──
     if not output:
         return False
 
-    # Look for completion marker or "Brewed for" in the output
     has_completion = "✻" in output or "Brewed for" in output
     if has_completion:
         lines = output.strip().split("\n")
         for line in lines[-10:]:
             stripped = line.strip()
             if re.search(r'[❯>]\s*$', stripped):
+                _stagnation_state.pop(session_name, None)
                 return True
             if re.search(r'\?\s*for\s+shortcuts', stripped):
+                _stagnation_state.pop(session_name, None)
                 return True
+
     return False
 
 

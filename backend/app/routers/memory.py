@@ -2,6 +2,8 @@ import asyncio
 import logging
 import os
 import sys
+import threading
+import time as _time
 from datetime import UTC, datetime
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -27,8 +29,33 @@ router = APIRouter(prefix="/api/memory", tags=["memory"])
 _claw_store = None
 _claw_embedder = None
 _claw_error = None
+_claw_error_ts: float = 0.0  # timestamp of last error (for retry cooldown)
+_claw_lock = threading.Lock()
+
+_ERROR_RETRY_COOLDOWN = 60.0  # seconds before retrying after a transient error
 
 _MEMORY_CLAW_DB_PATH = str(HERMES_HOME / "memory.lance")
+
+_VECTOR_DIM = 1024
+
+
+def _get_table_names(db) -> list[str]:
+    """Get table names from LanceDB, handling both old and new API versions.
+
+    LanceDB >= 0.15: list_tables() returns ListTablesResponse (has .tables
+    attribute but is NOT iterable like a list). Using ``in`` on it directly
+    would silently fail to find the table, causing open_table() to raise
+    a ValueError that then gets cached as a permanent _claw_error.
+    """
+    if hasattr(db, "list_tables"):
+        try:
+            resp = db.list_tables()
+            if hasattr(resp, "tables"):
+                return list(resp.tables)
+            return list(resp)
+        except Exception:
+            pass
+    return list(db.table_names())
 
 
 class _LanceDBStore:
@@ -37,10 +64,25 @@ class _LanceDBStore:
     def __init__(self, db_path: str):
         import lancedb
         self._db = lancedb.connect(db_path)
-        tables = list(self._db.table_names())
+        tables = _get_table_names(self._db)
         if "memories" not in tables:
-            raise RuntimeError(f"No 'memories' table in {db_path} (tables: {tables})")
+            logger.info("LanceDB: 'memories' table not found, creating it in %s", db_path)
+            self._create_memories_table()
         self._table = self._db.open_table("memories")
+
+    def _create_memories_table(self):
+        """Create the memories table with the expected schema."""
+        import pyarrow as pa
+        schema = pa.schema([
+            pa.field("id", pa.string()),
+            pa.field("text", pa.string()),
+            pa.field("vector", pa.list_(pa.float32(), _VECTOR_DIM)),
+            pa.field("source", pa.string()),
+            pa.field("session_id", pa.string()),
+            pa.field("created_at", pa.float64()),
+            pa.field("metadata", pa.string()),
+        ])
+        self._db.create_table("memories", schema=schema)
 
     def get_stats(self) -> dict:
         return {"total": self._table.count_rows()}
@@ -80,44 +122,63 @@ class _LanceDBStore:
 
 
 def _get_claw():
-    """Lazy-load LanceDB store + optional embedder."""
-    global _claw_store, _claw_embedder, _claw_error
+    """Lazy-load LanceDB store + optional embedder.
+
+    Uses a lock for thread safety and a cooldown on errors so that
+    transient failures don't permanently disable vector memory.
+    """
+    global _claw_store, _claw_embedder, _claw_error, _claw_error_ts
+
+    # Fast path: already loaded
     if _claw_store is not None:
         return _claw_store, _claw_embedder
+
+    # Check error cooldown — retry after _ERROR_RETRY_COOLDOWN seconds
     if _claw_error is not None:
-        return None, None
-    try:
-        _claw_store = _LanceDBStore(_MEMORY_CLAW_DB_PATH)
-        logger.info("LanceDB: loaded store from %s", _MEMORY_CLAW_DB_PATH)
+        if (_time.monotonic() - _claw_error_ts) < _ERROR_RETRY_COOLDOWN:
+            return None, None
+        logger.info("LanceDB: retrying after error cooldown (%.0fs)", _ERROR_RETRY_COOLDOWN)
 
-        # Embedder is optional — needed for semantic search/store only
+    with _claw_lock:
+        # Double-check after acquiring lock
+        if _claw_store is not None:
+            return _claw_store, _claw_embedder
+
         try:
-            _HERMES_AGENT_PATH = "/root/.hermes/hermes-agent"
-            if _HERMES_AGENT_PATH not in sys.path:
-                sys.path.insert(0, _HERMES_AGENT_PATH)
+            _claw_store = _LanceDBStore(_MEMORY_CLAW_DB_PATH)
+            _claw_error = None
+            _claw_error_ts = 0.0
+            logger.info("LanceDB: loaded store from %s", _MEMORY_CLAW_DB_PATH)
 
-            api_key = os.environ.get("MISTRAL_API_KEY", "")
-            if not api_key:
-                env_path = HERMES_HOME / ".env"
-                if env_path.exists():
-                    for line in env_path.read_text().splitlines():
-                        line = line.strip()
-                        if line.startswith("MISTRAL_API_KEY="):
-                            api_key = line.split("=", 1)[1].strip().strip("\"'")
-                            os.environ["MISTRAL_API_KEY"] = api_key
-                            break
+            # Embedder is optional — needed for semantic search/store only
+            try:
+                _HERMES_AGENT_PATH = "/root/.hermes/hermes-agent"
+                if _HERMES_AGENT_PATH not in sys.path:
+                    sys.path.insert(0, _HERMES_AGENT_PATH)
 
-            from plugins.memory.memory_claw.embedder import MistralEmbedder
-            _claw_embedder = MistralEmbedder(api_key=api_key)
+                api_key = os.environ.get("MISTRAL_API_KEY", "")
+                if not api_key:
+                    env_path = HERMES_HOME / ".env"
+                    if env_path.exists():
+                        for line in env_path.read_text().splitlines():
+                            line = line.strip()
+                            if line.startswith("MISTRAL_API_KEY="):
+                                api_key = line.split("=", 1)[1].strip().strip("\"'")
+                                os.environ["MISTRAL_API_KEY"] = api_key
+                                break
+
+                from plugins.memory.memory_claw.embedder import MistralEmbedder
+                _claw_embedder = MistralEmbedder(api_key=api_key)
+            except Exception as e:
+                logger.debug("Embedder not available (search/store will be limited): %s", e)
+                _claw_embedder = None
+
+            return _claw_store, _claw_embedder
         except Exception as e:
-            logger.debug("Embedder not available (search/store will be limited): %s", e)
-            _claw_embedder = None
-
-        return _claw_store, _claw_embedder
-    except Exception as e:
-        _claw_error = str(e)
-        logger.warning("LanceDB: failed to load: %s", e)
-        return None, None
+            _claw_error = str(e)
+            _claw_error_ts = _time.monotonic()
+            logger.warning("LanceDB: failed to load: %s", e)
+            return None, None
 
 _executor = ThreadPoolExecutor(max_workers=4)
 

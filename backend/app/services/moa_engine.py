@@ -10,6 +10,7 @@ Provider fallback order: Ollama Cloud → DeepSeek → Mistral
 import asyncio
 import logging
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -17,6 +18,15 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Control chars that are illegal in JSON strings (RFC 7159 §7).
+# Matches U+0000–U+001F except TAB (0x09), LF (0x0A), CR (0x0D).
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _sanitize_control_chars(text: str) -> str:
+    """Remove control chars that would break JSON serialization."""
+    return _CONTROL_CHAR_RE.sub("", text)
 
 # Provider registry — tried in order for fallback
 BUILTIN_PROVIDERS = {
@@ -137,7 +147,7 @@ async def _chat_completion(
             content = msg.get("content", "")
         if not content:
             return "Empty response from model", False
-        return content, True
+        return _sanitize_control_chars(content), True
     except Exception as e:
         logger.warning("MOA call %s/%s error: %s", base_url, model, e)
         return str(e), False
